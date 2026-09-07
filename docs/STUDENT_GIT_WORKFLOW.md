@@ -2,29 +2,40 @@
 
 ## Modelo de ramas
 
+Trabajas sobre tu propio fork de https://github.com/bazzvkngo/mvp-base, no
+sobre el repositorio original. No tienes acceso de colaborador sobre
+`bazzvkngo/mvp-base` — es intencional, no un error de configuración.
+
+En tu fork:
+
 ```text
-student-baseline-20260901
-  ├─ feature/taller-automotriz
-  ├─ feature/modulo-estudiante-2
-  └─ feature/modulo-estudiante-3
+tu-usuario/mvp-base
+  └─ feature/nombre-de-tu-modulo
 ```
 
-`student-baseline-20260901` es una base congelada para crear ramas, no una rama
-de trabajo. `mvp-base-profesor` tampoco debe recibir cambios estudiantiles.
+`student-baseline-20260901` es una base congelada para crear ramas, no una
+rama de trabajo. `mvp-base-profesor` tampoco debe recibir cambios
+estudiantiles.
 
 ## Crear tu rama
 
-Parte de una copia limpia de la baseline:
-
-```bash
-git status --short
-git switch student-baseline-20260901
-git switch -c feature/nombre-del-modulo
-```
-
-Si `git status --short` muestra cambios que no son tuyos, no los descartes ni
-los mezcles: detente y pide revisión. Usa un nombre de rama breve y específico;
-un alumno o equipo mantiene una sola responsabilidad por rama.
+1. Haz fork de https://github.com/bazzvkngo/mvp-base a tu propia cuenta de
+   GitHub (botón "Fork").
+2. Clona TU fork, no el repositorio original:
+   ```bash
+   git clone https://github.com/TU-USUARIO/mvp-base.git
+   cd mvp-base
+   ```
+3. Agrega el repositorio original como remoto adicional, para traer
+   actualizaciones de la baseline más adelante:
+   ```bash
+   git remote add upstream https://github.com/bazzvkngo/mvp-base.git
+   ```
+4. Parte de una copia limpia de la baseline:
+   ```bash
+   git status --short
+   git switch -c feature/nombre-del-modulo upstream/student-baseline-20260901
+   ```
 
 ## Trabajo diario
 
@@ -83,17 +94,12 @@ sólo archivos del alcance acordado.
 
 ## Entrega mediante branch o PR
 
-Sube únicamente tu feature branch al remoto autorizado y abre un PR contra la
-rama que indique el mantenedor. No completes el merge.
+Sube tu feature branch a TU fork (`origin`, no `upstream`):
 
-La descripción debe incluir:
+```bash
+git push origin feature/nombre-del-modulo
+```
 
-- objetivo y límites del módulo;
-- archivos, colecciones y campos añadidos;
-- permisos y controles multiempresa;
-- idempotencia y efectos autoritativos;
-- pruebas ejecutadas y resultados;
-- limitaciones, deuda y decisiones que requieren revisión.
-
-El mantenedor revisa seguridad, compatibilidad y alcance, solicita ajustes y
-decide si, cuándo y cómo integrar el módulo a una rama común.
+Luego abre un Pull Request desde tu fork hacia la rama que indique el
+mantenedor (`student-baseline-20260901`, salvo que se indique otra). No
+completes el merge — eso lo decide el mantenedor.
