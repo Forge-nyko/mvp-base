@@ -740,6 +740,25 @@ async function main() {
   assert.doesNotMatch(managerSource, /initializeInventoryCatalog\s*\(/);
   assert.match(managerSource, /ResponsiveDialog/);
   assert.match(managerSource, /Importar inventario/);
+  // Rediseño de /inventario: acciones por fila, stock de servicios, Tipo, Precio,
+  // tarjetas y botón Importar.
+  assert.match(managerSource, /import MoreActionsMenu from "\.\.\/\.\.\/components\/ui\/MoreActionsMenu";/);
+  assert.match(managerSource, /<button type="button" onClick=\{\(\) => onEdit\(item\)\}>Editar<\/button>\s*<MoreActionsMenu\s+iconOnly/);
+  assert.match(managerSource, /canView && \{ label: "Ver referencias"/);
+  assert.match(managerSource, /\{ label: "Archivar", onSelect: \(\) => onArchive\(item\) \}/);
+  assert.equal((managerSource.match(/<RowActions /g) || []).length, 2, "Tabla y tarjeta móvil usan las acciones por fila.");
+  assert.match(managerSource, /footer=\{<Actions /, "El pie de la ficha conserva sus botones visibles.");
+  assert.match(managerSource, /No aplica/);
+  assert.doesNotMatch(managerSource, /Sin existencias/);
+  assert.match(managerSource, /\{item\.tipoItem !== "producto" && <small>\{item\.unidad\}<\/small>\}/);
+  assert.match(managerSource, /<th className="inventory-table__price">Precio<\/th><th className="inventory-table__status">Estado<\/th>/);
+  assert.doesNotMatch(managerSource, /Ítems activos/);
+  assert.match(managerSource, /lowStockOnly \? filtered\.filter\(\(item\) => isInventoryLowStock\(item, settings\)\) : filtered/);
+  assert.match(managerSource, /setFilters\(DEFAULT_INVENTORY_FILTERS\);\s*setLowStockOnly\(true\);/, "Activar Stock bajo limpia los demás filtros.");
+  assert.match(managerSource, /aria-pressed=\{pressed\}/);
+  assert.match(managerSource, /aria-label="Quitar filtro Stock bajo"/);
+  assert.match(managerSource, /importOptions\.length > 1 \? \(\s*<MoreActionsMenu label="Importar"/);
+  assert.match(managerSource, /!cannotWrite && \{ label: "Inventario desde Excel o CSV"/);
   assert.match(managerSource, /inventory-type-selector/);
   assert.doesNotMatch(managerSource, /← Cambiar tipo/);
   assert.match(managerSource, /tipoItem:\s*"producto"/);

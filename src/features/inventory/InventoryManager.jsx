@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {useNavigate} from "react-router-dom";
-import { Activity, Archive, Boxes, BriefcaseBusiness, FileSpreadsheet, Package, PackagePlus, RotateCcw, Settings2 } from "lucide-react";
+import { Activity, Archive, Boxes, BriefcaseBusiness, ChevronDown, FileSpreadsheet, Package, PackagePlus, RotateCcw, Settings2, X } from "lucide-react";
 import AppIcon from "../../components/ui/AppIcon";
 import Button from "../../components/ui/Button";
 import LoadingState from "../../components/ui/LoadingState";
+import MoreActionsMenu from "../../components/ui/MoreActionsMenu";
 import ResponsiveDialog from "../../components/ui/ResponsiveDialog";
 import {SkeletonCards, SkeletonRegion, SkeletonTable} from "../../components/ui/Skeleton";
 import BarcodeInput from "../../components/barcode/BarcodeInput";
@@ -83,6 +84,8 @@ function requestId() {
   return `inventory_${String(id).replace(/[^a-zA-Z0-9_-]/g, "")}`.slice(0, 120);
 }
 
+const DEFAULT_INVENTORY_FILTERS = Object.freeze({ query: "", type: "todos", areaId: "todas", categoryId: "todas", status: "activo" });
+
 function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
   const navigate = useNavigate();
   const formatBusinessAmount = useBusinessMoney();
@@ -97,7 +100,9 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
   const [feedback, setFeedback] = useState({ type: "", message: "" });
   const [settings, setSettings] = useState(DEFAULT_INVENTORY_SETTINGS);
   const [taxSettings, setTaxSettings] = useState(null);
-  const [filters, setFilters] = useState({ query: "", type: "todos", areaId: "todas", categoryId: "todas", status: "activo" });
+  const [filters, setFilters] = useState(DEFAULT_INVENTORY_FILTERS);
+  // Filtro de la tarjeta "Stock bajo": reutiliza isInventoryLowStock, sin cambiar su regla.
+  const [lowStockOnly, setLowStockOnly] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -190,7 +195,24 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
       summarizeInventory(items, { lowStockSettings: settings }),
     [items, settings]
   );
-  const visibleItems = useMemo(() => filterInventoryItems(items, filters), [filters, items]);
+  const visibleItems = useMemo(() => {
+    const filtered = filterInventoryItems(items, filters);
+    return lowStockOnly ? filtered.filter((item) => isInventoryLowStock(item, settings)) : filtered;
+  }, [filters, items, lowStockOnly, settings]);
+  // Al activarlo se limpian los demás filtros: la lista muestra exactamente lo
+  // que cuenta la tarjeta. Después se puede refinar con los filtros normales.
+  const toggleLowStockFilter = () => {
+    if (lowStockOnly) {
+      setLowStockOnly(false);
+      return;
+    }
+    setFilters(DEFAULT_INVENTORY_FILTERS);
+    setLowStockOnly(true);
+  };
+  const importOptions = [
+    !cannotWrite && { label: "Inventario desde Excel o CSV", onSelect: () => setImportOpen(true) },
+    canStartPurchase && { label: "Factura de compra (PDF o imagen)", onSelect: () => navigate("/compras/nueva", {state: {openPurchaseImport: true}}) },
+  ].filter(Boolean);
   const activeAreas = useMemo(() => areas.filter((area) => (area.estado || "activo") === "activo"), [areas]);
   const formCategories = useMemo(() => getCategoriesForArea(categories, draft.areaId), [categories, draft.areaId]);
   const filterCategories = useMemo(() => getCategoriesForArea(categories, filters.areaId, { activeOnly: false }), [categories, filters.areaId]);
@@ -438,8 +460,14 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
     <section className="erp-page inventory-page">
       {(!cannotWrite || canStartPurchase) && <div className="erp-module-intro">
         <div className="erp-module-actions inventory-header-actions">
-          {!cannotWrite && <button type="button" className="inventory-button inventory-button--secondary" onClick={() => setImportOpen(true)}><AppIcon icon={FileSpreadsheet} size={18} />Importar inventario</button>}
-          {canStartPurchase && <button type="button" className="inventory-button inventory-button--secondary" onClick={() => navigate("/compras/nueva", {state: {openPurchaseImport: true}})}>Importar factura</button>}
+          {/* Con ambos permisos, un solo "Importar" con menú; con uno, su botón directo. */}
+          {importOptions.length > 1 ? (
+            <MoreActionsMenu label="Importar" icon={ChevronDown} menuLabel="Opciones de importación" triggerClassName="inventory-button inventory-button--secondary" actions={importOptions} />
+          ) : !cannotWrite ? (
+            <button type="button" className="inventory-button inventory-button--secondary" onClick={() => setImportOpen(true)}><AppIcon icon={FileSpreadsheet} size={18} />Importar inventario</button>
+          ) : canStartPurchase ? (
+            <button type="button" className="inventory-button inventory-button--secondary" onClick={() => navigate("/compras/nueva", {state: {openPurchaseImport: true}})}>Importar factura</button>
+          ) : null}
           {!cannotWrite && <button type="button" className="inventory-button inventory-button--primary" onClick={openNewItem}><AppIcon icon={PackagePlus} size={18} />Nuevo ítem</button>}
         </div>
       </div>}
@@ -449,16 +477,22 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
       {loadError && <p className="inventory-feedback inventory-feedback--error" role="alert">{loadError}</p>}
 
       <div className="erp-metric-grid inventory-summary" aria-label="Resumen del inventario">
-        <Metric label="Ítems activos" value={summary.total} />
         <Metric label="Productos" value={summary.products} />
         <Metric label="Servicios y actividades" value={summary.servicesAndActivities} />
-        <Metric label="Stock bajo" value={summary.lowStock} tone={summary.lowStock ? "warning" : ""} />
+        <Metric
+          label="Stock bajo"
+          value={summary.lowStock}
+          tone={summary.lowStock ? "warning" : ""}
+          onClick={summary.lowStock || lowStockOnly ? toggleLowStockFilter : undefined}
+          pressed={lowStockOnly}
+          hint={lowStockOnly ? "Filtro aplicado: toca para quitarlo" : "Ver en la lista"}
+        />
         <Metric label="Costo del inventario" value={formatBusinessAmount(summary.inventoryCost)} />
       </div>
 
       <section className="erp-panel inventory-list-panel" aria-labelledby="inventory-list-title">
         <div className="erp-panel-header">
-          <div><h2 id="inventory-list-title" className="erp-panel-title">Ítems del inventario</h2><p className="erp-secondary-text">{visibleItems.length} registro{visibleItems.length === 1 ? "" : "s"} según los filtros actuales.</p></div>
+          <div><h2 id="inventory-list-title" className="erp-panel-title">Ítems del inventario</h2><p className="erp-secondary-text">{visibleItems.length} registro{visibleItems.length === 1 ? "" : "s"} según los filtros actuales.</p>{lowStockOnly && <button type="button" className="inventory-filter-chip" onClick={() => setLowStockOnly(false)} aria-label="Quitar filtro Stock bajo">Stock bajo<AppIcon icon={X} size={14} /></button>}</div>
           {!cannotWrite && <button type="button" className="inventory-button inventory-button--ghost" onClick={() => setCatalogOpen(true)}><AppIcon icon={Settings2} size={18} />Áreas y categorías</button>}
         </div>
         <div className="erp-filters inventory-filters">
@@ -469,7 +503,7 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
           <Filter label="Estado" value={filters.status} onChange={(value) => setFilter("status", value)}><option value="activo">Activos</option><option value="inactivo">Archivados</option><option value="todos">Todos</option></Filter>
         </div>
 
-        {loading ? <SkeletonRegion label="Cargando inventario…"><SkeletonTable className="erp-desktop-only" columns={7} twoLine /><SkeletonCards className="erp-card-list erp-mobile-only" /></SkeletonRegion> : loadError && items.length === 0 ? null : visibleItems.length === 0 ? (
+        {loading ? <SkeletonRegion label="Cargando inventario…"><SkeletonTable className="erp-desktop-only inventory-skeleton" columns={7} twoLine /><SkeletonCards className="erp-card-list erp-mobile-only" /></SkeletonRegion> : loadError && items.length === 0 ? null : visibleItems.length === 0 ? (
           <div className="erp-empty-state inventory-empty-state"><AppIcon icon={Boxes} size={34} /><h3>{items.length ? "No hay resultados" : "Tu inventario está listo para comenzar"}</h3><p>{items.length ? "Prueba cambiando la búsqueda o los filtros." : "Crea manualmente tu primer ítem o importa una planilla existente."}</p>{!cannotWrite && <div><button type="button" className="inventory-button inventory-button--primary" onClick={openNewItem}>Crear primer ítem</button><button type="button" className="inventory-button inventory-button--secondary" onClick={() => setImportOpen(true)}>Importar desde Excel</button></div>}</div>
         ) : <InventoryList items={visibleItems} areas={areas} categories={categories} cannotWrite={cannotWrite} lowStockSettings={settings} onArchive={(item) => changeStatus(item, "inactivo")} onEdit={openEditItem} onReactivate={(item) => changeStatus(item, "activo")} onView={setDetailItem} onViewReferences={(item) => navigate(`/inventario/${encodeURIComponent(item.id)}/referencias`)} />}
       </section>
@@ -526,7 +560,12 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
   );
 }
 
-function Metric({ label, tone, value }) { return <article className={`erp-metric-card${tone ? ` inventory-metric--${tone}` : ""}`}><span className="erp-metric-card__label">{label}</span><strong className="erp-metric-card__value">{value}</strong></article>; }
+function Metric({ hint, label, onClick, pressed = false, tone, value }) {
+  const className = `erp-metric-card${tone ? ` inventory-metric--${tone}` : ""}`;
+  if (!onClick) return <article className={className}><span className="erp-metric-card__label">{label}</span><strong className="erp-metric-card__value">{value}</strong></article>;
+  // Tarjeta que filtra la lista: botón con estado accesible (aria-pressed).
+  return <button type="button" className={`${className} inventory-metric-button`} aria-pressed={pressed} onClick={onClick}><span className="erp-metric-card__label">{label}</span><strong className="erp-metric-card__value">{value}</strong>{hint && <span className="inventory-metric-button__hint">{hint}</span>}</button>;
+}
 function Filter({ children, disabled, label, onChange, value }) { return <label className="erp-field"><span className="erp-field__label">{label}</span><select className="erp-control" disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)}>{children}</select></label>; }
 function Field({ children, error, hint, label, required }) { return <label className="erp-field"><span className="erp-field__label">{label}{required ? " *" : ""}</span>{children}{hint && <small className="inventory-field-hint">{hint}</small>}{error && <small className="inventory-field-error">{error}</small>}</label>; }
 function PriceResult({ detail, label, tone = "", value }) { const formatBusinessAmount = useBusinessMoney(); return<div className={`inventory-sale-price${tone ? ` inventory-sale-price--${tone}` : ""}`}><span>{label}</span><strong>{formatBusinessAmount(value)}</strong>{detail && <small>{detail}</small>}</div>; }
@@ -539,14 +578,38 @@ function IdentityMetadata({ item }) {
 
 function StockPresentation({ item, lowStockSettings }) {
   if (item.tipoItem !== "producto") {
-    return <span className="inventory-no-stock">Sin existencias</span>;
+    // Servicios y actividades no manejan stock.
+    return <span className="inventory-no-stock">No aplica</span>;
   }
   return <div className="inventory-stock-cell"><span>{item.stock} {item.unidadStock || item.unidad}</span>{isInventoryLowStock(item, lowStockSettings) && <span className="inventory-stock-low">Stock bajo</span>}</div>;
 }
 
 function InventoryList({ areas, cannotWrite, categories, items, lowStockSettings, onArchive, onEdit, onReactivate, onView, onViewReferences }) {
   const formatBusinessAmount = useBusinessMoney();
-  return <><div className="erp-table-region erp-desktop-only"><table className="erp-table inventory-table"><thead><tr><th>SKU</th><th>Ítem</th><th>Tipo</th><th>Stock</th><th>Precio</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td className="inventory-code">{item.codigoInterno || item.sku || "—"}</td><td><button className="inventory-item-link" type="button" onClick={() => onView(item)}>{item.nombre}</button><IdentityMetadata item={item} /></td><td>{getInventoryTypeLabel(item.tipoItem)}<small>{item.unidad}</small></td><td><StockPresentation item={item} lowStockSettings={lowStockSettings} /></td><td><strong>{formatBusinessAmount(item.precioEfectivo)}</strong></td><td><Status item={item} /></td><td><Actions item={item} cannotWrite={cannotWrite} onArchive={onArchive} onEdit={onEdit} onReactivate={onReactivate} onViewReferences={onViewReferences} /></td></tr>)}</tbody></table></div><div className="erp-card-list erp-mobile-only">{items.map((item) => <article className="erp-record-card inventory-mobile-card" key={item.id}><header className="erp-record-card__header"><div><span className="inventory-code">{item.codigoInterno || item.sku || "Sin código"}</span><h3 className="erp-record-card__title">{item.nombre}</h3><IdentityMetadata item={item} /><p className="erp-record-card__subtitle">{getInventoryTypeLabel(item.tipoItem)} · {item.unidad}</p></div><Status item={item} /></header><dl className="erp-meta-grid"><div className="erp-meta"><dt className="erp-meta__label">Clasificación</dt><dd className="erp-meta__value">{getInventoryAreaLabel(item, areas)} / {getInventoryCategoryLabel(item, categories)}</dd></div><div className="erp-meta"><dt className="erp-meta__label">Costo / precio</dt><dd className="erp-meta__value">{formatBusinessAmount(item.costoBase)} / {formatBusinessAmount(item.precioEfectivo)}</dd></div><div className="erp-meta"><dt className="erp-meta__label">Stock</dt><dd className="erp-meta__value"><StockPresentation item={item} lowStockSettings={lowStockSettings} /></dd></div></dl><button type="button" className="inventory-button inventory-button--secondary" onClick={() => onView(item)}>Ver detalle</button><Actions item={item} cannotWrite={cannotWrite} onArchive={onArchive} onEdit={onEdit} onReactivate={onReactivate} onViewReferences={onViewReferences} /></article>)}</div></>;
+  return <><div className="erp-table-region erp-desktop-only"><table className="erp-table inventory-table"><thead><tr><th>SKU</th><th>Ítem</th><th>Tipo</th><th>Stock</th><th className="inventory-table__price">Precio</th><th className="inventory-table__status">Estado</th><th>Acciones</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td className="inventory-code">{item.codigoInterno || item.sku || "—"}</td><td><button className="inventory-item-link" type="button" onClick={() => onView(item)}>{item.nombre}</button><IdentityMetadata item={item} /></td><td>{getInventoryTypeLabel(item.tipoItem)}{item.tipoItem !== "producto" && <small>{item.unidad}</small>}</td><td><StockPresentation item={item} lowStockSettings={lowStockSettings} /></td><td className="inventory-table__price"><strong>{formatBusinessAmount(item.precioEfectivo)}</strong></td><td className="inventory-table__status"><Status item={item} /></td><td><RowActions item={item} cannotWrite={cannotWrite} onArchive={onArchive} onEdit={onEdit} onReactivate={onReactivate} onViewReferences={onViewReferences} /></td></tr>)}</tbody></table></div><div className="erp-card-list erp-mobile-only">{items.map((item) => <article className="erp-record-card inventory-mobile-card" key={item.id}><header className="erp-record-card__header"><div><span className="inventory-code">{item.codigoInterno || item.sku || "Sin código"}</span><h3 className="erp-record-card__title">{item.nombre}</h3><IdentityMetadata item={item} /><p className="erp-record-card__subtitle">{getInventoryTypeLabel(item.tipoItem)} · {item.unidad}</p></div><Status item={item} /></header><dl className="erp-meta-grid"><div className="erp-meta"><dt className="erp-meta__label">Clasificación</dt><dd className="erp-meta__value">{getInventoryAreaLabel(item, areas)} / {getInventoryCategoryLabel(item, categories)}</dd></div><div className="erp-meta"><dt className="erp-meta__label">Costo / precio</dt><dd className="erp-meta__value">{formatBusinessAmount(item.costoBase)} / {formatBusinessAmount(item.precioEfectivo)}</dd></div><div className="erp-meta"><dt className="erp-meta__label">Stock</dt><dd className="erp-meta__value"><StockPresentation item={item} lowStockSettings={lowStockSettings} /></dd></div></dl><button type="button" className="inventory-button inventory-button--secondary" onClick={() => onView(item)}>Ver detalle</button><RowActions item={item} cannotWrite={cannotWrite} onArchive={onArchive} onEdit={onEdit} onReactivate={onReactivate} onViewReferences={onViewReferences} /></article>)}</div></>;
+}
+
+// Acciones de una fila (tabla y tarjeta móvil): "Editar" visible y el resto en
+// el menú ⋯. Mismos permisos que Actions, que sigue en el pie de la ficha. Un
+// rol de solo lectura con referencias ve ese botón directo, sin menú.
+function RowActions({ cannotWrite, item, onArchive, onEdit, onReactivate, onViewReferences }) {
+  const canView = item.tipoItem === "producto" && item.estado === "activo";
+  if (cannotWrite) {
+    return canView ? <div className="inventory-row-actions"><button type="button" onClick={() => onViewReferences(item)}>Ver referencias</button></div> : null;
+  }
+  return <div className="inventory-row-actions inventory-row-actions--menu">
+    <button type="button" onClick={() => onEdit(item)}>Editar</button>
+    <MoreActionsMenu
+      iconOnly
+      menuLabel={`Más acciones de ${item.nombre}`}
+      actions={[
+        canView && { label: "Ver referencias", onSelect: () => onViewReferences(item) },
+        item.estado === "activo"
+          ? { label: "Archivar", onSelect: () => onArchive(item) }
+          : { label: "Reactivar", onSelect: () => onReactivate(item) },
+      ]}
+    />
+  </div>;
 }
 
 function Status({ item }) { return <span className={`inventory-status inventory-status--${item.estado === "activo" ? "active" : "archived"}`}>{item.estado === "activo" ? "Activo" : "Archivado"}</span>; }

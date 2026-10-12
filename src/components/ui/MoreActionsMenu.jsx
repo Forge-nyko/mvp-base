@@ -13,6 +13,8 @@ const MENU_PADDING = 16;
 // Menú de acciones secundarias. iconOnly muestra solo el ícono (filas de
 // tablas); sin iconOnly, el botón lleva el rótulo y el ícono. actions:
 // [{label, onSelect, disabled}]; las entradas vacías se ignoran.
+// triggerClassName reemplaza el estilo del botón cuando el menú debe verse
+// como los demás botones de su barra (por ejemplo, "Importar").
 function MoreActionsMenu({
   actions,
   disabled,
@@ -20,6 +22,7 @@ function MoreActionsMenu({
   iconOnly = false,
   label = "Más acciones",
   menuLabel = label,
+  triggerClassName = "",
 }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({ left: 0, top: 0 });
@@ -115,7 +118,7 @@ function MoreActionsMenu({
       <button
         ref={triggerRef}
         type="button"
-        className={`ui-more-actions${iconOnly ? " ui-more-actions--icon" : ""}`}
+        className={triggerClassName || `ui-more-actions${iconOnly ? " ui-more-actions--icon" : ""}`}
         aria-controls={open ? menuId : undefined}
         aria-expanded={open}
         aria-haspopup="menu"
