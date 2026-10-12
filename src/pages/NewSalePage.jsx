@@ -9,6 +9,7 @@ import {
   getSaleDocumentTypeLabel,
   getSaleStatusLabel,
   getSaleStockStatusLabel,
+  resolveSaleScan,
   shouldReconcileSaleConfirmation,
 } from "../domain/saleModel.mjs";
 import AdditionalSelector from "../features/works/AdditionalSelector.jsx";
@@ -20,7 +21,7 @@ import SalePrintView from "../features/sales/SalePrintView";
 import SaleSummaryPanel from "../features/sales/SaleSummaryPanel";
 import {listarClientes} from "../services/clientService";
 import {getCompanyProfile} from "../services/companyService";
-import {getInventoryItems} from "../services/inventoryService";
+import {findActiveProductByBarcode, getInventoryItems} from "../services/inventoryService";
 import {listarAdicionalesPendientesTrabajo} from "../services/workService.js";
 import {formatDate} from "../utils/formatters";
 import {
@@ -217,21 +218,34 @@ export default function NewSalePage({businessId, role}) {
     ? {id: sale.trabajoId, numero: sale.trabajoNumero, titulo: sale.trabajoTitulo}
     : (!ventaId && draft.trabajoId ? {id: draft.trabajoId, numero: location.state?.trabajoNumero, titulo: location.state?.trabajoTitulo} : null);
 
+  const newLine = (item) => ({
+    lineaId: lineId(),
+    itemId: item.id,
+    codigo: item.codigoInterno || item.sku || "",
+    nombre: item.nombre,
+    descripcion: item.descripcion || "",
+    tipoItem: item.tipoItem || "producto",
+    unidad: item.unidad || "unidad",
+    cantidad: 1,
+    precioUnitario: Number(item.precioInterno || 0),
+    descuentoPct: 0,
+  });
+
   const addItem = (item) => setDraft((current) => ({
     ...current,
-    items: [...current.items, {
-      lineaId: lineId(),
-      itemId: item.id,
-      codigo: item.codigoInterno || item.sku || "",
-      nombre: item.nombre,
-      descripcion: item.descripcion || "",
-      tipoItem: item.tipoItem || "producto",
-      unidad: item.unidad || "unidad",
-      cantidad: 1,
-      precioUnitario: Number(item.precioInterno || 0),
-      descuentoPct: 0,
-    }],
+    items: [...current.items, newLine(item)],
   }));
+
+  const addScannedProduct = async (barcode) => {
+    const product = await findActiveProductByBarcode(businessId, barcode);
+    if (!product) throw new Error("Producto no encontrado para este código.");
+    setDraft((current) => ({
+      ...current,
+      items: resolveSaleScan(current.items, product.id, () => newLine(product)).items,
+    }));
+    // El cuadro de escaneo continuo muestra la confirmación y aquí el aviso de stock lo da el editor.
+    return {key: product.id, label: product.nombre};
+  };
 
   const persist = async () => sale
     ? (await actualizarVentaBorrador(businessId, sale.id, draft)).venta
@@ -393,7 +407,7 @@ export default function NewSalePage({businessId, role}) {
       <div className="no-print">
         <div className="po-layout">
           <div className="po-main">
-            <SaleItemsEditor disabled={readOnly} inventory={inventory} items={draft.items} onChange={(items) => setDraft((current) => ({...current, items}))} onOpenCatalog={() => setCatalogOpen(true)} readOnly={Boolean(readOnly && sale)} referencesLocked={referencesLocked} />
+            <SaleItemsEditor disabled={readOnly} inventory={inventory} items={draft.items} onChange={(items) => setDraft((current) => ({...current, items}))} onOpenCatalog={() => setCatalogOpen(true)} onScanProduct={addScannedProduct} readOnly={Boolean(readOnly && sale)} referencesLocked={referencesLocked} />
 
             {draft.trabajoId && !readOnly && (
               <AdditionalSelector

@@ -1,3 +1,4 @@
+import {incrementScannedItem} from "./barcode.mjs";
 import {adaptStoredFiscalIdentifier} from "./fiscalIdentifier.mjs";
 
 export const SALE_MODEL_VERSION = 1;
@@ -240,6 +241,21 @@ export function adaptStoredSale(raw = {}) {
     items,
     ...totals,
   };
+}
+
+// Decide qué hacer con una lectura: suma 1 si el producto ya está en una línea
+// propia de la venta, o agrega una línea nueva. Las líneas que vienen de
+// adicionales (origenAdicionalId) nunca se tocan.
+export function resolveSaleScan(items, itemId, createItem) {
+  const source = Array.isArray(items) ? items : [];
+  const own = source.filter((item) => !item?.origenAdicionalId);
+  const result = incrementScannedItem(own, itemId, createItem);
+  const byLine = new Map(result.map((item) => [item.lineaId, item]));
+  const merged = source.map((item) => item?.origenAdicionalId ? item : byLine.get(item.lineaId) ?? item);
+  if (result.length > own.length) {
+    return {action: "added", items: [...merged, result[result.length - 1]]};
+  }
+  return {action: "incremented", items: merged};
 }
 
 export function canManageSales(role) {

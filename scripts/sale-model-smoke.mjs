@@ -12,6 +12,7 @@ import {
   getSaleStatusLabel,
   getSaleStockStatusLabel,
   matchesSaleSearch,
+  resolveSaleScan,
   SALE_STATUSES,
   shouldReconcileSaleConfirmation,
 } from "../src/domain/saleModel.mjs";
@@ -126,4 +127,18 @@ assert.match(salePage, /previewOpen \&\& <div className="sale-preview-body">/);
 assert.match(salePage, /Ver vista previa/);
 assert.doesNotMatch(salePage, />Ver cotización</);
 console.log("OK ventas modelo: defensas backend y reglas declaradas");
+const scanLine = (overrides = {}) => ({lineaId: "a", itemId: "p1", cantidad: 1, ...overrides});
+const scanCreate = () => scanLine({lineaId: "nueva", itemId: "p2"});
+const summed = resolveSaleScan([scanLine()], "p1", scanCreate);
+assert.equal(summed.action, "incremented");
+assert.deepEqual(summed.items.map((item) => [item.lineaId, item.cantidad]), [["a", 2]]);
+const appended = resolveSaleScan([scanLine()], "p2", scanCreate);
+assert.equal(appended.action, "added");
+assert.deepEqual(appended.items.map((item) => item.lineaId), ["a", "nueva"]);
+const withAdditional = [scanLine({lineaId: "ad", origenAdicionalId: "adic-1"})];
+const untouched = resolveSaleScan(withAdditional, "p1", () => scanLine({lineaId: "nueva"}));
+assert.equal(untouched.action, "added");
+assert.deepEqual(untouched.items.map((item) => [item.lineaId, item.cantidad]), [["ad", 1], ["nueva", 1]]);
+const mixed = resolveSaleScan([scanLine({lineaId: "ad", origenAdicionalId: "adic-1"}), scanLine()], "p1", scanCreate);
+assert.deepEqual(mixed.items.map((item) => [item.lineaId, item.cantidad]), [["ad", 1], ["a", 2]]);
 console.log("Smoke del modelo de Ventas completado.");
