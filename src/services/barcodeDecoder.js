@@ -108,6 +108,9 @@ function defaultNow() {
   return globalThis.performance?.now?.() ?? Date.now();
 }
 
+// Si el decoder nativo no lee nada en la ventana inicial, ZXing se suma y ambos
+// se alternan por intento: el nativo sigue disponible para lecturas rápidas y
+// ZXing cubre los códigos que el nativo no reconoce en ese equipo.
 export async function createBarcodeDecoderSession({
   decoder,
   formats,
@@ -116,64 +119,68 @@ export async function createBarcodeDecoderSession({
   now = defaultNow,
   onFallback,
 }) {
-  let currentDecoder = await createDecoder({decoder, formats});
-  let currentKind = currentDecoder.kind;
-  let decoderError = null;
+  const primaryDecoder = await createDecoder({decoder, formats});
+  let fallbackDecoder = null;
+  let fallbackUnavailable = false;
+  let fallbackTurn = false;
   let decodeInFlight = false;
   let stopped = false;
-  const nativeStartedAt = now();
+  const startedAt = now();
+
+  const startFallbackIfDue = async () => {
+    if (
+      primaryDecoder.kind !== "native" ||
+      fallbackDecoder ||
+      fallbackUnavailable ||
+      now() - startedAt < fallbackAfterMs
+    ) {
+      return;
+    }
+    try {
+      const created = await createDecoder({decoder: "zxing", formats});
+      if (stopped) {
+        created.stop?.();
+        return;
+      }
+      fallbackDecoder = created;
+      fallbackTurn = true;
+      onFallback?.();
+    } catch {
+      // Sin ZXing, el decoder nativo continúa operando solo.
+      fallbackUnavailable = true;
+    }
+  };
 
   return {
     get kind() {
-      return currentKind;
+      return fallbackDecoder ? "alternating" : primaryDecoder.kind;
     },
     async detect(video) {
       if (stopped || decodeInFlight || !isBarcodeVideoReady(video)) return "";
-      if (decoderError) throw decoderError;
-      const decoderAtStart = currentDecoder;
-      if (!decoderAtStart) return "";
       decodeInFlight = true;
       try {
+        await startFallbackIfDue();
+        if (stopped) return "";
+        const currentDecoder = fallbackDecoder && fallbackTurn ? fallbackDecoder : primaryDecoder;
+        if (fallbackDecoder) fallbackTurn = !fallbackTurn;
         let rawValue = "";
-        let detectionError = null;
         try {
-          rawValue = await decoderAtStart.detect(video);
+          rawValue = await currentDecoder.detect(video);
         } catch (error) {
-          detectionError = error;
+          // Un error del decoder nativo equivale a un cuadro sin lectura.
+          if (stopped || currentDecoder.kind === "native") return "";
+          throw error;
         }
-        if (stopped || currentDecoder !== decoderAtStart) return "";
-        if (String(rawValue || "").trim()) return String(rawValue);
-        if (
-          decoderAtStart.kind === "native" &&
-          now() - nativeStartedAt >= fallbackAfterMs
-        ) {
-          currentDecoder = null;
-          currentKind = "zxing";
-          decoderAtStart.stop?.();
-          try {
-            const fallbackDecoder = await createDecoder({decoder: "zxing", formats});
-            if (stopped) {
-              fallbackDecoder.stop?.();
-              return "";
-            }
-            currentDecoder = fallbackDecoder;
-            onFallback?.();
-            return "";
-          } catch (error) {
-            decoderError = error;
-            throw error;
-          }
-        }
-        if (detectionError) throw detectionError;
-        return "";
+        if (stopped) return "";
+        return String(rawValue || "").trim() ? String(rawValue) : "";
       } finally {
         decodeInFlight = false;
       }
     },
     stop() {
       stopped = true;
-      currentDecoder?.stop?.();
-      currentDecoder = null;
+      primaryDecoder.stop?.();
+      fallbackDecoder?.stop?.();
     },
   };
 }

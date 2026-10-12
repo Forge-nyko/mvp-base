@@ -4,6 +4,7 @@ import {
   barcodeCameraErrorMessage,
   barcodeSupportMessage,
   getBarcodeCameraSupport,
+  getBarcodeLookupCandidates,
   incrementScannedItem,
   isDuplicateBarcodeRead,
   normalizeBarcode,
@@ -19,6 +20,29 @@ import {
 
 assert.equal(normalizeBarcode(" 0012345678905\n"), "0012345678905");
 assert.equal(normalizeBarcode(""), "");
+
+// UPC-A de 12 dígitos y EAN-13 con 0 inicial se buscan como equivalentes; el resto queda exacto.
+assert.deepEqual(getBarcodeLookupCandidates(" 012345678905 "), ["012345678905", "0012345678905"]);
+assert.deepEqual(getBarcodeLookupCandidates("0012345678905"), ["0012345678905", "012345678905"]);
+assert.deepEqual(getBarcodeLookupCandidates("7801234567890"), ["7801234567890"]);
+assert.deepEqual(getBarcodeLookupCandidates("96385074"), ["96385074"]);
+assert.deepEqual(getBarcodeLookupCandidates("ABC-123"), ["ABC-123"]);
+assert.deepEqual(getBarcodeLookupCandidates("  "), []);
+
+// Sin contexto seguro el motivo explica HTTPS, aunque exista BarcodeDetector.
+const insecureCamera = await getBarcodeCameraSupport({
+  BarcodeDetectorClass: class Detector {},
+  mediaDevices: {getUserMedia() {}},
+  secureContext: false,
+});
+assert.deepEqual(insecureCamera, {
+  supported: false,
+  reason: "insecure-context",
+  decoder: "manual",
+  formats: [],
+});
+assert.match(barcodeSupportMessage("insecure-context"), /HTTPS/);
+assert.match(barcodeSupportMessage("insecure-context"), /lector USB/);
 
 const unsupportedCamera = await getBarcodeCameraSupport({
   BarcodeDetectorClass: class Detector {},
@@ -107,9 +131,11 @@ assert.equal(await nativeSession.detect(readyVideo), "0012345678905");
 assert.deepEqual(nativeCreates, ["native"]);
 nativeSession.stop();
 
-// B y C. La ventana depende del reloj; native se detiene antes de crear ZXing y ZXing se acepta.
+// B y C. Pasada la ventana, ZXing se suma sin detener el nativo y ambos se alternan por intento.
 let scanClock = 0;
 const decoderEvents = [];
+let nativeValue = "";
+let zxingValue = "";
 const fallbackSession = await createBarcodeDecoderSession({
   decoder: "native",
   formats: supportedCamera.formats,
@@ -119,12 +145,12 @@ const fallbackSession = await createBarcodeDecoderSession({
     return decoder === "native"
       ? {
           kind: "native",
-          detect: async () => "",
+          detect: async () => { decoderEvents.push("detect:native"); return nativeValue; },
           stop: () => decoderEvents.push("stop:native"),
         }
       : {
           kind: "zxing",
-          detect: async () => " 00012345 ",
+          detect: async () => { decoderEvents.push("detect:zxing"); return zxingValue; },
           stop: () => decoderEvents.push("stop:zxing"),
         };
   },
@@ -134,14 +160,62 @@ assert.equal(await fallbackSession.detect(readyVideo), "");
 assert.equal(fallbackSession.kind, "native");
 scanClock = NATIVE_DECODER_FALLBACK_MS + 1;
 assert.equal(await fallbackSession.detect(readyVideo), "");
-assert.equal(fallbackSession.kind, "zxing");
-assert.deepEqual(decoderEvents.slice(0, 4), [
+assert.equal(fallbackSession.kind, "alternating");
+assert.equal(await fallbackSession.detect(readyVideo), "");
+assert.equal(await fallbackSession.detect(readyVideo), "");
+assert.deepEqual(decoderEvents, [
   "create:native",
-  "stop:native",
+  "detect:native",
   "create:zxing",
   "fallback",
+  "detect:zxing",
+  "detect:native",
+  "detect:zxing",
 ]);
+assert.equal(decoderEvents.includes("stop:native"), false, "El nativo no se detiene al sumar ZXing.");
+nativeValue = "7801234567890";
+assert.equal(await fallbackSession.detect(readyVideo), "7801234567890", "El nativo sigue leyendo tras la ventana.");
+nativeValue = "";
+zxingValue = " 00012345 ";
 assert.equal(normalizeBarcode(await fallbackSession.detect(readyVideo)), "00012345");
+assert.equal(decoderEvents.filter((event) => event === "create:zxing").length, 1, "ZXing se crea una sola vez.");
+
+// Un error del nativo es un cuadro sin lectura; si ZXing no carga, el nativo sigue solo.
+const nativeOnlySession = await createBarcodeDecoderSession({
+  decoder: "native",
+  formats: supportedCamera.formats,
+  now: () => NATIVE_DECODER_FALLBACK_MS + 1,
+  createDecoder: async ({decoder}) => {
+    if (decoder === "zxing") throw new Error("ZXing no disponible");
+    let calls = 0;
+    return {
+      kind: "native",
+      async detect() {
+        calls += 1;
+        if (calls === 1) throw new Error("cuadro inválido");
+        return "96385074";
+      },
+      stop() {},
+    };
+  },
+});
+assert.equal(await nativeOnlySession.detect(readyVideo), "");
+assert.equal(nativeOnlySession.kind, "native");
+assert.equal(await nativeOnlySession.detect(readyVideo), "96385074");
+nativeOnlySession.stop();
+
+// Los errores no recuperables de ZXing se propagan para que el componente los cuente.
+const failingZxingSession = await createBarcodeDecoderSession({
+  decoder: "zxing",
+  formats: supportedCamera.formats,
+  createDecoder: async () => ({
+    kind: "zxing",
+    detect: async () => { throw new Error("canvas no disponible"); },
+    stop() {},
+  }),
+});
+await assert.rejects(failingZxingSession.detect(readyVideo), /canvas no disponible/);
+failingZxingSession.stop();
 
 // D. NotFound/Checksum/Format de ZXing son reintentos normales.
 const {
@@ -189,9 +263,10 @@ await videoReadyPromise;
 assert.equal(videoReadyResolved, true);
 waitingSession.stop();
 
-// F. Cerrar detiene el decoder; el stream y los recursos del loop se validan abajo.
+// F. Cerrar detiene ambos decoders; el stream y los recursos del loop se validan abajo.
 fallbackSession.stop();
-assert.equal(decoderEvents.at(-1), "stop:zxing");
+assert.deepEqual(decoderEvents.slice(-2), ["stop:native", "stop:zxing"]);
+assert.equal(await fallbackSession.detect(readyVideo), "", "Una sesión detenida no vuelve a decodificar.");
 
 // G. Una sesión nunca ejecuta dos intentos de decoder simultáneamente.
 let activeDecodes = 0;
@@ -220,7 +295,7 @@ assert.equal(await firstDetection, "987654321");
 assert.equal(maxActiveDecodes, 1);
 exclusiveSession.stop();
 
-const [scanner, decoder, inventoryService, inventoryUi, quotePage, quoteEditor, poPage, poEditor] =
+const [scanner, decoder, inventoryService, inventoryUi, quotePage, quoteEditor, poPage, poEditor, barcodeDomain] =
   await Promise.all([
     readFile(new URL("../src/components/barcode/BarcodeInput.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/services/barcodeDecoder.js", import.meta.url), "utf8"),
@@ -230,6 +305,7 @@ const [scanner, decoder, inventoryService, inventoryUi, quotePage, quoteEditor, 
     readFile(new URL("../src/features/quotes/QuoteItemsEditor.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/NewPurchaseOrderPage.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/features/purchaseOrders/PurchaseOrderItemsEditor.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/domain/barcode.mjs", import.meta.url), "utf8"),
   ]);
 
 assert.match(decoder, /BarcodeDetector/);
@@ -251,14 +327,18 @@ assert.match(scanner, /decoderRef\.current\?\.stop/);
 assert.match(scanner, /stopBarcodeCamera/);
 assert.match(decoder, /decoder === "native"/);
 assert.match(decoder, /NATIVE_DECODER_FALLBACK_MS = 2000/);
-assert.match(decoder, /currentDecoder = null;[\s\S]*decoderAtStart\.stop[\s\S]*decoder: "zxing"/);
+assert.match(decoder, /fallbackTurn = !fallbackTurn/);
+assert.doesNotMatch(decoder, /currentKind = "zxing"/, "El paso a ZXing ya no es permanente.");
+assert.match(scanner, /decoderRef\.current\?\.kind !== "native"/);
+assert.match(barcodeDomain, /isSecureContext/);
 assert.match(decoder, /import\("@zxing\/library"\)/);
 for (const format of ["EAN_13", "EAN_8", "UPC_A", "UPC_E", "CODE_128"]) {
   assert.match(decoder, new RegExp(format));
 }
 assert.doesNotMatch(decoder, /QR_CODE/);
-assert.match(inventoryService, /where\("barcode", "==", barcode\)/);
-assert.match(inventoryService, /where\("codigoBarras", "==", barcode\)/);
+assert.match(inventoryService, /getBarcodeLookupCandidates\(rawBarcode\)/);
+assert.match(inventoryService, /where\("barcode", "in", candidates\)/);
+assert.match(inventoryService, /where\("codigoBarras", "in", candidates\)/);
 assert.doesNotMatch(inventoryService, /findActiveProductByBarcode[\s\S]*?getInventoryItems/);
 assert.match(inventoryUi, /Código de barras/);
 assert.match(inventoryUi, /BarcodeInput/);

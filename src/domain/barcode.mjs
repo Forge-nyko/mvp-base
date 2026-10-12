@@ -12,10 +12,30 @@ export function normalizeBarcode(value) {
   return String(value ?? "").trim().slice(0, BARCODE_MAX_LENGTH);
 }
 
+// UPC-A (12 dígitos) y el mismo código como EAN-13 con 0 inicial identifican el
+// mismo producto. Solo se amplía la búsqueda; el barcode guardado no cambia.
+export function getBarcodeLookupCandidates(value) {
+  const barcode = normalizeBarcode(value);
+  if (!barcode) return [];
+  if (/^\d{12}$/.test(barcode)) return [barcode, `0${barcode}`];
+  if (/^0\d{12}$/.test(barcode)) return [barcode, barcode.slice(1)];
+  return [barcode];
+}
+
 export async function getBarcodeCameraSupport({
   BarcodeDetectorClass = globalThis.BarcodeDetector,
   mediaDevices = globalThis.navigator?.mediaDevices,
+  secureContext = globalThis.isSecureContext,
 } = {}) {
+  // Fuera de HTTPS o localhost el navegador no expone la cámara.
+  if (secureContext === false) {
+    return {
+      supported: false,
+      reason: "insecure-context",
+      decoder: "manual",
+      formats: [],
+    };
+  }
   if (typeof mediaDevices?.getUserMedia !== "function") {
     return {
       supported: false,
@@ -47,6 +67,9 @@ export async function getBarcodeCameraSupport({
 }
 
 export function barcodeSupportMessage(reason) {
+  if (reason === "insecure-context") {
+    return "La cámara requiere una conexión segura (HTTPS). Abre la app desde su dirección https o usa el lector USB o el ingreso manual.";
+  }
   return reason === "camera-api-unavailable"
     ? "Este navegador o dispositivo no permite abrir la cámara. Usa el lector USB o ingresa el código manualmente."
     : "No se pudo preparar el lector de códigos. Usa el lector USB o ingresa el código manualmente.";

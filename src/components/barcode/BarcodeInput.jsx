@@ -152,7 +152,7 @@ export default function BarcodeInput({
           ...cameraSupport,
           onFallback: () => {
             if (import.meta.env.DEV) {
-              console.debug("[BarcodeInput] decoder native sin lectura; continuando con ZXing.");
+              console.debug("[BarcodeInput] decoder native sin lectura; alternando con ZXing.");
             }
           },
         });
@@ -180,7 +180,7 @@ export default function BarcodeInput({
         let consecutiveDetectionErrors = 0;
         const scheduleDetection = () => {
           if (!active) return;
-          if (decoderRef.current?.kind === "zxing") {
+          if (decoderRef.current?.kind !== "native") {
             detectionTimerRef.current = setTimeout(() => {
               detectionTimerRef.current = 0;
               if (active) frameRef.current = requestAnimationFrame(detect);
@@ -202,10 +202,7 @@ export default function BarcodeInput({
               return;
             }
           } catch {
-            if (decoder.kind === "native") {
-              scheduleDetection();
-              return;
-            }
+            // La sesión ya absorbe los errores del decoder nativo; aquí solo llegan los de ZXing.
             consecutiveDetectionErrors += 1;
             if (consecutiveDetectionErrors >= 5) {
               releaseCamera();
