@@ -4,6 +4,7 @@ import {
 } from "./pricing.js";
 import {formatChileanRut} from "./fiscalIdentifier.mjs";
 import {isLowStockByRule} from "./inventoryLowStock.mjs";
+import {getBarcodeLookupCandidates} from "./barcode.mjs";
 
 export const INVENTORY_TYPES = Object.freeze([
   { value: "producto", label: "Producto", description: "Ítem físico con control de stock." },
@@ -262,6 +263,27 @@ export function summarizeInventory(items, { lowStockSettings } = {}) {
       (total, item) => total + item.costoBase * Math.max(item.stock, 0),
       0
     ),
+  };
+}
+
+// Buscar escaneando en /inventario, sobre los ítems ya cargados. Un único
+// producto con ese código abre su ficha (si hay activos, solo cuentan los
+// activos: el código es único entre ellos). Sin coincidencias o con varias, la
+// lista se filtra con el código; si solo hay archivados, con estado "todos"
+// para que se vean. Usa la equivalencia UPC-A/EAN-13 de la búsqueda.
+export function resolveInventoryBarcodeScan(items, rawBarcode) {
+  const candidates = getBarcodeLookupCandidates(rawBarcode);
+  if (!candidates.length) return {action: "none"};
+  const matches = (Array.isArray(items) ? items : [])
+    .map(adaptInventoryItem)
+    .filter((item) => item.tipoItem === "producto" && candidates.includes(item.barcode));
+  const active = matches.filter((item) => item.estado === "activo");
+  if (active.length === 1) return {action: "open", item: active[0]};
+  if (!active.length && matches.length === 1) return {action: "open", item: matches[0]};
+  return {
+    action: "filter",
+    query: candidates[0],
+    status: !active.length && matches.length ? "todos" : "activo",
   };
 }
 

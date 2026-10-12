@@ -10,6 +10,7 @@ import {
   filterInventoryItems,
   isInventoryLowStock,
   parseInventoryNumber,
+  resolveInventoryBarcodeScan,
   summarizeInventory,
   validateInventoryDraft,
 } from "../src/domain/inventoryMvp.mjs";
@@ -247,6 +248,30 @@ function main() {
     assert.deepEqual(filterInventoryItems(list, { query, status: "activo" }).map(({ id }) => id), ["p"]);
   });
   assert.deepEqual(filterInventoryItems(list, { type: "servicio", status: "activo" }).map(({ id }) => id), ["s"]);
+
+  // Buscar escaneando en /inventario: un único producto abre su ficha; si no, se filtra.
+  const scanItems = [
+    { id: "unico", nombre: "Router", tipoItem: "producto", barcode: "7801234567890", estado: "activo" },
+    { id: "upc", nombre: "Cable", tipoItem: "producto", barcode: "012345678905", estado: "activo" },
+    { id: "legacy", nombre: "Mouse", tipoItem: "producto", codigoBarras: "96385074", estado: "activo" },
+    { id: "repetido-a", nombre: "Toner A", tipoItem: "producto", barcode: "7790000000001", estado: "activo" },
+    { id: "repetido-b", nombre: "Toner B", tipoItem: "producto", barcode: "7790000000001", estado: "activo" },
+    { id: "reemplazado", nombre: "Router viejo", tipoItem: "producto", barcode: "7801234567890", estado: "inactivo" },
+    { id: "archivado", nombre: "Hub", tipoItem: "producto", barcode: "7800000000002", estado: "inactivo" },
+    { id: "archivado-a", nombre: "Switch A", tipoItem: "producto", barcode: "7800000000003", estado: "inactivo" },
+    { id: "archivado-b", nombre: "Switch B", tipoItem: "producto", barcode: "7800000000003", estado: "inactivo" },
+    { id: "servicio", nombre: "Instalación", tipoItem: "servicio", estado: "activo" },
+  ];
+  const scanned = (code) => resolveInventoryBarcodeScan(scanItems, code);
+  assert.deepEqual([scanned(" 7801234567890 ").action, scanned("7801234567890").item.id], ["open", "unico"], "Un archivado con el mismo código no impide abrir el activo.");
+  assert.equal(scanned("0012345678905").item.id, "upc", "EAN-13 con 0 inicial encuentra el UPC-A guardado.");
+  assert.equal(scanned("96385074").item.id, "legacy", "Encuentra el alias legacy codigoBarras.");
+  assert.equal(scanned("7800000000002").item.id, "archivado", "Un único archivado también abre su ficha.");
+  assert.deepEqual(scanned("7790000000001"), { action: "filter", query: "7790000000001", status: "activo" }, "Varios activos con el código: se filtra la lista.");
+  assert.deepEqual(scanned("7800000000003"), { action: "filter", query: "7800000000003", status: "todos" }, "Varios archivados: el filtro incluye archivados para que se vean.");
+  assert.deepEqual(scanned("0000"), { action: "filter", query: "0000", status: "activo" }, "Sin coincidencias: el código queda en el buscador.");
+  assert.deepEqual(scanned("   "), { action: "none" });
+  assert.deepEqual(resolveInventoryBarcodeScan([], "7801234567890"), { action: "filter", query: "7801234567890", status: "activo" });
   assert.equal(isInventoryLowStock(list[0]), true);
   assert.equal(isInventoryLowStock(list[1]), false);
   assert.equal(isInventoryLowStock(list[3]), false);

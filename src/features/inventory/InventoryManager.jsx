@@ -21,6 +21,7 @@ import {
   isExemptInventoryTaxId,
   isInventoryLowStock,
   parseInventoryNumber,
+  resolveInventoryBarcodeScan,
   summarizeInventory,
   validateInventoryDraft,
 } from "../../domain/inventoryMvp.mjs";
@@ -101,6 +102,7 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
   const [settings, setSettings] = useState(DEFAULT_INVENTORY_SETTINGS);
   const [taxSettings, setTaxSettings] = useState(null);
   const [filters, setFilters] = useState(DEFAULT_INVENTORY_FILTERS);
+  const searchInputId = React.useId();
   // Filtro de la tarjeta "Stock bajo": reutiliza isInventoryLowStock, sin cambiar su regla.
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -208,6 +210,20 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
     }
     setFilters(DEFAULT_INVENTORY_FILTERS);
     setLowStockOnly(true);
+  };
+  // Buscar escaneando: un único producto abre su ficha; si no, se filtra la lista.
+  const handleScanSearch = (barcode) => {
+    const result = resolveInventoryBarcodeScan(items, barcode);
+    if (result.action === "open") {
+      // La ficha se abre después de que se cierre el cuadro de escaneo, para
+      // que el foco quede en la ficha y no vuelva al botón "Escanear".
+      window.setTimeout(() => setDetailItem(result.item), 0);
+      return;
+    }
+    if (result.action === "filter") {
+      setLowStockOnly(false);
+      setFilters({ ...DEFAULT_INVENTORY_FILTERS, query: result.query, status: result.status });
+    }
   };
   const importOptions = [
     !cannotWrite && { label: "Inventario desde Excel o CSV", onSelect: () => setImportOpen(true) },
@@ -496,7 +512,7 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
           {!cannotWrite && <button type="button" className="inventory-button inventory-button--ghost" onClick={() => setCatalogOpen(true)}><AppIcon icon={Settings2} size={18} />Áreas y categorías</button>}
         </div>
         <div className="erp-filters inventory-filters">
-          <label className="erp-field inventory-search"><span className="erp-field__label">Buscar</span><input className="erp-control" value={filters.query} onChange={(event) => setFilter("query", event.target.value)} placeholder="Nombre, SKU o código" /></label>
+          <div className="erp-field inventory-search"><label className="erp-field__label" htmlFor={searchInputId}>Buscar</label><div className="inventory-search-control"><input id={searchInputId} className="erp-control" value={filters.query} onChange={(event) => setFilter("query", event.target.value)} placeholder="Nombre, SKU o código" /><BarcodeInput actionOnly actionLabel="Escanear" disabled={loading} onSubmit={handleScanSearch} /></div></div>
           <Filter label="Tipo" value={filters.type} onChange={(value) => setFilter("type", value)}><option value="todos">Todos</option>{INVENTORY_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</Filter>
           <Filter label="Área" value={filters.areaId} onChange={(value) => setFilter("areaId", value)}><option value="todas">Todas</option><option value="sin_area">Sin área</option>{areas.map((area) => <option key={area.id} value={area.id}>{area.nombre}</option>)}</Filter>
           <Filter label="Categoría" value={filters.categoryId} onChange={(value) => setFilter("categoryId", value)} disabled={!filters.areaId || filters.areaId === "todas" || filters.areaId === "sin_area"}><option value="todas">Todas</option><option value="sin_categoria">Sin categoría</option>{filterCategories.map((category) => <option key={category.id} value={category.id}>{category.nombre}</option>)}</Filter>

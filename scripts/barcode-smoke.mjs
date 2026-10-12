@@ -616,6 +616,12 @@ assert.match(inventoryService, /where\("codigoBarras", "in", candidates\)/);
 assert.doesNotMatch(inventoryService, /findActiveProductByBarcode[\s\S]*?getInventoryItems/);
 assert.match(inventoryUi, /Código de barras/);
 assert.match(inventoryUi, /BarcodeInput/);
+// Etapa 3: buscar escaneando en /inventario (lectura única, junto al buscador).
+assert.match(inventoryUi, /<BarcodeInput actionOnly actionLabel="Escanear" disabled=\{loading\} onSubmit=\{handleScanSearch\} \/>/);
+assert.match(inventoryUi, /const result = resolveInventoryBarcodeScan\(items, barcode\);/);
+assert.match(inventoryUi, /window\.setTimeout\(\(\) => setDetailItem\(result\.item\), 0\)/);
+assert.match(inventoryUi, /setLowStockOnly\(false\);\s*setFilters\(\{ \.\.\.DEFAULT_INVENTORY_FILTERS, query: result\.query, status: result\.status \}\);/);
+assert.doesNotMatch(inventoryUi, /<label className="erp-field inventory-search">/, "El botón Escanear no va dentro del label del buscador.");
 assert.match(quoteEditor, /Escanear producto/);
 assert.match(quoteEditor, /<BarcodeInput actionOnly continuous /);
 assert.match(poEditor, /<BarcodeInput actionOnly continuous /);

@@ -20,6 +20,9 @@
 .inventory-metric--warning { background: var(--color-warning-50); border-color: #f59e0b !important; }
 .inventory-list-panel { overflow: hidden; }
 .inventory-filters { grid-template-columns: minmax(230px, 1.45fr) repeat(4, minmax(140px, .8fr)); }
+/* Buscador con "Escanear" al lado: el botón toma la altura del campo. */
+.inventory-search-control { display: flex; gap: var(--space-2); }
+.inventory-search-control .erp-control { flex: 1 1 auto; min-width: 0; }
 .inventory-table { min-width: 860px; }
 .inventory-table td small { color: var(--color-text-muted); display: block; margin-top: 2px; }
 .inventory-code { color: var(--color-text-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); white-space: nowrap; }
