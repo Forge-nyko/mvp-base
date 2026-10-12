@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {Columns3, LayoutList, Pencil, Plus, Search, Trash2} from "lucide-react";
 import {useLocation, useNavigate} from "react-router-dom";
 import AppIcon from "../components/ui/AppIcon";
+import BarcodeInput from "../components/barcode/BarcodeInput";
 import Button from "../components/ui/Button";
 import EmptyStateIllustration from "../components/ui/EmptyStateIllustration";
 import LoadingState from "../components/ui/LoadingState";
@@ -12,7 +13,7 @@ import WorkAdditionalsSection from "../features/works/WorkAdditionalsSection.jsx
 import WorkExpenseEvidence from "../features/works/WorkExpenseEvidence.jsx";
 import WorkQuoteSelector from "../features/works/WorkQuoteSelector.jsx";
 import WorkTaskBoard from "../features/works/WorkTaskBoard.jsx";
-import {WORK_EXPENSE_CATEGORIES, WORK_PRIORITIES, WORK_STATUSES, WORK_TASK_STATUSES, buildQuickWorkCreationPayload, buildWorkDailyCostSummary, canManageWorks, canOperateWorkTask, canViewWorkProfitability, getEligibleWorkQuoteOptions, getInventoryCurrentCost, getTaskProgress, getVisibleWorkTasks, getWorkAccumulatedCost, getWorkCostSummary, getWorkDraftErrors, getWorkHistoricalPersonIdentity, getWorkMemberIdentity, getWorkMemberOptionLabel, getWorkOperationalIndicators, getWorkPriorityLabel, getWorkSaleMaterials, getWorkStatusLabel, getWorkTaskProgress, getWorkTaskStatusOptions, hasAdditionalWorkMembers, humanizeWorkEvent, isWorkOperationalReadOnly, matchesWorkFilters} from "../domain/workModel.mjs";
+import {WORK_EXPENSE_CATEGORIES, WORK_PRIORITIES, WORK_STATUSES, WORK_TASK_STATUSES, buildQuickWorkCreationPayload, buildWorkDailyCostSummary, canManageWorks, canOperateWorkTask, canViewWorkProfitability, getEligibleWorkQuoteOptions, getInventoryCurrentCost, getTaskProgress, getVisibleWorkTasks, getWorkAccumulatedCost, getWorkCostSummary, getWorkDraftErrors, getWorkHistoricalPersonIdentity, getWorkMemberIdentity, getWorkMemberOptionLabel, getWorkOperationalIndicators, getWorkPriorityLabel, getWorkSaleMaterials, getWorkStatusLabel, getWorkTaskProgress, getWorkTaskStatusOptions, hasAdditionalWorkMembers, humanizeWorkEvent, isWorkOperationalReadOnly, matchesWorkFilters, resolveWorkMaterialScan} from "../domain/workModel.mjs";
 import {canManageSales} from "../domain/saleModel.mjs";
 import {listarMiembrosNegocio} from "../services/businessMemberService.js";
 import {listarClientes} from "../services/clientService.js";
@@ -523,6 +524,14 @@ function MaterialsSection({businessId, canManage, currency, currentUserUid, hasA
       if (success) setDraft({itemId: "", cantidad: "", fecha: chileToday(), tareaId: ""});
     });
   };
+  // Lectura única: solo preselecciona; la salida se registra con "Registrar salida".
+  const scanMaterial = (barcode) => {
+    const result = resolveWorkMaterialScan(products, barcode, draft);
+    if (result.status === "ambiguous") throw new Error("Hay más de un producto con este código.");
+    if (result.status !== "found") throw new Error("Este producto no está disponible para salida.");
+    setDraft((current) => ({...current, itemId: result.itemId, cantidad: String(current.cantidad ?? "").trim() !== "" ? current.cantidad : result.cantidad}));
+    return {key: result.itemId, label: result.product.nombre};
+  };
   const saveReturn = (event, exit) => {
     event.preventDefault();
     const value = returnDrafts[exit.id] || {cantidad: "", fecha: chileToday()};
@@ -549,10 +558,10 @@ function MaterialsSection({businessId, canManage, currency, currentUserUid, hasA
       <header><div><h4>Consumos adicionales</h4><p>{readOnly ? "Salidas y devoluciones registradas durante la ejecución del proyecto." : "Estas salidas sí generan un movimiento nuevo de inventario."}</p></div><strong>{formatMoney(Math.max(0, additionalValuedTotal), currency, businessLocale)}</strong></header>
       <p className="works-financial-note">Cada salida congela su costo. Las devoluciones conservan el movimiento de origen y restituyen stock con el mismo costo.</p>
     {canConsume && !readOnly && <form className="works-cost-form works-material-form" onSubmit={saveExit}>
-      <select className="erp-control" required value={draft.itemId} onChange={(event) => setDraft((current) => ({...current, itemId: event.target.value}))}>
+      <div className="works-material-product"><select className="erp-control" required value={draft.itemId} onChange={(event) => setDraft((current) => ({...current, itemId: event.target.value}))}>
         <option value="">Selecciona producto</option>
         {products.map((product) => <option key={product.id} value={product.id}>{product.nombre} · stock {Number(product.stock || 0)} {product.unidad || product.unidadStock || "unidad"}</option>)}
-      </select>
+      </select><BarcodeInput actionOnly actionLabel="Escanear producto" disabled={Boolean(processing)} onSubmit={scanMaterial} /></div>
       <TaskCostSelect tasks={tasks} value={draft.tareaId} onChange={(tareaId) => setDraft((current) => ({...current, tareaId}))} />
       <input className="erp-control" type="number" min="0.01" max="999999999.99" step="0.01" required value={draft.cantidad} onChange={(event) => setDraft((current) => ({...current, cantidad: event.target.value}))} placeholder="Cantidad" />
       <input className="erp-control" type="date" required value={draft.fecha} onChange={(event) => setDraft((current) => ({...current, fecha: event.target.value}))} />

@@ -1,3 +1,4 @@
+import {getBarcodeLookupCandidates, normalizeBarcode} from "./barcode.mjs";
 export const WORK_MODEL_VERSION = 2;
 export const WORK_FILE_MODEL_VERSION = 1;
 export const WORK_TASK_MODEL_VERSION = 2;
@@ -743,4 +744,24 @@ export function humanizeWorkEvent(event = {}, {includeAmounts = true} = {}) {
     venta_confirmada: `${actor} confirmó la venta ${detail.numero || "sin número"}${detail.cotizacionNumero ? ` originada en ${detail.cotizacionNumero}` : ""}${amountText(detail.total)}.`,
   };
   return messages[event.tipo] || `${actor} actualizó el trabajo.`;
+}
+
+// Decide qué hacer con una lectura en la salida de material: solo se
+// preselecciona un producto de la lista disponible y se pone cantidad 1 si
+// estaba vacía. La salida nunca se registra sola; la confirma el usuario.
+export function resolveWorkMaterialScan(products, rawBarcode, draft = {}) {
+  const candidates = getBarcodeLookupCandidates(rawBarcode);
+  const matches = candidates.length
+    ? (Array.isArray(products) ? products : []).filter((product) =>
+      candidates.includes(normalizeBarcode(product?.barcode || product?.codigoBarras)))
+    : [];
+  if (matches.length > 1) return {status: "ambiguous"};
+  if (!matches.length) return {status: "not_available"};
+  const hasQuantity = String(draft?.cantidad ?? "").trim() !== "";
+  return {
+    status: "found",
+    product: matches[0],
+    itemId: matches[0].id,
+    cantidad: hasQuantity ? draft.cantidad : "1",
+  };
 }

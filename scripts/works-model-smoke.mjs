@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {createRequire} from "node:module";
-import {adaptStoredWork, adaptWorkExpense, adaptWorkLabor, adaptWorkLink, adaptWorkMaterialMovement, adaptWorkTask, adaptWorkTaskDocumentation, buildQuickWorkCreationPayload, buildWorkDailyCostSummary, buildWorkMutationPayload, canManageWorks, formatWorkNumber as formatFrontendNumber, getEligibleWorkQuoteOptions, getInventoryCurrentCost, getTaskProgress, getWorkCostSummary, getWorkDraftErrors, getWorkHistoricalPersonIdentity, getWorkMemberIdentity, getWorkMemberOptionLabel, getWorkOperationalIndicators, getWorkSaleMaterials, getWorkTaskProgress, hasAdditionalWorkMembers, humanizeWorkEvent, isWorkOperationalReadOnly, matchesWorkFilters, WORK_MODEL_VERSION} from "../src/domain/workModel.mjs";
+import {adaptStoredWork, adaptWorkExpense, adaptWorkLabor, adaptWorkLink, adaptWorkMaterialMovement, adaptWorkTask, adaptWorkTaskDocumentation, buildQuickWorkCreationPayload, buildWorkDailyCostSummary, buildWorkMutationPayload, canManageWorks, formatWorkNumber as formatFrontendNumber, getEligibleWorkQuoteOptions, getInventoryCurrentCost, getTaskProgress, getWorkCostSummary, getWorkDraftErrors, getWorkHistoricalPersonIdentity, getWorkMemberIdentity, getWorkMemberOptionLabel, getWorkOperationalIndicators, getWorkSaleMaterials, getWorkTaskProgress, hasAdditionalWorkMembers, humanizeWorkEvent, isWorkOperationalReadOnly, matchesWorkFilters, resolveWorkMaterialScan, WORK_MODEL_VERSION} from "../src/domain/workModel.mjs";
 
 const require = createRequire(import.meta.url);
 const {actualizarSubtareaTrabajoHandler, actualizarTrabajoHandler, agregarNotaTrabajoHandler, agregarSubtareaTrabajoHandler, anularGastoTrabajoHandler, anularHorasHombreTrabajoHandler, asignarTareaTrabajoHandler, cambiarEstadoTareaTrabajoV2Handler, cambiarEstadoTrabajoHandler, crearTareaTrabajoV2Handler, crearTrabajoHandler, documentarTareaTrabajoHandler, eliminarSubtareaTrabajoHandler, eliminarTareaTrabajoV2Handler, formatWorkNumber, normalizeWorkInput, registrarDevolucionMaterialTrabajoHandler, registrarGastoTrabajoHandler, registrarHorasHombreTrabajoHandler, registrarSalidaMaterialTrabajoHandler, WORK_EXPENSE_CATEGORIES, writeCommercialLink, writeQuoteResponseEvent, writeSaleConfirmationEvent} = require("../functions/workPersistence.js");
@@ -564,5 +564,14 @@ assert.match(page, /El costo histórico de/);
 assert.match(backend, /agregarSubtareaTrabajoHandler/); assert.match(backend, /actualizarSubtareaTrabajoHandler/); assert.match(backend, /eliminarSubtareaTrabajoHandler/); assert.match(backend, /tareaId: taskId/);
 assert.match(styles, /works-detail-disclosure\[open\]/); assert.match(styles, /works-commercial-list[\s\S]*grid-template-columns/);
 console.log("OK integración: Rules, autoridad backend, lista/tablero y confirmación segura");
+
+const scanProducts = [{id: "p1", nombre: "Cable", barcode: "0012345678905"}, {id: "p2", nombre: "Switch", codigoBarras: "7801234567890"}];
+const scanFound = resolveWorkMaterialScan(scanProducts, "012345678905", {itemId: "", cantidad: ""});
+assert.deepEqual([scanFound.status, scanFound.itemId, scanFound.cantidad], ["found", "p1", "1"]);
+assert.equal(resolveWorkMaterialScan(scanProducts, "7801234567890", {cantidad: ""}).itemId, "p2");
+assert.equal(resolveWorkMaterialScan(scanProducts, "999", {cantidad: ""}).status, "not_available");
+assert.equal(resolveWorkMaterialScan(scanProducts, "", {}).status, "not_available");
+assert.equal(resolveWorkMaterialScan(scanProducts, "012345678905", {cantidad: "5"}).cantidad, "5");
+console.log("OK escáner de salida de material: disponible, no disponible y cantidad conservada");
 
 console.log("WORKS_MODEL_SMOKE_OK");
