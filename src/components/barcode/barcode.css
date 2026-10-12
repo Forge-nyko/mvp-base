@@ -7,9 +7,19 @@
 .barcode-scanner__camera > span { align-items: center; background: rgb(15 23 42 / .72); border-radius: .45rem; bottom: .65rem; color: var(--color-text-inverse); display: flex; font-size: .78rem; gap: .35rem; left: .65rem; max-width: calc(100% - 1.3rem); padding: .35rem .5rem; position: absolute; text-shadow: 0 1px 3px #000; }
 .barcode-scanner label { display: grid; gap: .4rem; }
 .barcode-scanner label > span { color: #334155; font-size: .85rem; font-weight: 650; }
-.barcode-scanner__error { color: var(--color-danger-700); margin: 0; }
+.barcode-scanner__message { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); margin: 0; }
+.barcode-scanner__message:empty { display: none; }
+.barcode-scanner__message--error { color: var(--color-danger-700); }
+.barcode-scanner__message--success { color: var(--color-success-700); }
 .barcode-scanner__actions { display: flex; gap: .6rem; justify-content: flex-end; }
 .barcode-scanner__actions button:last-child { background: var(--color-brand-600); border-color: var(--color-brand-600); color: var(--color-text-inverse); }
+.barcode-scanner__session { border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); display: grid; gap: var(--space-2); padding: var(--space-3); }
+.barcode-scanner__session > header { align-items: center; color: var(--color-text-default); display: flex; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); justify-content: space-between; }
+.barcode-scanner__session ul { display: grid; gap: var(--space-1); list-style: none; margin: 0; max-height: 9rem; overflow-y: auto; padding: 0; }
+.barcode-scanner__session li { display: flex; font-size: var(--font-size-sm); gap: var(--space-2); justify-content: space-between; }
+.barcode-scanner__session li > span { color: var(--color-text-default); overflow-wrap: anywhere; }
+.barcode-scanner__session li > strong, .barcode-scanner__session > header > strong { color: var(--color-text-strong); }
+.barcode-scanner__session > p { color: var(--color-text-muted); font-size: var(--font-size-sm); margin: 0; }
 @media (max-width: 520px) { .barcode-input-row { grid-template-columns: 1fr; } }
 
 /* Modo oscuro (etapa 5, paso 6 de 10). El negro de overlay de escaneo

@@ -1079,6 +1079,7 @@ function NewQuotePage({ userId }) {
     const valuation = valuations.find((entry) => entry.itemId === product.id) ||
       buildValuationForItem(product, []);
     addItem(valuation, 1);
+    return {key: product.id, label: product.nombre};
   };
 
   const handleCatalogSearchChange = (event) => {

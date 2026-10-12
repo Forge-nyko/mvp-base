@@ -248,7 +248,8 @@ export default function NewPurchaseOrderPage({businessId, role}) {
       throw new Error("Producto no encontrado para este código.");
     }
     addItem(product);
-    sileo.success({title: "Producto agregado", description: product.nombre});
+    // El cuadro de escaneo continuo muestra la confirmación y la lista de la sesión.
+    return {key: product.id, label: product.nombre};
   };
 
   const persistDraft = async () => {
