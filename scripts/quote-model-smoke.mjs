@@ -617,9 +617,18 @@ assert.match(quoteActionsSource, /label: "Reenviar"/);
 assert.match(quoteActionsSource, /const mainActionStyle = inRow \? styles\.secondaryButton : styles\.primaryButton;/);
 assert.doesNotMatch(quoteActionsSource, /style=\{styles\.primaryButton\}/);
 assert.equal((quoteActionsSource.match(/iconOnly=\{inRow\}/g) || []).length, (quoteActionsSource.match(/<MoreActionsMenu/g) || []).length);
-assert.match(sourceHistory, /aria-label=\{iconOnly \? "Más acciones" : undefined\}/);
-assert.match(sourceHistory, /title=\{iconOnly \? "Más acciones" : undefined\}/);
-assert.match(sourceHistory, /\{!iconOnly && <span>Más acciones<\/span>\}/);
+// El menú es el componente compartido de components/ui (también lo usa /inventario).
+const moreActionsMenuSource = fs.readFileSync("src/components/ui/MoreActionsMenu.jsx", "utf8");
+assert.match(sourceHistory, /import MoreActionsMenu from "\.\.\/components\/ui\/MoreActionsMenu";/);
+assert.doesNotMatch(sourceHistory, /function MoreActionsMenu|styles\.(moreActions|actionsMenu)/);
+assert.equal((quoteActionsSource.match(/menuLabel="Más acciones de cotización"/g) || []).length, (quoteActionsSource.match(/<MoreActionsMenu/g) || []).length);
+assert.match(moreActionsMenuSource, /label = "Más acciones"/);
+assert.match(moreActionsMenuSource, /aria-label=\{iconOnly \? label : undefined\}/);
+assert.match(moreActionsMenuSource, /title=\{iconOnly \? label : undefined\}/);
+assert.match(moreActionsMenuSource, /\{!iconOnly && <span>\{label\}<\/span>\}/);
+assert.match(moreActionsMenuSource, /role="menu"/);
+assert.match(moreActionsMenuSource, /role="menuitem"/);
+assert.match(moreActionsMenuSource, /\["ArrowDown", "ArrowUp", "Home", "End"\]/);
 assert.equal((sourceHistory.match(/<QuoteActions\s+inRow\b/g) || []).length, 2);
 // Tabla: mismo criterio que /clientes. Sin anchos fijos ni table-layout:
 // fixed (reparto automático), mismo relleno en todas las celdas (sin margen

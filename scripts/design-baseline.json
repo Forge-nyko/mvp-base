@@ -165,11 +165,11 @@
     },
     "src/pages/QuoteHistoryPage.jsx": {
       "color": 1,
-      "radius": 15,
+      "radius": 12,
       "shadow": 0,
       "duration": 0,
       "category": "c",
-      "note": "Etapa 5, paso 8: statusStyles y el objeto styles inline se migraron a var(--color-*)/var(--shadow-*) (reuso por rol, mismo mecanismo que NewQuotePage.jsx). Queda 1 literal intencional: #128c7e en whatsappButton es el verde de marca de WhatsApp, no reacciona al tema por diseno (no es color de la app)."
+      "note": "Etapa 5, paso 8: statusStyles y el objeto styles inline se migraron a var(--color-*)/var(--shadow-*) (reuso por rol, mismo mecanismo que NewQuotePage.jsx). Queda 1 literal intencional: #128c7e en whatsappButton es el verde de marca de WhatsApp, no reacciona al tema por diseno (no es color de la app). -3 radius: el menú Más acciones pasó a components/ui/MoreActionsMenu.jsx (clases ui-more-actions con tokens en components.css)."
     },
     "src/styles/components.css": {
       "color": 59,

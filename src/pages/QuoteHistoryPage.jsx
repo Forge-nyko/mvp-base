@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   Download,
-  Ellipsis,
   Mail,
   MessageCircle,
   Plus,
@@ -15,6 +13,7 @@ import QuotePrintView from "../features/quotes/QuotePrintView";
 import SendQuoteEmailModal from "../features/quotes/SendQuoteEmailModal";
 import AppIcon from "../components/ui/AppIcon";
 import Button from "../components/ui/Button";
+import MoreActionsMenu from "../components/ui/MoreActionsMenu";
 import ResponsiveDialog from "../components/ui/ResponsiveDialog";
 import SegmentedControl from "../components/ui/SegmentedControl";
 import {SkeletonCards, SkeletonRegion, SkeletonTable} from "../components/ui/Skeleton";
@@ -1161,6 +1160,7 @@ function QuoteActions({
         {linkedSaleActions.length > 0 && (
           <MoreActionsMenu
             iconOnly={inRow}
+            menuLabel="Más acciones de cotización"
             disabled={disabled || duplicating}
             actions={linkedSaleActions}
           />
@@ -1197,6 +1197,7 @@ function QuoteActions({
           </button>
           <MoreActionsMenu
             iconOnly={inRow}
+            menuLabel="Más acciones de cotización"
             actions={[emitMenuAction, archiveMenuAction]}
             disabled={disabled}
           />
@@ -1217,6 +1218,7 @@ function QuoteActions({
         </button>
         <MoreActionsMenu
           iconOnly={inRow}
+          menuLabel="Más acciones de cotización"
           actions={[editMenuAction, emitMenuAction, archiveMenuAction]}
           disabled={disabled}
         />
@@ -1237,6 +1239,7 @@ function QuoteActions({
         </button>
         <MoreActionsMenu
           iconOnly={inRow}
+          menuLabel="Más acciones de cotización"
           disabled={disabled || accepting}
           actions={[
             onSend && {
@@ -1264,6 +1267,7 @@ function QuoteActions({
       <>
         <MoreActionsMenu
           iconOnly={inRow}
+          menuLabel="Más acciones de cotización"
           disabled={disabled}
           actions={[
             {
@@ -1291,6 +1295,7 @@ function QuoteActions({
         </button>
         <MoreActionsMenu
           iconOnly={inRow}
+          menuLabel="Más acciones de cotización"
           disabled={disabled}
           actions={[duplicateMenuAction, archiveMenuAction].filter(Boolean)}
         />
@@ -1312,6 +1317,7 @@ function QuoteActions({
         {duplicateMenuAction && (
           <MoreActionsMenu
             iconOnly={inRow}
+            menuLabel="Más acciones de cotización"
             disabled={disabled || duplicating}
             actions={[duplicateMenuAction]}
           />
@@ -1321,150 +1327,6 @@ function QuoteActions({
   }
 
   return null;
-}
-
-function MoreActionsMenu({ actions, disabled, iconOnly = false }) {
-  const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState({ left: 0, top: 0 });
-  const triggerRef = useRef(null);
-  const menuRef = useRef(null);
-  const itemRefs = useRef([]);
-  const menuId = React.useId();
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    const closeMenu = () => setOpen(false);
-    const handlePointerDown = (event) => {
-      if (
-        !triggerRef.current?.contains(event.target) &&
-        !menuRef.current?.contains(event.target)
-      ) {
-        closeMenu();
-      }
-    };
-    const handleKeyDown = (event) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      closeMenu();
-      triggerRef.current?.focus();
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", closeMenu);
-    window.addEventListener("scroll", closeMenu, true);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", closeMenu);
-      window.removeEventListener("scroll", closeMenu, true);
-    };
-  }, [open]);
-
-  const openMenu = (focusLast = false) => {
-    const trigger = triggerRef.current;
-    if (!trigger || disabled) return;
-
-    const rect = trigger.getBoundingClientRect();
-    const menuWidth = 224;
-    const estimatedHeight = actions.length * 42 + 12;
-    const left = Math.max(
-      8,
-      Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)
-    );
-    const below = rect.bottom + 6;
-    const top = below + estimatedHeight <= window.innerHeight - 8
-      ? below
-      : Math.max(8, rect.top - estimatedHeight - 6);
-
-    setPosition({ left, top });
-    setOpen(true);
-    window.requestAnimationFrame(() => {
-      const availableItems = itemRefs.current.filter(
-        (item) => item && !item.disabled
-      );
-      const targetIndex = focusLast ? availableItems.length - 1 : 0;
-      availableItems[targetIndex]?.focus();
-    });
-  };
-
-  const handleMenuKeyDown = (event) => {
-    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-    const availableItems = itemRefs.current.filter(
-      (item) => item && !item.disabled
-    );
-    if (!availableItems.length) return;
-    const currentIndex = availableItems.indexOf(document.activeElement);
-    const nextIndex = event.key === "Home"
-      ? 0
-      : event.key === "End"
-        ? availableItems.length - 1
-        : event.key === "ArrowDown"
-          ? (currentIndex + 1 + availableItems.length) % availableItems.length
-          : (currentIndex - 1 + availableItems.length) % availableItems.length;
-    availableItems[nextIndex]?.focus();
-  };
-
-  const handleSelect = (action) => {
-    setOpen(false);
-    triggerRef.current?.focus();
-    action.onSelect();
-  };
-
-  return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-controls={open ? menuId : undefined}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        disabled={disabled}
-        aria-label={iconOnly ? "Más acciones" : undefined}
-        title={iconOnly ? "Más acciones" : undefined}
-        onClick={() => (open ? setOpen(false) : openMenu())}
-        onKeyDown={(event) => {
-          if (!open && ["ArrowDown", "ArrowUp"].includes(event.key)) {
-            event.preventDefault();
-            openMenu(event.key === "ArrowUp");
-          }
-        }}
-        style={iconOnly ? styles.moreActionsIconButton : styles.moreActionsButton}
-      >
-        {!iconOnly && <span>Más acciones</span>}
-        <AppIcon icon={Ellipsis} size={17} />
-      </button>
-      {open && typeof document !== "undefined" && createPortal(
-        <div
-          id={menuId}
-          ref={menuRef}
-          role="menu"
-          aria-label="Más acciones de cotización"
-          onKeyDown={handleMenuKeyDown}
-          style={{ ...styles.actionsMenu, ...position }}
-        >
-          {actions.map((action, index) => (
-            <button
-              key={action.label}
-              ref={(node) => {
-                itemRefs.current[index] = node;
-              }}
-              type="button"
-              role="menuitem"
-              disabled={action.disabled}
-              onClick={() => handleSelect(action)}
-              style={styles.actionsMenuItem}
-            >
-              {action.label}
-            </button>
-          ))}
-        </div>,
-        document.body
-      )}
-    </>
-  );
 }
 
 function QuoteDocumentActions({
@@ -1873,21 +1735,6 @@ function CommercialStatusTimeline({ quote }) {
   );
 }
 
-const moreActionsButtonStyle = {
-  alignItems: "center",
-  background: "var(--color-surface-subtle)",
-  border: "1px solid var(--color-border-control)",
-  borderRadius: "4px",
-  color: "var(--color-text-default)",
-  cursor: "pointer",
-  display: "inline-flex",
-  fontSize: "13px",
-  fontWeight: 700,
-  gap: "6px",
-  minHeight: "38px",
-  padding: "8px 10px",
-};
-
 const styles = {
   commercialStatus: {
     background: "var(--color-surface-subtle)",
@@ -1983,40 +1830,6 @@ const styles = {
     fontWeight: 800,
     minHeight: "38px",
     padding: "8px 11px",
-  },
-  moreActionsButton: moreActionsButtonStyle,
-  // Solo ícono en las filas: cuadrado de 38px, como los botones de ícono de
-  // /clientes, con el mismo estilo secundario del resto de la fila.
-  moreActionsIconButton: {
-    ...moreActionsButtonStyle,
-    justifyContent: "center",
-    padding: 0,
-    width: "38px",
-  },
-  actionsMenu: {
-    background: "var(--color-surface-panel)",
-    border: "1px solid var(--color-border-control)",
-    borderRadius: "6px",
-    boxShadow: "var(--shadow-lg)",
-    display: "grid",
-    gap: "2px",
-    padding: "6px",
-    position: "fixed",
-    width: "224px",
-    zIndex: 1300,
-  },
-  actionsMenuItem: {
-    background: "transparent",
-    border: 0,
-    borderRadius: "4px",
-    color: "var(--color-text-default)",
-    cursor: "pointer",
-    fontSize: "13px",
-    fontWeight: 700,
-    minHeight: "40px",
-    padding: "9px 10px",
-    textAlign: "left",
-    width: "100%",
   },
   secondaryButton: {
     background: "var(--color-surface-subtle)",
