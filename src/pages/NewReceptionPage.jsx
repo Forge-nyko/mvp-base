@@ -5,11 +5,13 @@ import Button from "../components/ui/Button";
 import LoadingState from "../components/ui/LoadingState";
 import ResponsiveDialog from "../components/ui/ResponsiveDialog";
 import SupplyTrace from "../components/ui/SupplyTrace";
+import BarcodeInput from "../components/barcode/BarcodeInput";
 import {
   canManageReceptions,
   getReceptionConfirmationImpact,
   getReceptionStatusLabel,
   getSupplierResponseLabel,
+  resolveReceptionScan,
   shouldReconcileReceptionConfirmation,
 } from "../domain/receptionModel.mjs";
 import {
@@ -20,6 +22,7 @@ import {
   obtenerRecepcion,
 } from "../services/receptionService";
 import {obtenerCompra} from "../services/purchaseService";
+import {findActiveProductByBarcode} from "../services/inventoryService";
 import {formatMoney} from "../utils/formatters";
 import ReceptionDocumentImportDialog from "../features/receptions/ReceptionDocumentImportDialog";
 import "../features/receptions/receptions.css";
@@ -43,6 +46,8 @@ export default function NewReceptionPage({businessId, role}) {
   const [message, setMessage] = useState("");
   const confirmId = useRef(createReceptionRequestId("reception-confirm"));
   const confirmGuard = useRef(false);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
   const canManage = canManageReceptions(role);
   const readOnly = !canManage || reception?.estado !== "borrador";
   const receivedProducts = reception?.items?.some((line) => line.tipoItem === "producto" && Number(line.cantidad) > 0);
@@ -111,6 +116,21 @@ export default function NewReceptionPage({businessId, role}) {
     sileo.success({title: "Propuesta aplicada", description: `${aplicadas} línea${aplicadas === 1 ? "" : "s"} rellenada${aplicadas === 1 ? "" : "s"}${omitidas ? `; ${omitidas} quedaron sin asociar.` : "."} Aún no se modificó el stock.`});
   };
 
+  // Suma 1 a la línea de producto de la OC; nunca crea líneas nuevas (SPEC 011).
+  const scanReceivedProduct = async (barcode) => {
+    const product = await findActiveProductByBarcode(businessId, barcode);
+    if (!product) throw new Error("Producto no encontrado para este código.");
+    const current = draftRef.current;
+    const result = resolveReceptionScan(current.items, product.id);
+    if (result.status === "not_in_reception") throw new Error("Este producto no está en la recepción.");
+    if (result.status === "completed") throw new Error(`Ya se completó lo pendiente de ${result.line.nombre}.`);
+    const {line, cantidad: next} = result;
+    const items = current.items.map((item) => item.lineaId === line.lineaId ? {...item, cantidad: next} : item);
+    draftRef.current = {...current, items};
+    setDraft((latest) => ({...latest, items: latest.items.map((item) => item.lineaId === line.lineaId ? {...item, cantidad: next} : item)}));
+    return {key: line.lineaId, label: line.nombre};
+  };
+
   if (loading) return <LoadingState variant="page" label="Cargando recepción..." />;
   if (!reception) return <p className="po-message po-message--error">{message}</p>;
   return <main className="po-workspace">
@@ -128,7 +148,7 @@ export default function NewReceptionPage({businessId, role}) {
 
     <section className="po-panel"><h2>Datos de recepción</h2><div className="reception-grid"><label>Fecha de recepción<input type="date" disabled={readOnly} value={draft.fechaRecepcion} onChange={(event) => setDraft({...draft, fechaRecepcion: event.target.value})} /></label><label className="reception-grid__wide">Observaciones<textarea disabled={readOnly} value={draft.observaciones} onChange={(event) => setDraft({...draft, observaciones: event.target.value})} /></label></div></section>
     <section className="po-panel">
-      <div className="reception-items-heading"><div><h2>Ítems de la recepción</h2><p>Registra productos recibidos y confirma servicios o actividades prestadas.</p></div>{!readOnly && <button type="button" className="po-button po-button--secondary" disabled={processing} onClick={() => setImportOpen(true)}>Importar factura o documento</button>}</div>
+      <div className="reception-items-heading"><div><h2>Ítems de la recepción</h2><p>Registra productos recibidos y confirma servicios o actividades prestadas.</p></div>{!readOnly && <div className="po-header__actions"><BarcodeInput actionOnly continuous actionLabel="Escanear producto" disabled={processing} onSubmit={scanReceivedProduct} /><button type="button" className="po-button po-button--secondary" disabled={processing} onClick={() => setImportOpen(true)}>Importar factura o documento</button></div>}</div>
       {draft.documentoOrigen && <div className="reception-document-source"><div><span>Documento conciliado</span><strong>{draft.documentoOrigen.nombreArchivo}</strong></div><div><span>Documento</span><strong>{draft.documentoOrigen.tipoDocumento === "factura" ? "Factura" : draft.documentoOrigen.tipoDocumento === "boleta" ? "Boleta" : "Documento"}{draft.documentoOrigen.numeroDocumento ? ` N° ${draft.documentoOrigen.numeroDocumento}` : ""}</strong></div>{hasDocumentValue(draft.documentoOrigen.neto) && <div><span>Neto</span><strong>{formatMoney(draft.documentoOrigen.neto, draft.documentoOrigen.moneda || reception.moneda, reception.locale)}</strong></div>}{hasDocumentValue(draft.documentoOrigen.impuestoMonto) && <div><span>{hasDocumentValue(draft.documentoOrigen.impuestoPorcentaje) ? `IVA (${draft.documentoOrigen.impuestoPorcentaje}%)` : "IVA"}</span><strong>{formatMoney(draft.documentoOrigen.impuestoMonto, draft.documentoOrigen.moneda || reception.moneda, reception.locale)}</strong></div>}{hasDocumentValue(draft.documentoOrigen.total) && <div><span>Total</span><strong>{formatMoney(draft.documentoOrigen.total, draft.documentoOrigen.moneda || reception.moneda, reception.locale)}</strong></div>}<div><span>Conciliación</span><strong>{draft.documentoOrigen.lineasAplicadas || 0} de {draft.documentoOrigen.lineasDetectadas || 0} líneas aplicadas</strong></div></div>}
       <div className="erp-table-region"><table className="erp-table reception-items-table"><thead><tr><th>Ítem</th><th>Solicitado</th><th>Recibido / confirmado antes</th><th>Pendiente</th><th>Cantidad actual</th><th>Costo unitario</th><th>Desc. %</th></tr></thead><tbody>{draft.items.map((line) => {
         const pending = Math.max(0, line.cantidadSolicitada - line.cantidadRecibidaAnterior);
