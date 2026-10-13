@@ -291,17 +291,17 @@ export function buildVeterinaryInventoryReference(
     );
   }
 
-    if (
+  if (
     item.estado !==
     "activo"
-    ) {
+  ) {
     throw new Error(
-        "El ítem de inventario no está activo."
+      "El ítem de inventario no está activo."
     );
-    }
+  }
+
   const cantidad =
     Number(quantity);
-
 
   if (
     !Number.isFinite(
@@ -326,27 +326,15 @@ export function buildVeterinaryInventoryReference(
     );
   }
 
-
   if (
-  item.tipoItem ===
-    "producto" &&
-  cantidad > item.stock
-) {
-  throw new Error(
-    "La cantidad solicitada supera el stock disponible."
-  );
-}
-
-
-  if (
-  item.tipoItem ===
-    "producto" &&
-  cantidad > item.stock
-) {
-  throw new Error(
-    "La cantidad solicitada supera el stock disponible."
-  );
-}
+    item.tipoItem ===
+      "producto" &&
+    cantidad > item.stock
+  ) {
+    throw new Error(
+      "La cantidad solicitada supera el stock disponible."
+    );
+  }
 
 
   return {
@@ -366,5 +354,6 @@ export function buildVeterinaryInventoryReference(
       item.unidad,
 
     cantidad,
+
   };
 }
