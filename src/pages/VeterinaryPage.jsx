@@ -1,5 +1,6 @@
 import React from "react";
-import VeterinaryManager from "../features/veterinary/VeterinaryManager";
+
+import VeterinaryRoutes from "../features/veterinary/VeterinaryRoutes";
 
 
 function VeterinaryPage({
@@ -7,7 +8,7 @@ function VeterinaryPage({
   role,
 }) {
   return (
-    <VeterinaryManager
+    <VeterinaryRoutes
       businessId={businessId}
       role={role}
     />

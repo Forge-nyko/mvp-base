@@ -9,6 +9,12 @@ import {
 } from "../../services/inventoryService";
 
 import {
+  subscribeToVeterinaryAppointments,
+  subscribeToVeterinaryAttentions,
+  subscribeToVeterinaryPatients,
+} from "./data/veterinaryDataService";
+
+import {
   getVeterinaryPharmacyProducts,
   getVeterinaryServicesFromInventory,
 } from "./domain/inventoryPharmacyIntegrationModel.mjs";
@@ -16,6 +22,7 @@ import {
 
 function VeterinaryManager({
   businessId,
+  role,
 }) {
   const [
     inventoryItems,
@@ -30,6 +37,32 @@ function VeterinaryManager({
   const [
     inventoryError,
     setInventoryError,
+  ] = useState("");
+
+
+  const [
+    patients,
+    setPatients,
+  ] = useState([]);
+
+  const [
+    appointments,
+    setAppointments,
+  ] = useState([]);
+
+  const [
+    attentions,
+    setAttentions,
+  ] = useState([]);
+
+  const [
+    loadingVeterinaryData,
+    setLoadingVeterinaryData,
+  ] = useState(true);
+
+  const [
+    veterinaryDataError,
+    setVeterinaryDataError,
   ] = useState("");
 
 
@@ -67,6 +100,117 @@ function VeterinaryManager({
         );
       }
     );
+  }, [businessId]);
+
+
+  useEffect(() => {
+    if (!businessId) {
+      setPatients([]);
+      setAppointments([]);
+      setAttentions([]);
+      setLoadingVeterinaryData(false);
+      setVeterinaryDataError("");
+
+      return undefined;
+    }
+
+    setPatients([]);
+    setAppointments([]);
+    setAttentions([]);
+    setLoadingVeterinaryData(true);
+    setVeterinaryDataError("");
+
+    const pending =
+      new Set([
+        "patients",
+        "appointments",
+        "attentions",
+      ]);
+
+    const markLoaded = (key) => {
+      pending.delete(key);
+
+      if (pending.size === 0) {
+        setLoadingVeterinaryData(false);
+      }
+    };
+
+    const handleError = (
+      key,
+      label,
+      error
+    ) => {
+      console.error(
+        `Error al cargar ${label} de Clínica Veterinaria:`,
+        error
+      );
+
+      setVeterinaryDataError(
+        "Los datos clínicos todavía no están habilitados por las reglas de acceso de Firestore."
+      );
+
+      markLoaded(key);
+    };
+
+    const unsubscribePatients =
+      subscribeToVeterinaryPatients(
+        businessId,
+
+        (items) => {
+          setPatients(items);
+          markLoaded("patients");
+        },
+
+        (error) => {
+          handleError(
+            "patients",
+            "pacientes",
+            error
+          );
+        }
+      );
+
+    const unsubscribeAppointments =
+      subscribeToVeterinaryAppointments(
+        businessId,
+
+        (items) => {
+          setAppointments(items);
+          markLoaded("appointments");
+        },
+
+        (error) => {
+          handleError(
+            "appointments",
+            "citas",
+            error
+          );
+        }
+      );
+
+    const unsubscribeAttentions =
+      subscribeToVeterinaryAttentions(
+        businessId,
+
+        (items) => {
+          setAttentions(items);
+          markLoaded("attentions");
+        },
+
+        (error) => {
+          handleError(
+            "attentions",
+            "atenciones",
+            error
+          );
+        }
+      );
+
+    return () => {
+      unsubscribePatients();
+      unsubscribeAppointments();
+      unsubscribeAttentions();
+    };
   }, [businessId]);
 
 
@@ -117,7 +261,62 @@ function VeterinaryManager({
             Gestión clínica de pacientes, agenda,
             atenciones y farmacia veterinaria.
           </p>
+
+          <p>
+            Rol activo:{" "}
+            <strong>
+              {role || "Sin rol"}
+            </strong>
+          </p>
         </div>
+      </div>
+
+
+      <div className="erp-panel">
+        <h2>
+          Modelo de datos veterinario
+        </h2>
+
+        {loadingVeterinaryData && (
+          <p>
+            Cargando datos clínicos...
+          </p>
+        )}
+
+        {veterinaryDataError && (
+          <div
+            className="erp-empty-state"
+            role="alert"
+          >
+            {veterinaryDataError}
+          </div>
+        )}
+
+        {!loadingVeterinaryData &&
+          !veterinaryDataError && (
+            <>
+              <p>
+                Pacientes:{" "}
+                <strong>
+                  {patients.length}
+                </strong>
+              </p>
+
+              <p>
+                Citas:{" "}
+                <strong>
+                  {appointments.length}
+                </strong>
+              </p>
+
+              <p>
+                Atenciones:{" "}
+                <strong>
+                  {attentions.length}
+                </strong>
+              </p>
+            </>
+          )}
       </div>
 
 
