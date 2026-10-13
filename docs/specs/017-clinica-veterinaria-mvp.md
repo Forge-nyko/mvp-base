@@ -1678,3 +1678,114 @@ integraciones Core controladas
 ```
 
 La siguiente etapa corresponde a implementar progresivamente este diseño, comenzando por servicios de persistencia y conexión del módulo con el contexto real de ValoraCloud, sin modificar de forma directa componentes protegidos del Core.
+
+
+## 38. Integración con Core pendiente de revisión
+
+La implementación aislada del módulo Clínica Veterinaria se encuentra preparada,
+pero su habilitación global requiere cambios en componentes protegidos del Core
+de ValoraCloud. Conforme a `MODULE_DEVELOPMENT_CONTRACT.md`, estos cambios no se
+realizan sin aprobación explícita del mantenedor.
+
+### 38.1 Necesidad funcional
+
+El módulo necesita:
+
+- exponer la ruta principal `/veterinaria/*` desde el router global;
+- permitir el acceso a Veterinaria mediante el RBAC central;
+- habilitar acceso autorizado a las colecciones:
+  - `negocios/{businessId}/pacientesVeterinarios`;
+  - `negocios/{businessId}/citasVeterinarias`;
+  - `negocios/{businessId}/atencionesVeterinarias`.
+
+Actualmente las rutas internas React, los paths Firestore y la capa de lectura
+del módulo ya se encuentran implementados.
+
+### 38.2 Core afectado
+
+La integración requiere revisión de los siguientes componentes protegidos:
+
+- `src/app/App.jsx`;
+- `src/domain/rbac.mjs`;
+- `firestore.rules`.
+
+Las futuras mutaciones clínicas también deberán revisarse antes de incorporar
+Functions o mecanismos autoritativos de escritura.
+
+### 38.3 Por qué no basta una integración aislada
+
+`App.jsx` valida las rutas mediante `canAccessBusinessPath()`. Como
+`/veterinaria` todavía no pertenece al RBAC central, una ruta agregada solamente
+en React sería redirigida antes de cargar el módulo.
+
+Además, las Firestore Rules actuales bloquean cualquier colección de negocio que
+no tenga una regla explícita. Por esta razón, las colecciones veterinarias no
+pueden leerse ni escribirse desde el cliente hasta que el Core autorice su
+contrato de acceso.
+
+### 38.4 Riesgos
+
+Una modificación incorrecta podría:
+
+- permitir acceso de un perfil no autorizado;
+- romper el aislamiento entre negocios;
+- habilitar lecturas o escrituras cross-tenant;
+- otorgar permisos clínicos mediante módulos no relacionados;
+- introducir escrituras frontend como autoridad;
+- afectar contratos existentes de RBAC o Firestore Rules.
+
+Por estas razones no se reutilizan artificialmente permisos de Inventario,
+Clientes u otros módulos para autorizar Veterinaria.
+
+### 38.5 Propuesta mínima para revisión
+
+Se propone al mantenedor:
+
+1. registrar el módulo `veterinaria` en el RBAC central;
+2. definir permisos y perfiles autorizados para lectura y operación clínica;
+3. registrar `/veterinaria/*` en el router global;
+4. habilitar Rules explícitas para las tres colecciones veterinarias;
+5. mantener `businessId` derivado exclusivamente del contexto autorizado;
+6. mantener las operaciones de stock mediante mecanismos aprobados del Core;
+7. definir Functions autoritativas antes de habilitar mutaciones clínicas
+   sensibles.
+
+No se propone modificar la economía de Inventario, costos, valorización,
+ledger, Ventas, Compras o Recepciones.
+
+### 38.6 Pruebas necesarias para aprobar la integración
+
+La integración Core deberá validar como mínimo:
+
+- negocio activo requerido;
+- rechazo de acceso cross-tenant;
+- acceso permitido y denegado según RBAC;
+- lectura aislada de pacientes, citas y atenciones;
+- bloqueo de mutaciones no autorizadas;
+- integración de Inventario únicamente en lectura desde Veterinaria;
+- ausencia de escrituras directas de stock desde frontend;
+- `npm run test:veterinary` en verde;
+- `npm run build` en verde;
+- pruebas de Firestore Rules mediante Emulator Suite.
+
+### 38.7 Estado actual
+
+Implementado en la feature branch:
+
+- modelo de datos veterinario;
+- paths Firestore aislados dentro del módulo;
+- capa de lectura para pacientes, citas y atenciones;
+- integración con `businessId`;
+- integración de lectura con Inventario Core;
+- rutas React internas;
+- `VeterinaryPage`;
+- `VeterinaryManager`.
+
+Pendiente exclusivamente de aprobación del mantenedor:
+
+- conexión global en `App.jsx`;
+- alta del módulo y permisos en RBAC;
+- Rules para las colecciones veterinarias;
+- mecanismos autoritativos de escritura.
+
+No se modificó ningún componente Core protegido para resolver estos pendientes.
