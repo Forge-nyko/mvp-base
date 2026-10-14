@@ -145,9 +145,22 @@ function VeterinaryManager({
         error
       );
 
-      setVeterinaryDataError(
-        "Los datos clínicos todavía no están habilitados por las reglas de acceso de Firestore."
-      );
+      const errorCode =
+        String(error?.code || "");
+
+      if (
+        errorCode.includes(
+          "permission-denied"
+        )
+      ) {
+        setVeterinaryDataError(
+          "No tienes permisos para acceder a los datos clínicos de este negocio."
+        );
+      } else {
+        setVeterinaryDataError(
+          "No se pudieron cargar los datos clínicos. Revisa tu conexión e inténtalo nuevamente."
+        );
+      }
 
       markLoaded(key);
     };

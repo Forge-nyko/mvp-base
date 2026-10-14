@@ -8,6 +8,7 @@ import {
 import { db } from "../../../firebase/firebaseConfig";
 
 import {
+  requireBusinessId,
   veterinaryAppointmentDocPath,
   veterinaryAppointmentsCollectionPath,
   veterinaryAttentionDocPath,
@@ -17,18 +18,6 @@ import {
 } from "./veterinaryFirestorePaths.mjs";
 
 
-function requireBusinessId(businessId) {
-  const normalized =
-    String(businessId || "").trim();
-
-  if (!normalized) {
-    throw new Error(
-      "Selecciona un negocio activo."
-    );
-  }
-
-  return normalized;
-}
 
 
 function mapSnapshot(snapshot) {

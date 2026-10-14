@@ -1,4 +1,4 @@
-function requireBusinessId(businessId) {
+export function requireBusinessId(businessId) {
   const normalized =
     String(businessId || "").trim();
 
