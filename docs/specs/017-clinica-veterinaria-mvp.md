@@ -1789,3 +1789,114 @@ Pendiente exclusivamente de aprobación del mantenedor:
 - mecanismos autoritativos de escritura.
 
 No se modificó ningún componente Core protegido para resolver estos pendientes.
+
+## 39. Revisión del mantenedor y validación final
+
+### 39.1 Resultado de la revisión
+
+El mantenedor revisó el PR del módulo Clínica Veterinaria y confirmó que no
+existen observaciones que bloqueen el avance actual.
+
+Se validó especialmente que:
+
+- la rama se encuentra actualizada con la baseline;
+- la integración con Inventario Core es únicamente de lectura;
+- las lecturas utilizan el `businessId` del negocio activo;
+- no existen escrituras directas desde el navegador;
+- la validación duplicada de farmacia fue corregida;
+- no se modificaron componentes protegidos del Core sin autorización;
+- las pruebas de Rules, RBAC y los smokes veterinarios se encuentran en verde.
+
+### 39.2 Correcciones aplicadas después de la revisión
+
+Se aplicaron las siguientes observaciones del mantenedor:
+
+#### Manejo de errores de Firestore
+
+`VeterinaryManager.jsx` dejó de asumir que todos los errores de las
+suscripciones corresponden a permisos.
+
+Actualmente:
+
+- `permission-denied` muestra un mensaje asociado a falta de permisos;
+- errores de red, índices u otros fallos muestran un mensaje general de carga.
+
+#### Helper `requireBusinessId`
+
+Se eliminó la implementación duplicada de `requireBusinessId`.
+
+La función se exporta desde:
+
+`src/features/veterinary/data/veterinaryFirestorePaths.mjs`
+
+y es reutilizada desde:
+
+`src/features/veterinary/data/veterinaryDataService.js`.
+
+### 39.3 Rutas React
+
+Las rutas internas implementadas son:
+
+- `/veterinaria`;
+- `/veterinaria/pacientes`;
+- `/veterinaria/pacientes/nuevo`;
+- `/veterinaria/pacientes/:pacienteId`;
+- `/veterinaria/agenda`;
+- `/veterinaria/agenda/nueva`;
+- `/veterinaria/citas/:citaId`.
+
+Estas rutas representan actualmente la estructura de navegación del módulo.
+
+No deben considerarse como siete pantallas productivas terminadas, ya que por
+ahora reutilizan el contenedor principal y todavía deben conectarse a sus
+componentes específicos.
+
+### 39.4 Validaciones ejecutadas
+
+Después de las correcciones se ejecutaron:
+
+- `npm run build`;
+- `npm run test:veterinary`;
+- `npm run test:rules`;
+- `npm run test:rbac`;
+- `npm run test:inventory-service`;
+- `npm run test:inventory-model`;
+- `git diff --check`.
+
+Todos finalizaron correctamente.
+
+Los siete smoke tests del dominio veterinario permanecen en verde.
+
+### 39.5 Integración autorizada pendiente de nueva baseline
+
+El mantenedor autorizó posteriormente la integración del módulo con:
+
+- `App.jsx` y `/veterinaria/*`;
+- menú principal;
+- módulo y permisos propios en RBAC;
+- reglas Firestore para las tres colecciones veterinarias;
+- Functions propias para crear y modificar pacientes, citas y atenciones.
+
+La integración no se realizará todavía sobre la baseline actual porque el Core
+cambió significativamente y se publicará una nueva versión.
+
+Cuando esa baseline esté disponible también se deberán incorporar:
+
+- tokens de diseño en reemplazo de los `rgba()` existentes;
+- componentes compartidos como `LoadingState` y `SkeletonCards`;
+- clases visuales `ui-`;
+- pruebas de presupuesto de Firestore Rules.
+
+### 39.6 Restricciones vigentes
+
+Continúa sin autorización:
+
+- modificar Functions centrales existentes;
+- descontar stock desde Farmacia Veterinaria;
+- crear un mecanismo propio de consumo de inventario.
+
+Farmacia Veterinaria continúa operando únicamente en modo lectura hasta que el
+Core entregue un mecanismo único y autorizado de consumo de stock.
+
+La activación futura del módulo según el rubro del negocio también corresponde
+al Core y no forma parte de la responsabilidad del módulo.
