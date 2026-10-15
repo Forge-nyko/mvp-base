@@ -8,7 +8,8 @@ costo. Solo dos excepciones convierten lo pagado completo en costo: la compra
 con boleta y el producto exento de IVA.
 
 - Fecha conceptual: 8 de octubre de 2026.
-- Estado: aprobada; implementación pendiente. Las decisiones D1 a D6 son
+- Estado: aprobada; implementadas las etapas 1 a 3 del §13 (commits `83dee04`,
+  `765bc8c` y `d1d3ded`). Pendientes las etapas 4 a 7. Las decisiones D1 a D6 son
   definitivas. La decisión P1 y la regla del §9.3 son **provisionales**:
   decididas por el desarrollador en ausencia del dueño, a confirmar con él al
   volver.

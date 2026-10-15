@@ -189,8 +189,28 @@ assert.equal(Object.isFrozen(WORK_ADDITIONAL_ITEM_TYPES), true);
 // --- Caso 17: pureza — sin Firebase, sin red, sin Firestore ---
 {
   const source = await readFile(new URL("../src/domain/workModel.mjs", import.meta.url), "utf8");
-  assert.doesNotMatch(source, /^import /m, "src/domain/workModel.mjs debe seguir sin ninguna dependencia externa (0 imports)");
-  for (const forbidden of ["firebase", "firestore", "fetch(", "XMLHttpRequest", "getFunctions", "httpsCallable"]) {
+  // Solo se permiten imports relativos a módulos puros de src/domain/ (./nombre.mjs);
+  // Firebase, services, React o cualquier paquete siguen prohibidos.
+  const pureDomainImport = /^\.\/[\w-]+\.mjs$/;
+  const importSpecifiers = (code) => [...code.matchAll(/^import\s[^;]*?from\s+["']([^"']+)["']|^import\s+["']([^"']+)["']/gm)].map((match) => match[1] || match[2]);
+  const forbiddenTerms = ["firebase", "firestore", "fetch(", "XMLHttpRequest", "getFunctions", "httpsCallable"];
+  const importedSpecifiers = importSpecifiers(source);
+  assert.equal(
+    (source.match(/^import\s/gm) || []).length,
+    importedSpecifiers.length,
+    "src/domain/workModel.mjs: todos los imports deben ser estáticos y de la forma 'from \"...\"'",
+  );
+  for (const specifier of importedSpecifiers) {
+    assert.match(specifier, pureDomainImport, `workModel.mjs solo puede importar módulos puros de src/domain/ (./x.mjs), no '${specifier}'`);
+    const importedSource = await readFile(new URL(`../src/domain/${specifier.slice(2)}`, import.meta.url), "utf8");
+    for (const nested of importSpecifiers(importedSource)) {
+      assert.match(nested, pureDomainImport, `${specifier} debe ser puro: no puede importar '${nested}'`);
+    }
+    for (const forbidden of forbiddenTerms) {
+      assert.equal(importedSource.toLowerCase().includes(forbidden.toLowerCase()), false, `${specifier} no debe mencionar '${forbidden}'`);
+    }
+  }
+  for (const forbidden of forbiddenTerms) {
     assert.equal(source.toLowerCase().includes(forbidden.toLowerCase()), false, `workModel.mjs no debe mencionar '${forbidden}'`);
   }
 }

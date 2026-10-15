@@ -10,7 +10,10 @@ evidencia documental a un gasto ya existente. Ninguna comparte persistencia
 ni flujo con la otra.
 
 - Fecha conceptual: 3 de septiembre de 2026.
-- Estado: especificada; implementación pendiente.
+- Estado: implementada (Etapas 1 a 5, commit `a2fdeb7`: modelo y helpers,
+  `crearAdicionalTrabajo`/`anularAdicionalTrabajo`, evidencia con Storage Rules,
+  UI de Proyecto y cierre atómico en `confirmarVenta`). QA visual diferido a
+  `PENDING_GLOBAL_QA`, aún pendiente.
 - Alcance: Core de ValoraCloud (Proyectos/Trabajos, Ventas). Las verticales
   estudiantiles quedan excluidas.
 - Precedencia: `AGENTS.md` conserva autoridad máxima. SPEC 012 sigue siendo

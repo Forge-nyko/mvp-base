@@ -10,14 +10,17 @@ Proyecto, y corrige dos brechas de UI ya identificadas y evidenciadas por
 código.
 
 - Fecha conceptual: 2 de septiembre de 2026.
-- Estado: especificada; implementación pendiente.
+- Estado: implementada (Etapas 1 y 2, commit `ea203c1`: `WorkQuoteSelector`,
+  gate de FINANZAS en `WorkBalanceSection` y `WorkTaskBoard` con selector
+  Lista/Tablero). QA visual diferido a `PENDING_GLOBAL_QA` (§10), aún pendiente.
 - Alcance: Core de ValoraCloud (módulo Proyectos/Trabajos). Las verticales
   estudiantiles quedan excluidas.
 - Precedencia: `AGENTS.md` y SPEC 016 conservan autoridad. SPEC 012 sigue
   siendo la única definición del modelo de datos de Trabajos/tareas y del
   balance económico; esta SPEC no la sustituye en ningún punto, sólo
   construye una vista adicional sobre datos y Callables que ya existen.
-- Esta SPEC no declara implementada ninguna funcionalidad nueva.
+- Esta SPEC solo declara implementado su propio alcance (§7); no declara
+  implementado ningún otro objetivo de la SPEC 016.
 
 ## 2. Principios obligatorios
 
