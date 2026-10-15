@@ -29,6 +29,7 @@ import {
 } from "../../../domain/reportMonthlySummary.mjs";
 import useBusinessFormat from "../../../hooks/useBusinessFormat";
 import {formatMoney} from "../../../utils/formatters";
+import ReportsMonthlyProjects from "./ReportsMonthlyProjects";
 
 const DELTA_ICONS = Object.freeze({up: ArrowUpRight, down: ArrowDownRight, flat: Minus, none: Minus});
 
@@ -113,6 +114,7 @@ function ReportsMonthlySummary({
   previousProfit,
   previousSummary,
   profit,
+  projects,
   summary,
   todayKey,
 }) {
@@ -173,6 +175,8 @@ function ReportsMonthlySummary({
         {canRegisterPurchase && <Button type="button" variant="secondary" onClick={() => onNavigate("/compras/nueva")}>Registrar compra</Button>}
       </div>}
     </div>}
+
+    <ReportsMonthlyProjects canView={canViewProfitability} currency={currency} inProgress={inProgress} links={links} month={month} onNavigate={onNavigate} onRetry={onRetryProfit} profit={profit} projects={projects} />
 
     {hasCards && <CoverageLine canViewProfitability={canViewProfitability} coverage={coverage} onOpenDetail={onOpenDetail} withoutNetCount={withoutNetCount} />}
   </>;

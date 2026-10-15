@@ -33,7 +33,11 @@ import {calculateOperationalNetProfit} from "../src/domain/operationalNetProfit.
 import {
   MONTHLY_EXPLANATIONS,
   NO_PREVIOUS_MONTH_TEXT,
+  PROJECT_RESULT_STATUS,
+  buildMonthlyProjectResults,
   buildMonthlySummaryGroups,
+  buildServicesWithoutProjectNotices,
+  projectResultLabel,
   canShowNextMonth,
   compareWithPreviousMonth,
   formatComparisonText,
@@ -758,5 +762,114 @@ assert.match(monthlyViewSource, /group\.profit\.status === "ready" \? referenceO
 assert.match(monthlyViewSource, /No hubo ventas confirmadas en \{formatMonthLabel\(month, locale\)\.toLocaleLowerCase\(locale\)\}/);
 assert.match(monthlyViewSource, /\{inProgress && \(canRegisterSale \|\| canRegisterPurchase\) && <div className="reports-month-actions">/);
 console.log("OK reportes SPEC 025: resumen mensual por defecto, comparación sin base, cobertura, permisos y estados carga/error/vacío separados");
+
+// SPEC 025 §3: "Proyectos del mes". Lista pura, misma fuente que la ganancia.
+const octoberPeriod = {desde: monthRangeOctober.start, hasta: monthRangeOctober.end};
+const projectMonth = (mes, {ingresoNeto = 0, horasHombre = 0, materialesVenta = 0, moneda = "CLP"} = {}) => {
+  const costoTotal = horasHombre + materialesVenta;
+  return {mes, moneda, ingresoNeto, materialesVenta, materialesAdicionales: 0, horasHombre, gastosDirectos: 0, gastosIndirectos: 0, costoTotal, resultado: ingresoNeto - costoTotal};
+};
+const projectEntry = (id, numero, titulo, meses, {moneda = "CLP", cliente = "", fuentes = {}} = {}) => ({
+  id,
+  numero,
+  titulo,
+  clienteSnapshot: cliente ? {nombreRazonSocial: cliente} : null,
+  balance: {
+    trabajoId: id,
+    moneda,
+    estado: "COMPLETO",
+    valorComercial: meses.reduce((total, entry) => total + entry.ingresoNeto, 0),
+    costoTotal: meses.reduce((total, entry) => total + entry.costoTotal, 0),
+    resultado: meses.reduce((total, entry) => total + entry.resultado, 0),
+    desglosePorMes: meses,
+    fuentes: {materialesVentaSinCosto: 0, ventasSinNetoValido: 0, registrosSinFecha: 0, ...fuentes},
+  },
+});
+const projectFixtures = [
+  projectEntry("p-loss", "TR-0001", "Cableado oficina", [projectMonth("2026-09", {ingresoNeto: 900000}), projectMonth("2026-10", {horasHombre: 30000})], {cliente: "Cliente A"}),
+  projectEntry("p-worse", "TR-0002", "Red de bodega", [projectMonth("2026-10", {horasHombre: 70000, ingresoNeto: 20000})], {cliente: "Cliente B"}),
+  projectEntry("p-win", "TR-0003", "Cámaras de seguridad", [projectMonth("2026-10", {ingresoNeto: 100000, materialesVenta: 20000})]),
+  projectEntry("p-zero", "TR-0004", "Mantención", [projectMonth("2026-10", {ingresoNeto: 10000, materialesVenta: 10000})]),
+  projectEntry("p-other-month", "TR-0005", "Sin movimiento en octubre", [projectMonth("2026-09", {horasHombre: 5000})]),
+  projectEntry("p-unreliable", "TR-0006", "Materiales sin costo", [projectMonth("2026-10", {horasHombre: 1000})], {fuentes: {materialesVentaSinCosto: 1}}),
+  projectEntry("p-usd", "TR-0007", "Proyecto en dólares", [projectMonth("2026-10", {ingresoNeto: 400, moneda: "USD"})], {moneda: "USD"}),
+  projectEntry("p-cents", "TR-0008", "Con centavos", [projectMonth("2026-10", {ingresoNeto: 0.3, horasHombre: 0.1})]),
+  {id: "p-failed", numero: "TR-0009", titulo: "Balance fallido", balance: null},
+];
+const monthlyProjects = buildMonthlyProjectResults({projects: projectFixtures, month: "2026-10"});
+// Pierden primero (el peor al comienzo), luego ganan (el mayor primero) y al final el resultado 0; cada moneda por separado.
+assert.deepEqual(monthlyProjects.filas.map((row) => row.id), ["p-worse", "p-loss", "p-win", "p-cents", "p-zero", "p-usd"]);
+assert.deepEqual(monthlyProjects.filas.map((row) => row.estado), [
+  PROJECT_RESULT_STATUS.LOSING, PROJECT_RESULT_STATUS.LOSING, PROJECT_RESULT_STATUS.WINNING,
+  PROJECT_RESULT_STATUS.WINNING, PROJECT_RESULT_STATUS.NEUTRAL, PROJECT_RESULT_STATUS.WINNING,
+]);
+assert.equal(monthlyProjects.filas.find((row) => row.id === "p-loss").resultado, -30000, "solo cuenta el mes elegido (septiembre queda fuera)");
+assert.equal(monthlyProjects.filas.find((row) => row.id === "p-zero").resultado, 0);
+assert.equal(projectResultLabel(PROJECT_RESULT_STATUS.NEUTRAL), "Sin resultado");
+assert.equal(projectResultLabel(PROJECT_RESULT_STATUS.LOSING), "Perdiendo");
+assert.equal(projectResultLabel(PROJECT_RESULT_STATUS.WINNING), "Ganando");
+assert.deepEqual(monthlyProjects.filas.find((row) => row.id === "p-loss"), {id: "p-loss", numero: "TR-0001", titulo: "Cableado oficina", cliente: "Cliente A", moneda: "CLP", resultado: -30000, estado: "PERDIENDO"});
+assert.equal(monthlyProjects.incompletos, 1, "un proyecto con movimiento y datos incompletos no se lista, se cuenta");
+assert.equal(monthlyProjects.filas.some((row) => ["p-unreliable", "p-other-month", "p-failed"].includes(row.id)), false);
+// La suma de la lista coincide con el "Resultado de proyectos" de la ganancia del mismo mes.
+const monthlyProfitOctober = calculateOperationalNetProfit({sales: [], projectBalances: projectFixtures, period: octoberPeriod});
+for (const code of ["CLP", "USD"]) {
+  const listed = Math.round(monthlyProjects.filas.filter((row) => row.moneda === code).reduce((total, row) => total + row.resultado, 0) * 100) / 100;
+  assert.equal(listed, monthlyProfitOctober.grupos.find((entry) => entry.moneda === code).componentes.proyectos.resultado, `${code}: la lista suma el resultado de proyectos de la ganancia`);
+}
+assert.equal(monthlyProfitOctober.grupos.find((entry) => entry.moneda === "CLP").componentes.proyectos.resultado, -30000 - 50000 + 80000 + 0.2 + 0);
+assert.deepEqual(buildMonthlyProjectResults({projects: projectFixtures, month: "2026-10", currency: "USD"}).filas.map((row) => row.id), ["p-usd"]);
+assert.equal(buildMonthlyProjectResults({projects: projectFixtures, month: "2026-10", currency: "USD"}).incompletos, 0, "el filtro de moneda también aplica al conteo de incompletos");
+assert.deepEqual(buildMonthlyProjectResults({projects: projectFixtures, month: "2026-07"}), {filas: [], incompletos: 0});
+assert.deepEqual(buildMonthlyProjectResults({projects: [], month: "2026-10"}), {filas: [], incompletos: 0});
+
+// Aviso de servicios vendidos sin proyecto: sale de la misma ganancia del mes y solo con monto > 0.
+const servicesSale = (id, price, moneda = "CLP") => ({
+  ventaId: id, estado: "confirmada", moneda, fechaVenta: "2026-10-12", trabajoId: "", neto: price, total: Math.round(price * 1.19), descuento: 0,
+  items: [{lineaId: `${id}-s`, itemId: "service-hour", tipoItem: "servicio", cantidad: 1, precioUnitario: price, descuentoPct: 0}],
+  efectosInventario: [],
+});
+const profitWithServices = {status: "ready", error: "", result: calculateOperationalNetProfit({sales: [servicesSale("v1", 15000), servicesSale("v2", 300, "USD")], projectBalances: [], period: octoberPeriod})};
+assert.deepEqual(buildServicesWithoutProjectNotices(profitWithServices), [{moneda: "CLP", monto: 15000}, {moneda: "USD", monto: 300}]);
+assert.deepEqual(buildServicesWithoutProjectNotices(profitWithServices, "USD"), [{moneda: "USD", monto: 300}]);
+assert.deepEqual(buildServicesWithoutProjectNotices({status: "ready", error: "", result: calculateOperationalNetProfit({sales: [], projectBalances: projectFixtures, period: octoberPeriod})}), [], "sin servicios sin proyecto no hay aviso");
+for (const unfinished of [{status: "loading"}, {status: "error", error: "x"}, null]) {
+  assert.deepEqual(buildServicesWithoutProjectNotices(unfinished), [], "sin ganancia lista no hay aviso");
+}
+assert.equal(profitWithServices.result.grupos[0].gananciaNetaOperacional, 0, "los servicios sin proyecto no entran en la ganancia: solo se avisa");
+
+// Estáticos: permiso, estados separados, enlaces y textos exactos.
+const monthlyProjectsSource = readRequiredSource("src/features/reports/views/ReportsMonthlyProjects.jsx", "proyectos del mes, SPEC 025 §3");
+const monthlySummaryDomainSource = readFileSync("src/domain/reportMonthlySummary.mjs", "utf8");
+assert.match(monthlyViewSource, /<ReportsMonthlyProjects canView=\{canViewProfitability\}/, "la sección se condiciona al mismo permiso que la tarjeta de ganancia");
+assert.match(monthlyProjectsSource, /if \(!canView\) return null;/);
+assert.match(monthlyPageSource, /projects=\{profitabilityV4\.projects\}/);
+assert.match(monthlyPageSource, /canViewProfitability = hasBusinessPermission\(role, BUSINESS_PERMISSIONS\.PROFITABILITY_READ\)/);
+// Orden de estados: carga, error, vacío, datos. El fallo nunca cae en el vacío.
+assert.match(monthlyProjectsSource, /projects\.status === "loading"[\s\S]*?else if \(loadError\)[\s\S]*?role="alert"[\s\S]*?Reintentar[\s\S]*?else if \(!results\.filas\.length\)[\s\S]*?Aún no hay proyectos con movimiento este mes/);
+assert.match(monthlyProjectsSource, /projects\.status === "error"\s*\?\s*projects\.error/);
+assert.match(monthlyProjectsSource, /results && !results\.filas\.length && failedCount > 0/, "una lista vacía por balances fallidos es error, no vacío");
+assert.match(monthlyProjectsSource, /<LoadingState variant="section" label="Cargando proyectos del mes\.\.\." \/>/);
+assert.match(monthlyProjectsSource, /No hubo proyectos con movimiento en \$\{formatMonthLabel\(month, locale\)\.toLocaleLowerCase\(locale\)\}/);
+assert.equal((monthlyProjectsSource.match(/Aún no hay proyectos con movimiento este mes/g) || []).length, 1);
+// Enlaces: lista completa, ficha de cada fila y Ventas.
+assert.match(monthlyProjectsSource, /onNavigate\("\/trabajos", \{state: \{openWorkId: workId\}\}\)/);
+assert.match(monthlyProjectsSource, /Ver todos los proyectos/);
+assert.match(monthlyProjectsSource, /onNavigate\("\/ventas"\)/);
+assert.match(monthlyProjectsSource, /links\.works/);
+assert.match(monthlyProjectsSource, /links\.sales/);
+// Aviso accionable con su texto exacto, y estado por icono + texto (no solo color).
+assert.match(monthlyProjectsSource, /Hay \{formatMoney\(notice\.monto, notice\.moneda, locale\)\} en servicios vendidos sin proyecto, y no entran en la ganancia\. Vincúlalos a un proyecto para saber si ganas o pierdes con ellos\./);
+assert.match(monthlyProjectsSource, /<Icon size=\{14\} aria-hidden="true" \/>\s*\{projectResultLabel\(row\.estado\)\}/);
+assert.match(monthlySummaryDomainSource, /PERDIENDO[\s\S]*?"Perdiendo"[\s\S]*?"Ganando"[\s\S]*?"Sin resultado"/);
+// Orden: perder va primero en el comparador.
+assert.match(monthlySummaryDomainSource, /\[PROJECT_RESULT_STATUS\.LOSING\]: 0,\s*\[PROJECT_RESULT_STATUS\.WINNING\]: 1,\s*\[PROJECT_RESULT_STATUS\.NEUTRAL\]: 2/);
+// Solo componentes y tokens del sistema: sin colores ni medidas literales en la sección nueva.
+assert.doesNotMatch(monthlyProjectsSource, /#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(|style=\{\{/);
+const projectsCss = readFileSync("src/styles/interior.css", "utf8");
+const projectsCssBlock = projectsCss.slice(projectsCss.indexOf(".reports-month-projects {"), projectsCss.indexOf(".reports-simple-eyebrow,"));
+assert.ok(projectsCssBlock.length > 200, "debe existir el bloque de estilos de proyectos del mes");
+assert.doesNotMatch(projectsCssBlock, /#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(/);
+console.log("OK reportes SPEC 025: proyectos del mes (orden, suma = resultado de proyectos de la ganancia, permiso, estados y aviso de servicios sin proyecto)");
 
 console.log("Report model smoke: OK");

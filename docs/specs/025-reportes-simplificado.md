@@ -40,6 +40,12 @@ Una vista de resumen con:
   - Ventas: "Confirmadas, sin IVA."
   - Compras: "Confirmadas, sin IVA. Incluye stock aún no vendido."
   - Ganancia: "Lo vendido menos su costo, más lo que dejaron los proyectos."
+- **Proyectos del mes** (solo con `PROFITABILITY_READ`, igual que la tarjeta de Ganancia), debajo de las tres tarjetas:
+  - **Decisión de negocio (Mauricio):** una venta desde Ventas es reventa de productos; lo que lleva colaciones, transporte, horas o adicionales facturables es un proyecto, y ahí se mide si se gana o se pierde. Los servicios vendidos sin proyecto siguen fuera de la ganancia (SPEC 022 §4.3 y §4.4 siguen vigentes): solo se avisan.
+  - Lista de los proyectos con movimiento en el mes elegido, con los que pierden primero (el peor al comienzo), luego los que ganan (el mayor primero) y al final los de resultado 0. Cada fila: título, número y cliente, etiqueta "Perdiendo", "Ganando" o "Sin resultado" (icono más texto, no solo color) y el resultado del mes con signo. Cada fila abre la ficha del proyecto en `/trabajos`; el enlace "Ver todos los proyectos" lleva a `/trabajos`. En móvil las filas se apilan.
+  - Misma fuente que la ganancia: el `resultado` mensual de `desglosePorMes` de los balances que carga `useReportProfitabilityV4`, con el mismo criterio de proyecto incluible (`buildMonthlyProjectResults`). La suma de la lista por moneda es el "Resultado de proyectos" de la pestaña Ganancia. Un proyecto no incluible no tiene resultado confiable: no se lista y se avisa cuántos con movimiento quedaron fuera.
+  - Estados: carga con `LoadingState`; error propio con "Reintentar", separado del vacío (también cuando la lista queda vacía porque fallaron los balances); vacío "Aún no hay proyectos con movimiento este mes", o "No hubo proyectos con movimiento en {mes}" para un mes pasado.
+  - **Aviso accionable**, bajo la lista y solo si hay servicios vendidos sin proyecto en el mes (monto mayor que 0, el que ya calcula `ventasSinCostoRegistrado`): "Hay {monto} en servicios vendidos sin proyecto, y no entran en la ganancia. Vincúlalos a un proyecto para saber si ganas o pierdes con ellos.", con enlace a Ventas. Sin ese monto no se muestra.
 - Encabezado: el selector "Moneda" y la nota "Las monedas se muestran por separado y no se convierten" solo aparecen cuando los datos cargados tienen dos o más monedas.
 
 ### 3.1 Pestañas de detalle (limpieza visual)

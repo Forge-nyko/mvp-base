@@ -1,4 +1,7 @@
-import {OPERATIONAL_NET_PROFIT_COVERAGE as COVERAGE} from "./operationalNetProfit.mjs";
+import {
+  classifyOperationalProject,
+  OPERATIONAL_NET_PROFIT_COVERAGE as COVERAGE,
+} from "./operationalNetProfit.mjs";
 
 // SPEC 025 etapa 3: resumen mensual de Reportes. Este módulo solo resuelve
 // meses, comparación porcentual y cobertura; las cifras vienen de reportModel
@@ -198,4 +201,98 @@ export function isMonthEmpty(groups) {
     group.purchases.count === 0 &&
     (!group.profit || (group.profit.status === "ready" && group.profit.coverage === "empty"))
   );
+}
+
+// --- Proyectos del mes (SPEC 025 §3) ---
+// Lista de proyectos con movimiento en el mes elegido. No calcula dinero nuevo:
+// toma el `resultado` mensual de `desglosePorMes` de cada balance, con el mismo
+// criterio de proyecto incluible y de mes que calculateOperationalNetProfit, así
+// que la suma de la lista es el "Resultado de proyectos" de la pestaña Ganancia.
+
+export const PROJECT_RESULT_STATUS = Object.freeze({
+  LOSING: "PERDIENDO",
+  WINNING: "GANANDO",
+  NEUTRAL: "SIN_RESULTADO",
+});
+
+const PROJECT_RESULT_LABELS = Object.freeze({
+  [PROJECT_RESULT_STATUS.LOSING]: "Perdiendo",
+  [PROJECT_RESULT_STATUS.WINNING]: "Ganando",
+  [PROJECT_RESULT_STATUS.NEUTRAL]: "Sin resultado",
+});
+
+export function projectResultLabel(status) {
+  return PROJECT_RESULT_LABELS[status] || PROJECT_RESULT_LABELS[PROJECT_RESULT_STATUS.NEUTRAL];
+}
+
+function roundMoney(value) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function projectResultStatus(result) {
+  if (result < 0) return PROJECT_RESULT_STATUS.LOSING;
+  if (result > 0) return PROJECT_RESULT_STATUS.WINNING;
+  return PROJECT_RESULT_STATUS.NEUTRAL;
+}
+
+// Pierden primero (el peor al comienzo), luego los que ganan (el mayor primero)
+// y al final los de resultado 0. Empates por título y número para que el orden
+// sea estable.
+const STATUS_RANK = Object.freeze({
+  [PROJECT_RESULT_STATUS.LOSING]: 0,
+  [PROJECT_RESULT_STATUS.WINNING]: 1,
+  [PROJECT_RESULT_STATUS.NEUTRAL]: 2,
+});
+
+export function compareProjectResultRows(left, right) {
+  return left.moneda.localeCompare(right.moneda) ||
+    STATUS_RANK[left.estado] - STATUS_RANK[right.estado] ||
+    (left.estado === PROJECT_RESULT_STATUS.LOSING ? left.resultado - right.resultado : right.resultado - left.resultado) ||
+    left.titulo.localeCompare(right.titulo, "es") ||
+    left.numero.localeCompare(right.numero, "es");
+}
+
+// `projects` son las entradas de `projects.meta.proyectos` del hook de
+// rentabilidad: el trabajo con su `balance`. Un proyecto no incluible (misma
+// regla que la ganancia) no tiene resultado confiable: no se lista y se cuenta
+// en `incompletos` si tuvo movimiento ese mes.
+export function buildMonthlyProjectResults({projects = [], month, currency = "todos"} = {}) {
+  const rows = [];
+  let incomplete = 0;
+  (Array.isArray(projects) ? projects : []).forEach((entry) => {
+    const months = Array.isArray(entry?.balance?.desglosePorMes)
+      ? entry.balance.desglosePorMes.filter((item) => item?.mes === month)
+      : [];
+    const classification = classifyOperationalProject(entry);
+    const filtered = currency && currency !== "todos" && classification.moneda && classification.moneda !== currency;
+    if (!classification.incluible) {
+      if (months.length && !filtered) incomplete += 1;
+      return;
+    }
+    if (filtered) return;
+    const monthRows = months.filter((item) => item.moneda === classification.moneda);
+    if (!monthRows.length) return;
+    const result = roundMoney(monthRows.reduce((total, item) => total + item.resultado, 0));
+    rows.push({
+      id: classification.proyectoId,
+      numero: String(entry.numero || ""),
+      titulo: String(entry.titulo || "").trim() || "Proyecto sin título",
+      cliente: String(entry.clienteSnapshot?.nombreRazonSocial || "").trim(),
+      moneda: classification.moneda,
+      resultado: result,
+      estado: projectResultStatus(result),
+    });
+  });
+  return {filas: rows.sort(compareProjectResultRows), incompletos: incomplete};
+}
+
+// Monto de servicios vendidos sin proyecto del mes, por moneda, tal como lo
+// entrega calculateOperationalNetProfit (`ventasSinCostoRegistrado`). Solo las
+// monedas con monto mayor que 0.
+export function buildServicesWithoutProjectNotices(profit, currency = "todos") {
+  const groups = profit?.status === "ready" ? profit.result?.grupos || [] : [];
+  return groups
+    .filter((group) => group.moneda && (!currency || currency === "todos" || group.moneda === currency))
+    .map((group) => ({moneda: group.moneda, monto: group.ventasSinCostoRegistrado?.monto}))
+    .filter((notice) => Number.isFinite(notice.monto) && notice.monto > 0);
 }
