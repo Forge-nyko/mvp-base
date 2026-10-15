@@ -111,6 +111,7 @@ const {
   updateBusinessProfileHandler,
   validateBusinessProfileInput,
 } = require("./businessOnboarding");
+const {acceptLegalTermsHandler} = require("./legalAcceptance");
 const {
   updateBusinessInformationHandler,
   updateBusinessSettingsHandler,
@@ -3886,6 +3887,11 @@ const businessOnboardingDependencies = {
   HttpsError,
   FieldValue,
 };
+const legalAcceptanceDependencies = {
+  db,
+  HttpsError,
+  FieldValue,
+};
 const businessSettingsDependencies = {
   db,
   HttpsError,
@@ -3929,6 +3935,17 @@ exports.getBusinessSession = onCall(
   },
   async (request) =>
     getBusinessSessionHandler(request, businessOnboardingDependencies)
+);
+
+exports.acceptLegalTerms = onCall(
+  {
+    maxInstances: 10,
+    memory: "256MiB",
+    region: DEFAULT_FUNCTION_REGION,
+    timeoutSeconds: 30,
+  },
+  async (request) =>
+    acceptLegalTermsHandler(request, legalAcceptanceDependencies)
 );
 
 exports.createFirstBusiness = onCall(

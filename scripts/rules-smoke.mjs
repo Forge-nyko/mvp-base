@@ -301,6 +301,20 @@ async function main() {
         { total: 1, uidUsuario: ownerUid }
       )
     );
+    await expectDenied("cliente escribe historial de aceptación legal", () =>
+      setDoc(
+        doc(
+          ownerClient.db,
+          `usuarios/${ownerUid}/aceptacionesLegales/forged-version`
+        ),
+        { uid: ownerUid, version: "forged-version" }
+      )
+    );
+    await expectDenied("cliente lee historial de aceptación legal", () =>
+      getDocs(
+        collection(ownerClient.db, `usuarios/${ownerUid}/aceptacionesLegales`)
+      )
+    );
     await expectDenied("cliente crea area fuera de la Function", () =>
       setDoc(doc(ownerClient.db, `usuarios/${ownerUid}/areas/forged-area`), {
         nombre: "Área no autorizada",

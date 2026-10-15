@@ -18,6 +18,7 @@ const {
   assertBusinessCanOperate,
   normalizeBusinessVerificationState,
 } = require("./businessOperations");
+const { legalAcceptanceState } = require("./legalAcceptance");
 
 const {BUSINESS_ROLES} = require("./rbac");
 const ACTIVE_STATUS = "activo";
@@ -1457,6 +1458,7 @@ async function getBusinessSessionHandler(
       businesses: availableBusinesses,
       membershipCount: memberships.length,
       plan: planResponse(ownedBusinessCount),
+      legalAcceptance: legalAcceptanceState(userData),
     };
   }
 
@@ -1477,6 +1479,7 @@ async function getBusinessSessionHandler(
     businesses: [],
     membershipCount: memberships.length,
     plan: planResponse(ownedBusinessCount),
+    legalAcceptance: legalAcceptanceState(userData),
   };
 }
 
