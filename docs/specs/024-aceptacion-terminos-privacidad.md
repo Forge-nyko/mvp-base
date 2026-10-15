@@ -26,7 +26,7 @@ Contexto: el sistema será propiedad de Bagner y se comercializará a otros nego
 2. Casilla de aceptación en el registro, sin premarcar, que bloquea el envío mientras no esté marcada.
 3. Registro de la aceptación: versión y fecha del servidor, escrito solo por backend.
 4. Guard para cuentas existentes y para cuentas sin aceptación vigente: pantalla de aceptación antes del onboarding y del resto de la app.
-5. Enlaces en el login y en el pie de la propuesta pública.
+5. Enlaces en el login (ingreso y recuperar contraseña; en el registro, la casilla es el único punto) y en el pie de la propuesta pública.
 6. Mostrar versión y fecha aceptadas en `AccountPage`.
 
 ## 4. Fuera de alcance
@@ -77,7 +77,7 @@ Callable nueva `acceptLegalTerms` en `functions/legalAcceptance.js`, exportada e
 - Páginas de texto largo con CSS propio (`legal-page`) y tokens (`--font-size-*`, `--line-height-default`, `--space-*`, `--color-surface-*`, `--color-text-*`, `--radius-lg`).
 - Reutilizar `BrandLogo variant="auth"`, `Button` (ghost para volver) y `SkipLink`.
 - Crear una clase `ui-` para el checkbox, tras buscar duplicados. Hoy hay `<input type="checkbox">` sueltos en `CompanyConfig` e inventario.
-- Casilla con enlaces dentro del formulario, solo en registro, entre `Login.jsx:359` y `375`. Pie con ambos enlaces junto a `.auth-actions` (403-432). Usar `Link` de react-router.
+- Casilla con enlaces dentro del formulario, solo en registro, entre `Login.jsx:359` y `375`. Pie con ambos enlaces junto a `.auth-actions` (403-432), solo en login y recuperar contraseña: en el registro la casilla es el único punto de enlace. Usar `Link` de react-router.
 - Pie de `PublicQuoteProposalPage.jsx:237-239`. Las ramas de carga y error (113-136) no tienen pie: decidir si llevan enlaces.
 
 ## 6. Pruebas

@@ -886,6 +886,59 @@
   text-decoration: none;
 }
 
+.auth-legal {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  justify-content: center;
+  margin-top: var(--space-3);
+}
+
+.auth-legal__link,
+.ui-checkbox__label a {
+  color: var(--color-brand-700);
+  font-weight: var(--font-weight-semibold);
+}
+
+.auth-legal__link {
+  font-size: var(--font-size-xs);
+}
+
+/* Casilla con texto y enlaces: la fila entera es el área de clic. */
+.ui-checkbox {
+  align-items: flex-start;
+  color: var(--color-text-default);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--font-size-sm);
+  gap: var(--space-2);
+  line-height: var(--line-height-default);
+}
+
+.ui-checkbox__input {
+  accent-color: var(--color-brand-700);
+  flex: 0 0 auto;
+  height: 18px;
+  margin: 0.15em 0 0;
+  width: 18px;
+}
+
+.ui-checkbox__input:focus-visible {
+  outline: var(--focus-outline);
+  outline-offset: 2px;
+}
+
+.ui-checkbox__input[aria-invalid="true"] {
+  outline: 2px solid var(--color-danger-700);
+  outline-offset: 1px;
+}
+
+.ui-checkbox__label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 @keyframes auth-panel-enter {
   from {
     opacity: 0;
@@ -1093,7 +1146,8 @@
   .auth-password-control,
   .auth-form__utility,
   .auth-feedback,
-  .auth-actions {
+  .auth-actions,
+  .auth-legal {
     box-sizing: border-box;
     max-width: 100%;
     min-width: 0;

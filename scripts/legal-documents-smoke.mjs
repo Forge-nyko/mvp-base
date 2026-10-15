@@ -132,3 +132,81 @@ assert.match(pageSource, /<Button variant="ghost"/);
 assert.doesNotMatch(cssSource, /#[0-9a-fA-F]{3,8}\b|\b(?:rgb|hsl)a?\(/);
 assert.doesNotMatch(cssSource, /(?:border-radius|box-shadow|transition|animation)\s*:[^;]*\d(?:px|ms|s)\b/);
 console.log("OK Legal: página con aviso, logo, SkipLink y volver; CSS sin literales");
+
+// Etapa 4: casilla de registro, enlaces y servicio de aceptación (estático).
+const [loginSource, authServiceSource, legalServiceSource, proposalSource, componentsCss] =
+  await Promise.all([
+    readFile(new URL("../src/features/auth/Login.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/services/authService.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/services/legalService.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/pages/PublicQuoteProposalPage.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/styles/components.css", import.meta.url), "utf8"),
+  ]);
+
+assert.equal(loginSource.match(/type="checkbox"/g).length, 1);
+assert.match(
+  loginSource,
+  /\{!isLoginView && !isResetView && \(\s*<div className="auth-field">\s*<label className="ui-checkbox"/,
+  "casilla solo en registro"
+);
+assert.match(loginSource, /useState\(false\);\s*\n\s*\n\s*const clearPasswordState/);
+assert.match(loginSource, /checked=\{acceptedLegal\}/);
+assert.doesNotMatch(loginSource, /checked(?:=\{true\})?\s*[\n/]*\s*onChange/);
+console.log("OK Registro: casilla sin premarcar y solo en modo crear cuenta");
+
+const blockIndex = loginSource.indexOf("if (!acceptedLegal)");
+const registerCall = loginSource.indexOf("await registerWithEmail(");
+assert.ok(blockIndex > loginSource.indexOf("if (!isLoginView) {"));
+assert.ok(blockIndex > -1 && blockIndex < loginSource.indexOf("setIsSubmitting(true)"));
+assert.ok(blockIndex < registerCall, "valida antes de registrar");
+assert.match(
+  loginSource.slice(blockIndex, blockIndex + 160),
+  /setError\(LEGAL_REQUIRED_MESSAGE\);\s*return;/
+);
+assert.match(loginSource, /legalTermsAccepted: acceptedLegal/);
+assert.doesNotMatch(loginSource, /firebaseEnvironment\.isReadOnly/);
+console.log("OK Registro: la casilla bloquea el envío con el patrón setError + return");
+
+assert.match(loginSource, /const LEGAL_LINKS = \[LEGAL_DOCUMENTS\.privacidad, LEGAL_DOCUMENTS\.terminos\]/);
+assert.match(loginSource, /to=\{LEGAL_DOCUMENTS\.privacidad\.path\}/);
+assert.match(loginSource, /to=\{LEGAL_DOCUMENTS\.terminos\.path\}/);
+assert.match(loginSource, /to=\{document\.path\}/);
+assert.equal(loginSource.match(/target="_blank"/g).length, 3);
+assert.equal(loginSource.match(/rel="noopener noreferrer"/g).length, 3);
+assert.ok(
+  loginSource.indexOf('className="auth-legal"') > loginSource.indexOf('className="auth-actions"')
+);
+assert.match(
+  loginSource,
+  /\{\(isLoginView \|\| isResetView\) && \(\s*<nav className="auth-legal"/,
+  "pie solo cuando no se muestra la casilla"
+);
+assert.match(proposalSource, /LEGAL_DOCUMENTS\.privacidad, LEGAL_DOCUMENTS\.terminos/);
+assert.match(proposalSource, /to=\{document\.path\}[\s\S]*?target="_blank"[\s\S]*?rel="noopener noreferrer"/);
+const errorBranch = proposalSource.slice(proposalSource.indexOf("Propuesta no disponible"));
+assert.ok(errorBranch.indexOf("<PublicLegalLinks />") < errorBranch.indexOf("const resolved"));
+const loadingBranch = proposalSource.slice(
+  proposalSource.indexOf("if (state.loading)"),
+  proposalSource.indexOf("if (state.error || !proposal)")
+);
+assert.doesNotMatch(loadingBranch, /PublicLegalLinks/);
+assert.match(proposalSource, /<footer className="public-proposal__footer">[\s\S]*?<PublicLegalLinks \/>[\s\S]*?<\/footer>/);
+console.log("OK Enlaces: login, registro y propuesta pública apuntan a LEGAL_DOCUMENTS");
+
+assert.match(legalServiceSource, /httpsCallable\(functions, "acceptLegalTerms"\)/);
+assert.match(legalServiceSource, /\{ version: LEGAL_DOCUMENTS_VERSION \}/);
+assert.match(authServiceSource, /assertClientWriteAllowed\("crear cuentas"\)/);
+const pendingIndex = authServiceSource.indexOf("pendingRegistrationSetup = setup");
+const createIndex = authServiceSource.indexOf("await createUserWithEmailAndPassword(");
+const acceptIndex = authServiceSource.indexOf("await acceptLegalTerms()");
+assert.ok(pendingIndex > -1 && pendingIndex < createIndex, "deferred antes de crear la cuenta");
+assert.ok(createIndex < acceptIndex);
+assert.match(authServiceSource, /legalTermsAccepted !== true[\s\S]*?auth\/legal-terms-required/);
+assert.match(authServiceSource, /try \{\s*await acceptLegalTerms\(\);\s*\} catch \(error\) \{[\s\S]*?console\.error/);
+assert.match(authServiceSource, /\} finally \{[\s\S]*?finishSetup\(\);/);
+assert.doesNotMatch(authServiceSource, /reject/);
+console.log("OK Servicio: aceptación tras crear la cuenta, sin bloquear el registro y con deferred previo");
+
+assert.match(componentsCss, /\.ui-checkbox\s*\{/);
+assert.match(componentsCss, /\.auth-legal\s*\{/);
+console.log("OK Estilos: .ui-checkbox y .auth-legal en components.css");

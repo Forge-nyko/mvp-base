@@ -1,14 +1,21 @@
 import React, { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { Link } from "react-router-dom";
 import loginBackground from "../../assets/valoracloud-login-background.png";
 import BrandLogo from "../../components/BrandLogo";
 import Button from "../../components/ui/Button";
 import SkipLink from "../../components/ui/SkipLink";
+import { LEGAL_DOCUMENTS } from "../../domain/legalDocuments.mjs";
 import {
   loginWithEmail,
   registerWithEmail,
   resetPassword,
 } from "../../services/authService";
+
+const LEGAL_LINKS = [LEGAL_DOCUMENTS.privacidad, LEGAL_DOCUMENTS.terminos];
+
+const LEGAL_REQUIRED_MESSAGE =
+  "Debes aceptar la política de privacidad y los términos de uso para crear tu cuenta.";
 
 const VERIFICATION_NOTICE_KEY = "valoracloud.verificationNotice";
 
@@ -47,12 +54,14 @@ function Login() {
   const [isResetting, setIsResetting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
 
   const clearPasswordState = () => {
     setPassword("");
     setConfirmPassword("");
     setShowPassword(false);
     setShowConfirmPassword(false);
+    setAcceptedLegal(false);
   };
 
   const openResetView = () => {
@@ -101,6 +110,11 @@ function Login() {
         setError("Las contraseñas no coinciden.");
         return;
       }
+
+      if (!acceptedLegal) {
+        setError(LEGAL_REQUIRED_MESSAGE);
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -109,7 +123,9 @@ function Login() {
       if (isLoginView) {
         await loginWithEmail(email, password);
       } else {
-        await registerWithEmail(email, password);
+        await registerWithEmail(email, password, {
+          legalTermsAccepted: acceptedLegal,
+        });
         const message =
           "Cuenta creada. Te enviamos un correo de verificación. Revisa tu bandeja de entrada antes de continuar.";
         setSuccess(message);
@@ -359,6 +375,43 @@ function Login() {
                 </div>
               )}
 
+              {!isLoginView && !isResetView && (
+                <div className="auth-field">
+                  <label className="ui-checkbox" htmlFor="auth-legal">
+                    <input
+                      id="auth-legal"
+                      className="ui-checkbox__input"
+                      type="checkbox"
+                      name="accept-legal"
+                      checked={acceptedLegal}
+                      onChange={(e) => setAcceptedLegal(e.target.checked)}
+                      aria-invalid={error === LEGAL_REQUIRED_MESSAGE}
+                      aria-describedby={feedbackId}
+                      required
+                    />
+                    <span className="ui-checkbox__label">
+                      Acepto la{" "}
+                      <Link
+                        to={LEGAL_DOCUMENTS.privacidad.path}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {LEGAL_DOCUMENTS.privacidad.title}
+                      </Link>{" "}
+                      y los{" "}
+                      <Link
+                        to={LEGAL_DOCUMENTS.terminos.path}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {LEGAL_DOCUMENTS.terminos.title}
+                      </Link>
+                      .
+                    </span>
+                  </label>
+                </div>
+              )}
+
               {isLoginView && !isResetView && (
                 <div className="auth-form__utility">
                   <Button
@@ -430,6 +483,22 @@ function Login() {
                 {isLoginView ? "Crear una cuenta" : "Iniciar sesión"}
               </Button>
             </div>
+
+            {(isLoginView || isResetView) && (
+              <nav className="auth-legal" aria-label="Documentos legales">
+                {LEGAL_LINKS.map((document) => (
+                  <Link
+                    key={document.key}
+                    className="auth-legal__link"
+                    to={document.path}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {document.title}
+                  </Link>
+                ))}
+              </nav>
+            )}
           </div>
         </section>
       </main>

@@ -158,9 +158,23 @@
 
 .public-proposal__footer {
   color: var(--color-text-muted);
+  display: grid;
   font-size: var(--font-size-xs);
+  gap: var(--space-1);
   padding: var(--space-2);
   text-align: center;
+}
+
+.public-proposal__legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  justify-content: center;
+}
+
+.public-proposal__legal a {
+  color: var(--color-brand-700);
+  font-weight: var(--font-weight-semibold);
 }
 
 .public-proposal__message {

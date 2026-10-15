@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Download, XCircle } from "lucide-react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { sileo } from "sileo";
 import BrandLogo from "../components/BrandLogo";
 import Spinner from "../components/ui/Spinner";
 import AppIcon from "../components/ui/AppIcon";
 import Button from "../components/ui/Button";
 import ResponsiveDialog from "../components/ui/ResponsiveDialog";
+import { LEGAL_DOCUMENTS } from "../domain/legalDocuments.mjs";
 import QuotePrintView from "../features/quotes/QuotePrintView";
 import "../features/quotes/public-quote.css";
 import {
@@ -15,6 +16,25 @@ import {
 } from "../services/publicQuoteService";
 import { formatDate, formatMoney } from "../utils/formatters";
 import { downloadQuotePdf } from "../utils/quotePdf";
+
+const LEGAL_LINKS = [LEGAL_DOCUMENTS.privacidad, LEGAL_DOCUMENTS.terminos];
+
+function PublicLegalLinks() {
+  return (
+    <nav className="public-proposal__legal" aria-label="Documentos legales">
+      {LEGAL_LINKS.map((document) => (
+        <Link
+          key={document.key}
+          to={document.path}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {document.title}
+        </Link>
+      ))}
+    </nav>
+  );
+}
 
 const REJECTION_OPTIONS = [
   ["precio", "Precio"],
@@ -131,6 +151,7 @@ function PublicQuoteProposalPage() {
           <h1>Propuesta no disponible</h1>
           <p>{state.error}</p>
         </section>
+        <PublicLegalLinks />
       </main>
     );
   }
@@ -235,7 +256,8 @@ function PublicQuoteProposalPage() {
       )}
 
       <footer className="public-proposal__footer">
-        Propuesta gestionada de forma segura con ValoraCloud.
+        <span>Propuesta gestionada de forma segura con ValoraCloud.</span>
+        <PublicLegalLinks />
       </footer>
 
       <ResponsiveDialog
