@@ -3,6 +3,7 @@ import {existsSync, readFileSync} from "node:fs";
 import {createServer} from "vite";
 import {
   REPORT_TABS,
+  aggregateOperationalTimeline,
   buildReportCsv,
   combineOperationalTimelines,
   filterInventoryAcquisitions,
@@ -43,11 +44,11 @@ assert.deepEqual(REPORT_TABS, [
 ]);
 
 const sales = [
-  {id: "v1", numero: "VTA-2026-0001", fechaVenta: "2026-08-02", estado: "confirmada", total: 1000, clienteId: "c1", clienteSnapshot: {nombreRazonSocial: "Cliente; Uno", rut: "1-9"}},
-  {id: "v2", numero: "VTA-2026-0002", fechaVenta: "2026-08-03", estado: "confirmada", total: 3000, clienteId: "c1", clienteSnapshot: {nombreRazonSocial: "Cliente Uno", rut: "1-9"}},
-  {id: "v3", numero: "VTA-2026-0003", fechaVenta: "2026-08-04", estado: "borrador", total: 9000, clienteId: "c2", clienteSnapshot: {nombreRazonSocial: "Cliente Dos", rut: "2-7"}},
-  {id: "v4", numero: "VTA-2026-0004", fechaVenta: "2026-08-05", estado: "cancelada", total: 8000, clienteId: "c3", clienteSnapshot: {nombreRazonSocial: "Cliente Tres", rut: "3-5"}},
-  {id: "v5", numero: "VTA-2026-0005", fechaVenta: "2026-07-31", estado: "confirmada", total: 7000, clienteId: "c4", clienteSnapshot: {nombreRazonSocial: "Fuera", rut: "4-3"}},
+  {id: "v1", numero: "VTA-2026-0001", fechaVenta: "2026-08-02", estado: "confirmada", neto: 1000, iva: 190, total: 1190, clienteId: "c1", clienteSnapshot: {nombreRazonSocial: "Cliente; Uno", rut: "1-9"}},
+  {id: "v2", numero: "VTA-2026-0002", fechaVenta: "2026-08-03", estado: "confirmada", neto: 3000, iva: 570, total: 3570, clienteId: "c1", clienteSnapshot: {nombreRazonSocial: "Cliente Uno", rut: "1-9"}},
+  {id: "v3", numero: "VTA-2026-0003", fechaVenta: "2026-08-04", estado: "borrador", neto: 9000, iva: 1710, total: 10710, clienteId: "c2", clienteSnapshot: {nombreRazonSocial: "Cliente Dos", rut: "2-7"}},
+  {id: "v4", numero: "VTA-2026-0004", fechaVenta: "2026-08-05", estado: "cancelada", neto: 8000, iva: 1520, total: 9520, clienteId: "c3", clienteSnapshot: {nombreRazonSocial: "Cliente Tres", rut: "3-5"}},
+  {id: "v5", numero: "VTA-2026-0005", fechaVenta: "2026-07-31", estado: "confirmada", neto: 7000, iva: 1330, total: 8330, clienteId: "c4", clienteSnapshot: {nombreRazonSocial: "Fuera", rut: "4-3"}},
 ];
 const salesMetrics = getSalesMetrics(sales, range);
 assert.equal(salesMetrics.count, 2);
@@ -57,16 +58,16 @@ assert.equal(salesMetrics.distinctCustomers, 1);
 assert.equal(filterSales(sales, {range, status: "borrador"}).length, 1);
 
 const currentSalesMetrics = getSalesMetrics([
-  {fechaVenta: "2026-08-09", estado: "activa", total: 2500, moneda: "CLP"},
-  {fechaVenta: "2026-08-10", estado: "preparada", total: 9000, moneda: "CLP"},
-  {fechaVenta: "2026-08-11", estado: "cancelada", total: 8000, moneda: "CLP"},
+  {fechaVenta: "2026-08-09", estado: "activa", neto: 2500, total: 2975, moneda: "CLP"},
+  {fechaVenta: "2026-08-10", estado: "preparada", neto: 9000, total: 10710, moneda: "CLP"},
+  {fechaVenta: "2026-08-11", estado: "cancelada", neto: 8000, total: 9520, moneda: "CLP"},
 ], range);
 assert.equal(currentSalesMetrics.count, 1);
 assert.equal(currentSalesMetrics.total, 2500);
 
 const mixedSalesMetrics = getSalesMetrics([
-  {...sales[0], id: "clp", moneda: "CLP", total: 1000},
-  {...sales[1], id: "usd", moneda: "USD", total: 20},
+  {...sales[0], id: "clp", moneda: "CLP", neto: 1000, total: 1190},
+  {...sales[1], id: "usd", moneda: "USD", neto: 20, total: 24},
 ], range);
 assert.equal(mixedSalesMetrics.total, null);
 assert.deepEqual(mixedSalesMetrics.totalsByCurrency.map(({currency, total}) => ({currency, total})), [
@@ -78,9 +79,9 @@ assert.equal(resolveReportCurrency({}, "BOB"), "BOB");
 assert.deepEqual(groupAmountsByCurrency([{amount: 5}, {amount: 7}], {amountField: "amount", fallbackCurrency: "USD"})[0], {currency: "USD", count: 2, total: 12, average: 6});
 
 const purchases = [
-  {fechaCompra: "2026-08-06", estado: "confirmada", total: 2000, proveedorId: "p1"},
-  {fechaCompra: "2026-08-07", estado: "confirmada", total: 4000, proveedorId: "p2"},
-  {fechaCompra: "2026-08-08", estado: "cancelada", total: 10000, proveedorId: "p3"},
+  {fechaCompra: "2026-08-06", estado: "confirmada", neto: 2000, total: 2380, proveedorId: "p1"},
+  {fechaCompra: "2026-08-07", estado: "confirmada", neto: 4000, total: 4760, proveedorId: "p2"},
+  {fechaCompra: "2026-08-08", estado: "cancelada", neto: 10000, total: 11900, proveedorId: "p3"},
 ];
 const purchaseMetrics = getPurchaseMetrics(purchases, range);
 assert.equal(purchaseMetrics.count, 2);
@@ -89,12 +90,51 @@ assert.equal(purchaseMetrics.average, 3000);
 assert.equal(purchaseMetrics.distinctProviders, 2);
 
 const currentPurchaseMetrics = getPurchaseMetrics([
-  {fechaCompra: "2026-08-12", estado: "activa", total: 700, moneda: "USD"},
-  {fechaCompra: "2026-08-13", estado: "revertida", total: 300, moneda: "USD"},
-  {fechaCompra: "2026-08-14", estado: "borrador", total: 200, moneda: "USD"},
+  {fechaCompra: "2026-08-12", estado: "activa", neto: 700, total: 833, moneda: "USD"},
+  {fechaCompra: "2026-08-13", estado: "revertida", neto: 300, total: 357, moneda: "USD"},
+  {fechaCompra: "2026-08-14", estado: "borrador", neto: 200, total: 238, moneda: "USD"},
 ], range, {currency: "USD"});
 assert.equal(currentPurchaseMetrics.count, 1);
 assert.equal(currentPurchaseMetrics.total, 700);
+
+// SPEC 025 etapa 1: Ventas y Compras suman `neto` (sin IVA), nunca `total`.
+const withIva = getSalesMetrics([{fechaVenta: "2026-08-02", estado: "confirmada", neto: 1000, iva: 190, total: 1190}], range);
+assert.equal(withIva.total, 1000, "la venta suma neto, no total");
+assert.equal(withIva.average, 1000);
+// Boleta de compra (SPEC 023 §5.2): neto igual a total, iva 0; sumar neto sigue siendo lo pagado.
+const mixedDocPurchases = getPurchaseMetrics([
+  {fechaCompra: "2026-08-06", estado: "confirmada", tipoDocumento: "factura", neto: 10000, iva: 1900, total: 11900, moneda: "CLP"},
+  {fechaCompra: "2026-08-07", estado: "confirmada", tipoDocumento: "boleta", neto: 8330, iva: 0, total: 8330, moneda: "CLP"},
+], range);
+assert.equal(mixedDocPurchases.total, 18330, "factura suma neto y boleta suma lo pagado");
+assert.equal(mixedDocPurchases.average, 9165);
+// Un documento sin neto válido nunca se sustituye por total: cuenta como operación y aporta 0.
+for (const invalidNet of [undefined, null, "", "1000", Number.NaN, -500]) {
+  const metrics = getSalesMetrics([
+    {fechaVenta: "2026-08-02", estado: "confirmada", neto: invalidNet, total: 5000, moneda: "CLP"},
+    {fechaVenta: "2026-08-03", estado: "confirmada", neto: 700, total: 833, moneda: "CLP"},
+  ], range);
+  assert.equal(metrics.count, 2, `neto ${String(invalidNet)}: el documento sigue contando como operación`);
+  assert.equal(metrics.total, 700, `neto ${String(invalidNet)}: no se sustituye por total`);
+}
+assert.equal(getPurchaseMetrics([{fechaCompra: "2026-08-02", estado: "confirmada", total: 5000, moneda: "CLP"}], range).total, 0);
+// Gráfico Ventas vs Compras y tops usan el mismo criterio que las tarjetas.
+const netTimeline = aggregateOperationalTimeline(
+  [{fechaVenta: "2026-08-02", neto: 1000, total: 1190}, {fechaVenta: "2026-08-02", total: 500}],
+  {range, dateField: "fechaVenta"}
+);
+assert.deepEqual(netTimeline.map(({key, value, count}) => ({key, value, count})), [{key: "2026-08-02", value: 1000, count: 2}]);
+assert.equal(aggregateOperationalTimeline([{fechaVenta: "2026-08-02", neto: 1000, total: 1190}], {range, dateField: "fechaVenta", amountField: "total"})[0].value, 1190);
+assert.equal(
+  getTopSalesClients([{...sales[0], moneda: "CLP"}, {...sales[1], moneda: "CLP"}]).find((group) => group.currency === "CLP").entries[0].total,
+  4000,
+  "el top de clientes suma neto"
+);
+// La actividad reciente muestra el total del documento, no una suma del período.
+assert.equal(getRecentOperationalActivity([sales[0]], [], range)[0].amount, 1190);
+const summaryCsv = buildReportCsv("summary", {sales: salesMetrics, purchases: purchaseMetrics});
+assert.match(summaryCsv, /"Total vendido confirmado \(sin IVA\)"/);
+assert.match(summaryCsv, /"Total comprado confirmado \(sin IVA\)"/);
 
 const projectBalances = [
   {id: "work-1", balance: {estado: "COMPLETO", moneda: "CLP", resultado: 5000}},
@@ -136,8 +176,8 @@ assert.equal(clpProfitability.margin, 73.17);
 assert.deepEqual(getProjectProfitabilitySummary(projectBalances, {accessible: false}), {accessible: false, complete: [], groups: []});
 
 const simplified = getSimplifiedReportSummary({
-  sales: [{fechaVenta: "2026-08-15", estado: "activa", total: 10000, moneda: "CLP"}],
-  purchases: [{fechaCompra: "2026-08-16", estado: "confirmada", total: 9000, moneda: "CLP"}],
+  sales: [{fechaVenta: "2026-08-15", estado: "activa", neto: 10000, total: 11900, moneda: "CLP"}],
+  purchases: [{fechaCompra: "2026-08-16", estado: "confirmada", neto: 9000, total: 10710, moneda: "CLP"}],
   projectBalances,
   range,
 });
@@ -147,6 +187,8 @@ assert.notEqual(
   10000 - 9000
 );
 const emptySummary = getSimplifiedReportSummary({range, canViewProfitability: false});
+assert.equal(simplified.currencies.find((entry) => entry.currency === "CLP").sales.total, 10000, "el resumen simplificado suma neto en ventas");
+assert.equal(simplified.currencies.find((entry) => entry.currency === "CLP").purchases.total, 9000, "el resumen simplificado suma neto en compras");
 assert.equal(emptySummary.currencies[0].sales.total, 0);
 assert.equal(emptySummary.currencies[0].purchases.total, 0);
 assert.equal(emptySummary.currencies[0].projects.total, null);
@@ -186,9 +228,9 @@ assert.equal(inventoryMetrics.coverage, 50);
 assert.equal(inventoryMetrics.inventoryValue, null);
 
 const salesWithLines = [
-  {fechaVenta: "2026-08-02", estado: "confirmada", total: 1000, moneda: "CLP", clienteId: "c1", clienteSnapshot: {nombreRazonSocial: "Cliente Uno"}, items: [{itemId: "prod-1", nombre: "Producto A", cantidad: 2, totalLinea: 700}, {itemId: "prod-2", nombre: "Producto B", cantidad: 1, totalLinea: 300}]},
-  {fechaVenta: "2026-08-03", estado: "confirmada", total: 3000, moneda: "CLP", clienteId: "c1", clienteSnapshot: {nombreRazonSocial: "Cliente Uno"}, items: [{itemId: "prod-1", nombre: "Producto A", cantidad: 3, totalLinea: 3000}]},
-  {fechaVenta: "2026-08-04", estado: "confirmada", total: 20, moneda: "USD", clienteId: "c2", clienteSnapshot: {nombreRazonSocial: "Cliente Dos"}, items: [{itemId: "prod-3", nombre: "Producto C", cantidad: 1, totalLinea: 20}]},
+  {fechaVenta: "2026-08-02", estado: "confirmada", neto: 1000, total: 1190, moneda: "CLP", clienteId: "c1", clienteSnapshot: {nombreRazonSocial: "Cliente Uno"}, items: [{itemId: "prod-1", nombre: "Producto A", cantidad: 2, totalLinea: 700}, {itemId: "prod-2", nombre: "Producto B", cantidad: 1, totalLinea: 300}]},
+  {fechaVenta: "2026-08-03", estado: "confirmada", neto: 3000, total: 3570, moneda: "CLP", clienteId: "c1", clienteSnapshot: {nombreRazonSocial: "Cliente Uno"}, items: [{itemId: "prod-1", nombre: "Producto A", cantidad: 3, totalLinea: 3000}]},
+  {fechaVenta: "2026-08-04", estado: "confirmada", neto: 20, total: 24, moneda: "USD", clienteId: "c2", clienteSnapshot: {nombreRazonSocial: "Cliente Dos"}, items: [{itemId: "prod-3", nombre: "Producto C", cantidad: 1, totalLinea: 20}]},
 ];
 const topClients = getTopSalesClients(salesWithLines, {limit: 5});
 const topClientsClp = topClients.find((group) => group.currency === "CLP");
@@ -207,8 +249,8 @@ assert.equal(topProductsClp.entries[0].quantity, 5);
 assert.deepEqual(getTopSalesClients([]), []);
 
 const purchasesWithLines = [
-  {fechaCompra: "2026-08-06", estado: "confirmada", total: 2000, moneda: "CLP", proveedorId: "p1", proveedorSnapshot: {razonSocial: "Proveedor Uno"}, items: [{itemId: "mat-1", nombre: "Material A", cantidad: 5, totalLinea: 2000}]},
-  {fechaCompra: "2026-08-07", estado: "confirmada", total: 4000, moneda: "CLP", proveedorId: "p2", proveedorSnapshot: {razonSocial: "Proveedor Dos"}, items: [{itemId: "mat-1", nombre: "Material A", cantidad: 10, totalLinea: 4000}]},
+  {fechaCompra: "2026-08-06", estado: "confirmada", neto: 2000, total: 2380, moneda: "CLP", proveedorId: "p1", proveedorSnapshot: {razonSocial: "Proveedor Uno"}, items: [{itemId: "mat-1", nombre: "Material A", cantidad: 5, totalLinea: 2000}]},
+  {fechaCompra: "2026-08-07", estado: "confirmada", neto: 4000, total: 4760, moneda: "CLP", proveedorId: "p2", proveedorSnapshot: {razonSocial: "Proveedor Dos"}, items: [{itemId: "mat-1", nombre: "Material A", cantidad: 10, totalLinea: 4000}]},
 ];
 const topSuppliers = getTopPurchaseSuppliers(purchasesWithLines, {limit: 5});
 const topSuppliersClp = topSuppliers.find((group) => group.currency === "CLP");
@@ -344,7 +386,7 @@ assert.match(supplyCsv, /"Recepción"/);
 const activity = getRecentOperationalActivity(
   sales,
   [
-    {id: "p1", numero: "COM-2026-0001", fechaCompra: "2026-08-09", estado: "confirmada", total: 2500, proveedorSnapshot: {razonSocial: "Proveedor Uno"}},
+    {id: "p1", numero: "COM-2026-0001", fechaCompra: "2026-08-09", estado: "confirmada", neto: 2101, total: 2500, proveedorSnapshot: {razonSocial: "Proveedor Uno"}},
     {id: "p2", numero: "COM-2026-0002", fechaCompra: "2026-08-10", estado: "borrador", total: 9999, proveedorSnapshot: {razonSocial: "No sumar"}},
   ],
   range,
@@ -461,6 +503,9 @@ assert.match(comprasViewSource, /Comparar ventas y compras no es ganancia/);
 assert.doesNotMatch(comprasViewSource.replace(/no es ganancia/g, ""), /[Gg]anancia/);
 assert.doesNotMatch(comprasViewSource, /margenBrutoProductosCubiertos/);
 assert.match(comprasViewSource, /Las compras muestran egresos registrados del negocio/);
+// SPEC 025 etapa 1: los montos de Ventas y Compras van sin IVA.
+assert.match(comprasViewSource, /ambos montos van sin IVA/);
+assert.doesNotMatch(comprasViewSource, /incluyen IVA/);
 assert.match(comprasViewSource, /topPurchaseSuppliers/);
 assert.match(comprasViewSource, /topPurchaseProducts/);
 

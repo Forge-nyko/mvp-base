@@ -46,7 +46,7 @@ function ReportsComprasView({canOpenPurchases, chartGroups, navigate, purchaseTi
     {/* SPEC 022 §6.3: el gráfico Ventas vs Compras vive aquí, sin cambios de cálculo. */}
     <section className="erp-card reports-simple-chart">
       <div className="reports-section-heading"><div><span>Movimiento comercial</span><h2>Ventas y compras</h2><p>Operaciones confirmadas dentro del período seleccionado.</p></div></div>
-      <p className="reports-v4-note">Comparar ventas y compras no es ganancia. Las compras incluyen stock que aún no se vende, y ambos montos incluyen IVA. El resultado está en Rentabilidad y estado.</p>
+      <p className="reports-v4-note">Comparar ventas y compras no es ganancia. Las compras incluyen stock que aún no se vende, y ambos montos van sin IVA. El resultado está en Rentabilidad y estado.</p>
       <div className="reports-chart-groups">{chartGroups.map((group) => <article className="reports-chart-group" key={group.currency}>
         <div className="reports-chart-summary">
           <span>{group.currency}</span>

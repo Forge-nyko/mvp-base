@@ -64,6 +64,18 @@ function safeAmount(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+// Monto sin IVA de una venta o compra. Mismo criterio que operationalNetProfit
+// y workBalance: un neto válido es un número finito ≥ 0 y nunca se sustituye por
+// `total`. En boleta de compra (SPEC 023 §5.2) `neto` ya es lo pagado.
+function netAmount(record) {
+  const value = record?.neto;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+function amountOf(record, field) {
+  return field === "neto" ? netAmount(record) : safeAmount(record?.[field]);
+}
+
 export function normalizeReportCurrency(value, fallback = "CLP") {
   const normalized = text(value).toUpperCase();
   if (/^[A-Z]{3}$/.test(normalized)) return normalized;
@@ -91,7 +103,7 @@ export function groupAmountsByCurrency(
     const currency = resolveReportCurrency(record, fallbackCurrency);
     const current = buckets.get(currency) || {currency, count: 0, total: 0};
     current.count += 1;
-    current.total += safeAmount(record?.[amountField]);
+    current.total += amountOf(record, amountField);
     buckets.set(currency, current);
   });
   return [...buckets.values()]
@@ -147,7 +159,7 @@ export function filterSales(
 export function getSalesMetrics(sales, range, options = {}) {
   const confirmed = filterSales(sales, {range, ...options, status: "todos"})
     .filter((sale) => VALID_SALE_STATES.has(text(sale.estado).toLowerCase()));
-  const totalsByCurrency = groupAmountsByCurrency(confirmed, options);
+  const totalsByCurrency = groupAmountsByCurrency(confirmed, {...options, amountField: "neto"});
   const total = singleCurrencyValue(totalsByCurrency);
   return {
     confirmed,
@@ -187,7 +199,7 @@ export function filterPurchases(
 export function getPurchaseMetrics(purchases, range, options = {}) {
   const confirmed = filterPurchases(purchases, {range, ...options, status: "todos"})
     .filter((purchase) => VALID_PURCHASE_STATES.has(text(purchase.estado).toLowerCase()));
-  const totalsByCurrency = groupAmountsByCurrency(confirmed, options);
+  const totalsByCurrency = groupAmountsByCurrency(confirmed, {...options, amountField: "neto"});
   const total = singleCurrencyValue(totalsByCurrency);
   return {
     confirmed,
@@ -341,7 +353,7 @@ function rankTopByCurrency(records, {counterpartyIdField, counterpartyNameField,
     const name = text(counterpartyNameField(record)) || "Histórico";
     const current = bucket.get(id) || {id, name, count: 0, total: 0};
     current.count += 1;
-    current.total += safeAmount(record.total);
+    current.total += netAmount(record);
     bucket.set(id, current);
   });
   return [...currencyBuckets.entries()]
@@ -719,7 +731,7 @@ export function filterWorkCosts(
 
 export function aggregateOperationalTimeline(
   documents,
-  {range, dateField, amountField = "total", fallbackCurrency = "CLP"}
+  {range, dateField, amountField = "neto", fallbackCurrency = "CLP"}
 ) {
   const byKey = new Map();
   const useMonths = Number(range?.days || 0) > 92;
@@ -731,7 +743,7 @@ export function aggregateOperationalTimeline(
     const bucketKey = `${currency}__${key}`;
     const current = byKey.get(bucketKey) || {key, currency, count: 0, value: 0};
     current.count += 1;
-    current.value += safeAmount(document?.[amountField]);
+    current.value += amountOf(document, amountField);
     byKey.set(bucketKey, current);
   });
   return [...byKey.values()].sort((left, right) =>
@@ -763,6 +775,8 @@ export function combineOperationalTimelines(salesTimeline, purchasesTimeline) {
   );
 }
 
+// Cada fila es un documento y enlaza a su detalle, así que muestra el `total`
+// del documento (con IVA); no es una suma del período.
 export function getRecentOperationalActivity(sales, purchases, range, limit = 5) {
   const salesActivity = getSalesMetrics(sales, range).confirmed.map((sale) => ({
     id: text(sale.id || sale.ventaId),
@@ -919,9 +933,9 @@ export function buildReportCsv(tab, data = {}) {
       (groups || []).map((group) => [area, indicator, group.currency, group[field]]);
     return csv([
       ["Área", "Indicador", "Moneda", "Valor"],
-      ...monetaryRows("Ventas", "Total vendido confirmado", data.sales?.totalsByCurrency),
+      ...monetaryRows("Ventas", "Total vendido confirmado (sin IVA)", data.sales?.totalsByCurrency),
       ["Ventas", "Cantidad confirmada", "", data.sales?.count || 0],
-      ...monetaryRows("Compras", "Total comprado confirmado", data.purchases?.totalsByCurrency),
+      ...monetaryRows("Compras", "Total comprado confirmado (sin IVA)", data.purchases?.totalsByCurrency),
       ["Compras", "Cantidad confirmada", "", data.purchases?.count || 0],
       ["Cotizaciones", "Cantidad del periodo", "", data.quotes?.count || 0],
       ["Cotizaciones", "Aceptadas (estado actual)", "", data.quotes?.counts?.aceptada || 0],

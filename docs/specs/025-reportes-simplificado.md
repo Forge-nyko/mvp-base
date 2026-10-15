@@ -18,7 +18,7 @@ Que Reportes responda de un vistazo cómo va el negocio en el mes, con tres cifr
 - La ganancia suma dos universos separados: el margen bruto de las ventas sin proyecto y el resultado mensual de los proyectos (`workBalance.js`). Una venta con proyecto nunca pasa por el margen, y los materiales de inventario no se duplican.
 - El mes de una venta o compra sale de los primeros 7 caracteres de `fechaVenta` o `fechaCompra` (texto `AAAA-MM-DD`), sin desfase de zona horaria. No hay cierre de mes.
 - Permisos: la ganancia exige `PROFITABILITY_READ` (backend: OWNER, ADMIN o FINANZAS); Ventas y Compras las ven OWNER, ADMIN, FINANZAS y MEMBER.
-- Rendimiento: `listarVentas` y `listarCompras` leen todo el historial sin filtro de fecha; `obtenerBalanceTrabajo` se llama 2N veces, y el primer juego de N balances parece redundante (`reportService.js:82-85`).
+- Rendimiento: `listarVentas` y `listarCompras` leen todo el historial sin filtro de fecha; `obtenerBalanceTrabajo` se llama 2N veces. La carga de balances de `reportService.js:82-84` solo alimenta `summary.projects` y el descubrimiento de monedas de `getSimplifiedReportSummary`. La otra tanda de N balances es de `useReportProfitabilityV4` (`reportProfitabilityV4Service.js:79`), alimenta Rentabilidad y Ganancias, y no es redundante.
 - Riesgo de permisos: el margen de ventas sin proyecto se calcula en el navegador con documentos que traen costos congelados. Las reglas dejan leer `ventas` a VENTAS y MEMBER, y solo la interfaz lo oculta.
 - Con cero datos no hay divisiones por cero. El "Ticket promedio $0" se ve raro (revisar en navegador).
 - Hay tres vistas sin uso (`ReportsResumenView`, `ReportsInventarioView`, `ReportsProyectosView`) y dos funciones de inventario que solo usa su smoke. Q5 de la SPEC 022 (eliminarlas o trasladarlas) sigue abierta.
@@ -53,7 +53,12 @@ Una vista de resumen con:
 ## 5. Etapas de construcción
 
 1. **Modelo.** Ventas y Compras en neto en `reportModel.mjs`, sin tocar la ganancia. Actualizar `report-model-smoke.mjs` y quitar el texto "incluyen IVA" donde corresponda.
-2. **Servicio.** Filtrar ventas y compras por rango de fechas en vez de leer todo el historial, y eliminar la segunda carga de balances por proyecto. Sin cambios de comportamiento visible.
+2. **Servicio. Descartada por ahora.** Pretendía filtrar ventas y compras por rango de fechas y eliminar la segunda carga de balances por proyecto, sin cambios visibles. Motivos del descarte:
+   - Quitar la carga de balances de `reportService.js` cambia las monedas visibles en Ventas y Compras: el descubrimiento de monedas usa los balances completos, que no se filtran por período, así que desaparecerían los grupos en cero de proyectos en una moneda sin ventas ni compras en el rango.
+   - `compras` no tiene índice compuesto por `fechaCompra` en `firestore.indexes.json` (solo `ventas` lo tiene); filtrar por rango exigiría desplegar un índice nuevo.
+   - Filtrar por rango obliga a recargar al cambiar de período (hoy el filtrado es instantáneo en el navegador) y introduce truncamiento por el tope de documentos de la paginación acotada.
+
+   Se retoma junto con la etapa 5 opcional.
 3. **Pantalla.** Vista de resumen según la sección 3, con estados de carga, error, vacío y sin mes anterior. Verificar en navegador con cero datos, pocos datos, modo oscuro y móvil.
 4. **Limpieza.** Eliminar las vistas huérfanas y las funciones sin uso, y ajustar el smoke que comprueba que no se renderizan (decisión 5).
 5. **Opcional:** consulta única en el backend (decisión 7).
