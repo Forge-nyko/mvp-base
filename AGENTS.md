@@ -77,9 +77,13 @@ Después de modificar:
 - Indicar si el cambio altera el resultado visual y qué pantallas revisar en el navegador.
 - Detenerse sin commit.
 
+# Verificación por defecto
+
+Solo los smokes del módulo que tocas, `npm run test:design`, `npm run build` y `git diff --check`. Sin pruebas de mutación ni renders de prueba salvo que se pidan. Reporta siempre el código de salida real de cada prueba.
+
 # Verificación mínima
 
-Según el alcance, ejecutar:
+Cuando el alcance lo requiera (por ejemplo, cambios en `functions/` o de efecto transversal), ejecutar además de la verificación por defecto:
 
 ```bash
 npm run build
