@@ -26,6 +26,7 @@ import PricingPage from "../pages/PricingPage";
 import QuoteHistoryPage from "../pages/QuoteHistoryPage";
 import PublicQuoteProposalPage from "../pages/PublicQuoteProposalPage";
 import LegalDocumentPage from "../features/legal/LegalDocumentPage";
+import LegalAcceptancePage from "../features/legal/LegalAcceptancePage";
 import NewPurchaseOrderPage from "../pages/NewPurchaseOrderPage";
 import PurchaseOrdersPage from "../pages/PurchaseOrdersPage";
 import NewPurchasePage from "../pages/NewPurchasePage";
@@ -42,13 +43,20 @@ import Button from "../components/ui/Button";
 import { BusinessFormatProvider } from "../hooks/useBusinessFormat";
 import { ThemePreferenceProvider } from "../hooks/useThemePreference";
 import BusinessOperationGate from "../components/BusinessOperationGate";
-import { subscribeToAuth } from "../services/authService";
+import {
+  subscribeToAuth,
+  waitForRegistrationSetup,
+} from "../services/authService";
 import {
   getBusinessSession,
   setActiveBusiness,
 } from "../services/businessService";
 import {isPlatformRoute} from "../domain/platformAccess.mjs";
 import {resolveInitialActivationRoute} from "../domain/initialActivationNavigation.mjs";
+import {
+  LEGAL_ACCEPTANCE_GATE,
+  resolveLegalAcceptanceGate,
+} from "../domain/legalAcceptanceGate.mjs";
 import {
   canBusinessOperate,
   isUnverifiedBusinessAllowedPath,
@@ -88,6 +96,20 @@ function BusinessSessionError({ onRetry }) {
   );
 }
 
+// Tope de espera por la aceptación legal de un registro en curso (SPEC 024,
+// 5.4): una callable colgada no debe bloquear la carga de la sesión.
+const REGISTRATION_SETUP_TIMEOUT_MS = 8000;
+
+function waitForRegistrationSetupWithTimeout() {
+  let timerId;
+  const timeout = new Promise((resolve) => {
+    timerId = setTimeout(resolve, REGISTRATION_SETUP_TIMEOUT_MS);
+  });
+  return Promise.race([waitForRegistrationSetup(), timeout]).finally(() =>
+    clearTimeout(timerId)
+  );
+}
+
 function AppRoutes({
   usuario,
   loading,
@@ -118,6 +140,21 @@ function AppRoutes({
       onInitialActivationSettled();
     }
   }, [initialActivationRoute.status, onInitialActivationSettled]);
+
+  const legalAcceptanceGate = resolveLegalAcceptanceGate(
+    businessSession?.legalAcceptance
+  );
+  const legalAcceptanceUnknown =
+    Boolean(businessSession) &&
+    legalAcceptanceGate === LEGAL_ACCEPTANCE_GATE.UNKNOWN;
+
+  useEffect(() => {
+    if (legalAcceptanceUnknown) {
+      console.warn(
+        "La sesión no trae legalAcceptance (backend sin la SPEC 024): no se exige la aceptación legal."
+      );
+    }
+  }, [legalAcceptanceUnknown]);
 
   if (/^\/propuesta\/[^/]+\/?$/.test(location.pathname)) {
     return (
@@ -172,6 +209,16 @@ function AppRoutes({
 
   if (businessError) {
     return <BusinessSessionError onRetry={onRetry} />;
+  }
+
+  if (legalAcceptanceGate === LEGAL_ACCEPTANCE_GATE.REQUIRED) {
+    return (
+      <LegalAcceptancePage
+        usuario={usuario}
+        isUpdate={Boolean(businessSession.legalAcceptance.acceptedVersion)}
+        onAccepted={onBusinessCreated}
+      />
+    );
   }
 
   if (businessSession?.accessState === "unavailable") {
@@ -332,6 +379,7 @@ function AppRoutes({
             <AccountPage
               key={usuario?.uid}
               usuario={usuario}
+              legalAcceptance={businessSession?.legalAcceptance}
               onSessionRefresh={onBusinessCreated}
             />
           }
@@ -659,7 +707,11 @@ function App() {
     let active = true;
 
     setBusinessState({ loading: true, data: null, error: null });
-    getBusinessSession()
+    // Si hay un registro en curso, espera a que termine su aceptación legal
+    // (con tope) para no mostrar la pantalla de aceptación a quien acaba de
+    // aceptar en el registro. Si vence, el guard resuelve con la sesión.
+    waitForRegistrationSetupWithTimeout()
+      .then(() => (active ? getBusinessSession() : null))
       .then((data) => {
         if (active) setBusinessState({ loading: false, data, error: null });
       })

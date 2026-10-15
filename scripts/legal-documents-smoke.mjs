@@ -210,3 +210,101 @@ console.log("OK Servicio: aceptación tras crear la cuenta, sin bloquear el regi
 assert.match(componentsCss, /\.ui-checkbox\s*\{/);
 assert.match(componentsCss, /\.auth-legal\s*\{/);
 console.log("OK Estilos: .ui-checkbox y .auth-legal en components.css");
+
+// Etapa 5: guard y pantalla de aceptación (aserciones estáticas + regla pura).
+const {LEGAL_ACCEPTANCE_GATE, resolveLegalAcceptanceGate} = await import(
+  "../src/domain/legalAcceptanceGate.mjs"
+);
+const [acceptancePageSource, accountPageSource] = await Promise.all([
+  readFile(new URL("../src/features/legal/LegalAcceptancePage.jsx", import.meta.url), "utf8"),
+  readFile(new URL("../src/pages/AccountPage.jsx", import.meta.url), "utf8"),
+]);
+
+assert.equal(resolveLegalAcceptanceGate(undefined), LEGAL_ACCEPTANCE_GATE.UNKNOWN);
+assert.equal(resolveLegalAcceptanceGate(null), LEGAL_ACCEPTANCE_GATE.UNKNOWN);
+assert.equal(resolveLegalAcceptanceGate("x"), LEGAL_ACCEPTANCE_GATE.UNKNOWN);
+assert.equal(resolveLegalAcceptanceGate({isCurrent: true}), LEGAL_ACCEPTANCE_GATE.ACCEPTED);
+for (const legalAcceptance of [{}, {isCurrent: false}, {isCurrent: "true"}, {isCurrent: 1}]) {
+  assert.equal(resolveLegalAcceptanceGate(legalAcceptance), LEGAL_ACCEPTANCE_GATE.REQUIRED);
+}
+console.log("OK Guard: sin legalAcceptance no bloquea; presente sin isCurrent === true bloquea");
+
+const routesStart = appSource.indexOf("function AppRoutes(");
+const routesSource = appSource.slice(routesStart, appSource.indexOf("\nfunction App()"));
+const at = (needle) => {
+  const index = routesSource.indexOf(needle);
+  assert.ok(index > -1, `AppRoutes contiene ${needle}`);
+  return index;
+};
+const guardIndex = at("legalAcceptanceGate === LEGAL_ACCEPTANCE_GATE.REQUIRED");
+assert.ok(guardIndex > at("if (businessLoading) return <LoadingScreen />;"));
+assert.ok(guardIndex > at("if (businessError) {"), "error de sesión antes del guard");
+assert.ok(guardIndex < at('businessSession?.accessState === "unavailable"'), "guard antes de unavailable");
+assert.ok(guardIndex < at("if (businessSession?.needsOnboarding) {"), "guard antes de needsOnboarding");
+assert.ok(guardIndex < at('initialActivationRoute.status === "prompt"'));
+assert.ok(at("isPlatformRoute(location.pathname)") < guardIndex, "/admin queda fuera del guard");
+assert.ok(at("(privacidad|terminos)") < guardIndex && at("/^\\/propuesta\\/") < guardIndex);
+assert.ok(at("if (loading) return <LoadingScreen />;") < guardIndex);
+assert.match(
+  routesSource.slice(guardIndex, guardIndex + 360),
+  /<LegalAcceptancePage[\s\S]*?onAccepted=\{onBusinessCreated\}[\s\S]*?\/>/
+);
+assert.doesNotMatch(
+  routesSource.slice(guardIndex, at('businessSession?.accessState === "unavailable"')),
+  /initialActivation/,
+  "el guard no interfiere con initialActivationRoute"
+);
+console.log("OK Guard: tras businessLoading/businessError y antes de unavailable, needsOnboarding e initialActivation");
+
+assert.match(
+  routesSource,
+  /useEffect\(\(\) => \{\s*if \(legalAcceptanceUnknown\) \{\s*console\.warn\(/,
+  "warn en un efecto, no en el render"
+);
+assert.match(
+  routesSource,
+  /const legalAcceptanceUnknown =\s*Boolean\(businessSession\) &&\s*legalAcceptanceGate === LEGAL_ACCEPTANCE_GATE\.UNKNOWN/
+);
+console.log("OK Guard: sesión sin legalAcceptance no bloquea y registra console.warn una vez");
+
+const timeoutHelper = appSource.slice(
+  appSource.indexOf("function waitForRegistrationSetupWithTimeout()"),
+  routesStart
+);
+assert.match(appSource, /const REGISTRATION_SETUP_TIMEOUT_MS = 8000;/);
+assert.match(timeoutHelper, /Promise\.race\(\[waitForRegistrationSetup\(\), timeout\]\)/);
+assert.match(timeoutHelper, /setTimeout\(resolve, REGISTRATION_SETUP_TIMEOUT_MS\)/);
+assert.match(timeoutHelper, /\.finally\(\(\) =>\s*clearTimeout\(timerId\)\s*\)/);
+assert.doesNotMatch(timeoutHelper, /reject/);
+const appComponentSource = appSource.slice(appSource.indexOf("\nfunction App()"));
+const sessionEffect = appComponentSource.slice(
+  appComponentSource.indexOf("// Si hay un registro en curso"),
+  appComponentSource.indexOf("const finishInitialActivation")
+);
+assert.ok(sessionEffect.includes("[usuario?.uid]"), "recorte del efecto de sesión por uid");
+const waitIndex = sessionEffect.indexOf("waitForRegistrationSetupWithTimeout()");
+const sessionCall = sessionEffect.indexOf("getBusinessSession()");
+assert.ok(waitIndex > -1 && sessionCall > waitIndex, "espera el registro antes de getBusinessSession");
+assert.match(sessionEffect, /waitForRegistrationSetupWithTimeout\(\)\s*\.then\(\(\) => \(active \? getBusinessSession\(\) : null\)\)/);
+assert.match(sessionEffect, /\.catch\(\(error\) => \{[\s\S]*?setBusinessState\(\{ loading: false, data: null, error \}\)/);
+assert.match(appSource, /subscribeToAuth,\s*waitForRegistrationSetup,/);
+console.log("OK Sesión: await de waitForRegistrationSetup con timeout de 8 s antes de getBusinessSession");
+
+assert.match(acceptancePageSource, /to=\{document\.path\}[\s\S]*?target="_blank"[\s\S]*?rel="noopener noreferrer"/);
+assert.match(acceptancePageSource, /LEGAL_DOCUMENTS\.privacidad, LEGAL_DOCUMENTS\.terminos/);
+assert.match(acceptancePageSource, /await acceptLegalTerms\(\);\s*const session = await onAccepted\(\);/);
+assert.match(acceptancePageSource, /\} catch \(acceptError\) \{[\s\S]*?setError\(ACCEPT_ERROR_MESSAGE\)/);
+assert.match(acceptancePageSource, /\} finally \{\s*setAccepting\(false\);/);
+assert.match(acceptancePageSource, /onClick=\{logout\}/);
+assert.match(acceptancePageSource, /disabled=\{accepting\}\s*onClick=\{logout\}/);
+assert.match(acceptancePageSource, /role="alert"/);
+assert.match(acceptancePageSource, /<SkipLink\b/);
+assert.match(acceptancePageSource, /<BrandLogo\b[^>]*\/>/);
+assert.equal(acceptancePageSource.match(/role="status"/g), null);
+console.log("OK Pantalla de aceptación: enlaces, aceptar + refresh, error sin atrapar y cerrar sesión");
+
+assert.match(accountPageSource, /legalAcceptance\?\.acceptedVersion/);
+assert.match(accountPageSource, /Versión aceptada: \{legalAcceptance\.acceptedVersion\}/);
+assert.match(appSource, /legalAcceptance=\{businessSession\?\.legalAcceptance\}/);
+assert.match(cssSource, /\.legal-acceptance__links\s*\{/);
+console.log("OK Mi cuenta: versión y fecha aceptadas desde la sesión");

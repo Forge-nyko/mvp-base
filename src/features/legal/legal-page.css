@@ -96,3 +96,27 @@
     padding: var(--space-5);
   }
 }
+
+.legal-acceptance__links {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: center;
+  list-style: none;
+  margin: var(--space-5) 0 0;
+  padding: 0;
+}
+
+.legal-acceptance__links a {
+  color: var(--color-brand-700);
+  font-weight: var(--font-weight-semibold);
+}
+
+.legal-acceptance__error {
+  margin-top: var(--space-5);
+  text-align: left;
+}
+
+.legal-acceptance__actions {
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}

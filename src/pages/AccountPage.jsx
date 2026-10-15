@@ -7,6 +7,7 @@ import {
   Moon,
   RefreshCw,
   Save,
+  ScrollText,
   Send,
   Sun,
   SunMoon,
@@ -60,7 +61,14 @@ function authErrorMessage(error, fallback) {
   return fallback;
 }
 
-function AccountPage({ onSessionRefresh, usuario }) {
+function formatLegalAcceptedAt(value) {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime())
+    ? date.toLocaleDateString("es-CL")
+    : "";
+}
+
+function AccountPage({ legalAcceptance, onSessionRefresh, usuario }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedSection = searchParams.get("seccion") || "perfil";
   const activeSection = ACCOUNT_SECTIONS.some(({ id }) => id === requestedSection)
@@ -387,6 +395,22 @@ function AccountPage({ onSessionRefresh, usuario }) {
                   {resettingPassword ? "Enviando..." : "Enviar enlace para cambiar contraseña"}
                 </Button>
               </div>
+              {legalAcceptance?.acceptedVersion && (
+                <div className="account-security-row">
+                  <div className="account-security-row__icon" aria-hidden="true">
+                    <AppIcon icon={ScrollText} size={20} />
+                  </div>
+                  <div className="account-security-row__copy">
+                    <span>Política de privacidad y términos de uso</span>
+                    <strong>Versión aceptada: {legalAcceptance.acceptedVersion}</strong>
+                    <small>
+                      {formatLegalAcceptedAt(legalAcceptance.acceptedAt)
+                        ? `Aceptada el ${formatLegalAcceptedAt(legalAcceptance.acceptedAt)}.`
+                        : "Fecha de aceptación no disponible."}
+                    </small>
+                  </div>
+                </div>
+              )}
               {securityError && <p className="settings-message settings-message--error" role="alert">{securityError}</p>}
               {securityMessage && <p className="settings-message settings-message--success" role="status">{securityMessage}</p>}
             </div>
