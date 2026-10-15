@@ -1761,11 +1761,22 @@
   color: var(--color-text-strong);
 }
 
-.reports-month-actions,
-.reports-month-links {
+.reports-month-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* Una sola línea cuando ninguna tarjeta tiene base del mes anterior. */
+.reports-month-no-previous {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  margin: 0;
+}
+
+/* "Ver detalle" como enlace de texto al pie de cada tarjeta. */
+.reports-month-card-link {
+  justify-self: start;
 }
 
 .reports-month-coverage {
@@ -2129,9 +2140,17 @@
   white-space: nowrap;
 }
 
-.reports-ganancias-block {
-  display: grid;
-  gap: var(--space-2);
+.reports-simple-metrics--2col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* SPEC 025: en Ganancia los encabezados de tabla y rótulos van en texto normal. */
+.reports-plain-headings .reports-top-list-table th,
+.reports-plain-headings .reports-detail-subheading,
+.reports-plain-headings .reports-v4-metrics dt,
+.reports-plain-headings .reports-v4-currency-group > header > span:first-child {
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 @media (max-width: 960px) {
@@ -2145,7 +2164,8 @@
 }
 
 @media (max-width: 640px) {
-  .reports-simple-metrics--3col {
+  .reports-simple-metrics--3col,
+  .reports-simple-metrics--2col {
     grid-template-columns: 1fr;
   }
 }

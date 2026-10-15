@@ -11,7 +11,8 @@ import useBusinessFormat from "../../hooks/useBusinessFormat";
 
 // SPEC 022 §6.2: ganancia neta operacional, su desglose y la línea de ventas
 // sin costo registrado. La cifra sale de calculateOperationalNetProfit; este
-// archivo sólo la presenta, nunca suma bloques por su cuenta.
+// archivo sólo la presenta, nunca suma bloques por su cuenta. SPEC 025: los
+// rótulos visibles van en lenguaje simple ("Ganancia"), sin cambiar valores.
 
 const INITIAL_STATE = Object.freeze({status: "loading", result: null, error: ""});
 
@@ -36,7 +37,7 @@ export function useOperationalNetProfit(profitabilityV4, range) {
         }),
       };
     } catch (error) {
-      return {status: "error", result: null, error: error?.message || "No fue posible calcular la ganancia neta operacional."};
+      return {status: "error", result: null, error: error?.message || "No fue posible calcular la ganancia."};
     }
   }, [commercial, projects, range.end, range.start]);
 }
@@ -80,25 +81,25 @@ function CurrencyBreakdown({group}) {
 
     <dl className="reports-v4-metrics">
       <div className="reports-v4-metrics__primary">
-        <dt>{partial ? "Ganancia neta operacional conocida (parcial)" : "Ganancia neta operacional"}</dt>
+        <dt>{partial ? "Ganancia (parcial)" : "Ganancia"}</dt>
         <dd className={Number(group.gananciaNetaOperacional) < 0 ? "reports-negative" : undefined}>{money(group.gananciaNetaOperacional, currency, businessLocale)}</dd>
       </div>
       <div>
-        <dt>Sobre ingreso neto considerado</dt>
+        <dt>Margen sobre ventas</dt>
         <dd>{percent(group.gananciaNetaOperacionalPct)}</dd>
         <small>{money(group.ingresoNetoConsiderado, currency, businessLocale)} de ingreso neto</small>
       </div>
     </dl>
     <p className="reports-v4-note">
-      Ganancia neta operacional: ventas sin IVA menos costos registrados de productos y proyectos.
+      Ganancia: ventas sin IVA menos costos registrados de productos y proyectos.
       {" "}No incluye gastos generales del negocio.
     </p>
 
     <div className="reports-detail-grid">
       <BreakdownTable caption="Ventas sin proyecto" currency={currency} rows={[
-        ["Ingreso neto de productos", sales.ingresoNetoProductos],
-        ["Costo histórico de productos", sales.costoHistoricoProductos],
-        ["Margen bruto de productos", sales.margenBrutoProductos, true],
+        ["Ventas de productos (sin IVA)", sales.ingresoNetoProductos],
+        ["Costo de lo vendido", sales.costoHistoricoProductos],
+        ["Ganancia por productos", sales.margenBrutoProductos, true],
       ]} />
       <BreakdownTable caption="Proyectos" currency={currency} rows={[
         ["Ingreso neto", projects.ingresoNeto],
@@ -110,9 +111,9 @@ function CurrencyBreakdown({group}) {
         ["Resultado de proyectos", projects.resultado, true],
       ]} />
       <BreakdownTable caption="Total" currency={currency} rows={[
-        ["Margen bruto de productos sin proyecto", sales.margenBrutoProductos],
+        ["Ganancia por productos", sales.margenBrutoProductos],
         ["Resultado de proyectos", projects.resultado],
-        [partial ? "Ganancia neta operacional conocida" : "Ganancia neta operacional", group.gananciaNetaOperacional, true],
+        [partial ? "Ganancia (parcial)" : "Ganancia", group.gananciaNetaOperacional, true],
       ]} />
     </div>
 
@@ -126,7 +127,7 @@ function CurrencyBreakdown({group}) {
 // Puntos 1 a 3 de §6.2. Lo reutilizan Rentabilidad y estado y Ganancias.
 export function OperationalNetProfitBreakdown({canView, currency, onRetry, state}) {
   if (!canView) return null;
-  if (state.status === "loading") return <LoadingState variant="section" label="Calculando ganancia neta operacional..." />;
+  if (state.status === "loading") return <LoadingState variant="section" label="Calculando ganancia..." />;
   if (state.status === "error") {
     return <div className="reports-v4-state reports-v4-state--error" role="alert">
       <span>{state.error}</span>

@@ -32,11 +32,9 @@ function ReportsVentasView({canOpenSales, navigate, salesTimeline, summary, topS
   return <>
     <div className="reports-simple-currencies">{summary.currencies.map((group) => <section className="reports-simple-currency-group" key={group.currency}>
       <h2>{group.currency}</h2>
-      <div className="reports-simple-metrics reports-simple-metrics--3col">
+      <div className="reports-simple-metrics reports-simple-metrics--2col">
         <article className="reports-simple-card"><div className="reports-simple-card__top"><span className="reports-simple-card__title">Ventas confirmadas</span></div><strong className="reports-simple-card__amount">{formatMoney(group.sales.total, group.currency, businessLocale)}</strong><small>{group.sales.count} operación(es)</small></article>
-        <article className="reports-simple-card"><div className="reports-simple-card__top"><span className="reports-simple-card__title">Cantidad de ventas</span></div><strong className="reports-simple-card__amount">{group.sales.count}</strong><small>Confirmadas en el período</small></article>
-        <article className="reports-simple-card"><div className="reports-simple-card__top"><span className="reports-simple-card__title">Ticket promedio</span></div><strong className="reports-simple-card__amount">{formatMoney(group.sales.average, group.currency, businessLocale)}</strong><small>Promedio por venta confirmada</small></article>
-      </div>
+        <article className="reports-simple-card"><div className="reports-simple-card__top"><span className="reports-simple-card__title">Cantidad de ventas</span></div><strong className="reports-simple-card__amount">{group.sales.count}</strong><small>Confirmadas en el período</small></article>      </div>
     </section>)}</div>
 
     {!hasSales && <div className="erp-card reports-simple-state">Aún no hay ventas confirmadas en este período.</div>}

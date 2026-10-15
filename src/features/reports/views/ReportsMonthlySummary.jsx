@@ -15,12 +15,14 @@ import Button from "../../../components/ui/Button";
 import LoadingState from "../../../components/ui/LoadingState";
 import {
   MONTHLY_EXPLANATIONS,
+  NO_PREVIOUS_MONTH_TEXT,
   buildMonthlySummaryGroups,
   canShowNextMonth,
   formatComparisonText,
   formatMonthLabel,
   formatMonthName,
   formatReferenceText,
+  hasPreviousMonthBase,
   isMonthEmpty,
   isMonthInProgress,
   shiftMonthKey,
@@ -45,7 +47,7 @@ function ReferenceLine({text}) {
   return <span className="reports-month-delta reports-month-delta--none">{text}</span>;
 }
 
-function MonthlyCard({children, comparison, explanation, icon: Icon, locale, referenceText, signed, title, variant = "default"}) {
+function MonthlyCard({children, comparison, explanation, icon: Icon, locale, onOpenDetail, referenceText, signed, title, variant = "default"}) {
   return <article className={`reports-simple-card reports-simple-card--${variant}`}>
     <div className="reports-simple-card__top">
       <span className="reports-simple-card__icon"><Icon size={19} aria-hidden="true" /></span>
@@ -54,6 +56,7 @@ function MonthlyCard({children, comparison, explanation, icon: Icon, locale, ref
     {children}
     {referenceText ? <ReferenceLine text={referenceText} /> : comparison && <ComparisonLine comparison={comparison} locale={locale} signed={signed} />}
     <small>{explanation}</small>
+    {onOpenDetail && <Button type="button" variant="ghost" className="reports-month-card-link" icon={ArrowRight} iconSize={14} onClick={onOpenDetail}>Ver detalle</Button>}
   </article>;
 }
 
@@ -69,11 +72,10 @@ function ProfitAmount({amountText, onRetry, profit}) {
   return <strong className="reports-simple-card__amount">{amountText}</strong>;
 }
 
+// Solo avisa: cobertura parcial de la ganancia o documentos sin neto válido.
+// Con cobertura completa no se muestra nada.
 function CoverageLine({canViewProfitability, coverage, onOpenDetail, withoutNetCount}) {
   const parts = [];
-  if (canViewProfitability && coverage === "complete") {
-    parts.push({key: "complete", badge: "Cobertura completa", text: "La ganancia incluye todas las ventas y proyectos del mes."});
-  }
   if (canViewProfitability && coverage === "partial") {
     parts.push({key: "partial", badge: "Cobertura parcial", partial: true, text: "La ganancia del mes es parcial: hay registros que no se incluyen."});
   }
@@ -83,7 +85,7 @@ function CoverageLine({canViewProfitability, coverage, onOpenDetail, withoutNetC
     {parts.map((part) => <p key={part.key}>
       <span className={part.partial ? "reports-v4-badge reports-v4-badge--parcial" : "reports-v4-badge"}>{part.badge}</span>
       {" "}{part.text}
-      {part.partial && <>{" "}<Button type="button" variant="secondary" onClick={() => onOpenDetail("rentabilidad")}>Ver estado del sistema</Button></>}
+      {part.partial && <>{" "}<Button type="button" variant="secondary" onClick={() => onOpenDetail("ganancias")}>Ver estado del sistema</Button></>}
     </p>)}
     {withoutNetCount > 0 && <p>
       <span className="reports-v4-badge reports-v4-badge--parcial">Aviso</span>
@@ -122,9 +124,9 @@ function ReportsMonthlySummary({
     [canViewProfitability, currency, inProgress, previousProfit, previousSummary, profit, summary]
   );
   const hasCards = canViewSales || canViewPurchases || canViewProfitability;
-  const coverage = groups.some((group) => group.profit?.coverage === "partial")
-    ? "partial"
-    : groups.some((group) => group.profit?.coverage === "complete") ? "complete" : "empty";
+  const coverage = groups.some((group) => group.profit?.coverage === "partial") ? "partial" : "other";
+  // Sin base en ninguna tarjeta: una sola línea bajo el selector de mes.
+  const showComparison = hasPreviousMonthBase(groups, {sales: canViewSales, purchases: canViewPurchases, profit: canViewProfitability});
   const withoutNetCount = (canViewSales ? summary.sales.withoutNetCount : 0) +
     (canViewPurchases ? summary.purchases.withoutNetCount : 0);
 
@@ -134,6 +136,7 @@ function ReportsMonthlySummary({
       <strong className="reports-month-nav__label">{formatMonthLabel(month, locale)}</strong>
       <Button type="button" variant="secondary" icon={ChevronRight} aria-label="Mes siguiente" disabled={!canShowNextMonth(month, todayKey)} onClick={() => onMonthChange(shiftMonthKey(month, 1))} />
     </div>
+    {hasCards && !showComparison && <p className="reports-month-no-previous">{NO_PREVIOUS_MONTH_TEXT}</p>}
 
     {!hasCards && <div className="erp-card reports-simple-state">Tu perfil no incluye informes con cifras del mes.</div>}
 
@@ -145,13 +148,13 @@ function ReportsMonthlySummary({
       return <section className="reports-simple-currency-group" key={group.currency}>
         {groups.length > 1 && <h2>{group.currency}</h2>}
         <div className="reports-simple-metrics reports-simple-metrics--3col">
-          {canViewSales && <MonthlyCard comparison={group.sales.comparison} explanation={MONTHLY_EXPLANATIONS.sales} icon={BadgeDollarSign} locale={locale} referenceText={referenceOf(group.sales)} title="Ventas">
+          {canViewSales && <MonthlyCard comparison={showComparison ? group.sales.comparison : null} explanation={MONTHLY_EXPLANATIONS.sales} icon={BadgeDollarSign} locale={locale} onOpenDetail={links.sales ? () => onOpenDetail("ventas") : null} referenceText={showComparison ? referenceOf(group.sales) : null} title="Ventas">
             <strong className="reports-simple-card__amount">{money(group.sales.total)}</strong>
           </MonthlyCard>}
-          {canViewPurchases && <MonthlyCard comparison={group.purchases.comparison} explanation={MONTHLY_EXPLANATIONS.purchases} icon={ShoppingCart} locale={locale} referenceText={referenceOf(group.purchases)} title="Compras">
+          {canViewPurchases && <MonthlyCard comparison={showComparison ? group.purchases.comparison : null} explanation={MONTHLY_EXPLANATIONS.purchases} icon={ShoppingCart} locale={locale} onOpenDetail={links.purchases ? () => onOpenDetail("compras") : null} referenceText={showComparison ? referenceOf(group.purchases) : null} title="Compras">
             <strong className="reports-simple-card__amount">{money(group.purchases.total)}</strong>
           </MonthlyCard>}
-          {canViewProfitability && group.profit && <MonthlyCard comparison={group.profit.status === "ready" ? group.profit.comparison : null} explanation={MONTHLY_EXPLANATIONS.profit} icon={TrendingUp} locale={locale} referenceText={group.profit.status === "ready" ? referenceOf(group.profit) : null} signed title="Ganancia" variant="result">
+          {canViewProfitability && group.profit && <MonthlyCard comparison={showComparison && group.profit.status === "ready" ? group.profit.comparison : null} explanation={MONTHLY_EXPLANATIONS.profit} icon={TrendingUp} locale={locale} onOpenDetail={() => onOpenDetail("ganancias")} referenceText={showComparison && group.profit.status === "ready" ? referenceOf(group.profit) : null} signed title="Ganancia" variant="result">
             <ProfitAmount amountText={money(group.profit.amount)} onRetry={onRetryProfit} profit={group.profit} />
           </MonthlyCard>}
         </div>
@@ -172,12 +175,6 @@ function ReportsMonthlySummary({
     </div>}
 
     {hasCards && <CoverageLine canViewProfitability={canViewProfitability} coverage={coverage} onOpenDetail={onOpenDetail} withoutNetCount={withoutNetCount} />}
-
-    {hasCards && <div className="reports-month-links">
-      {canViewSales && links.sales && <Button type="button" variant="secondary" icon={ArrowRight} iconSize={14} onClick={() => onOpenDetail("ventas")}>Ver detalle de ventas</Button>}
-      {canViewPurchases && links.purchases && <Button type="button" variant="secondary" icon={ArrowRight} iconSize={14} onClick={() => onOpenDetail("compras")}>Ver detalle de compras</Button>}
-      {canViewProfitability && <Button type="button" variant="secondary" icon={ArrowRight} iconSize={14} onClick={() => onOpenDetail("ganancias")}>Ver detalle de ganancia</Button>}
-    </div>}
   </>;
 }
 

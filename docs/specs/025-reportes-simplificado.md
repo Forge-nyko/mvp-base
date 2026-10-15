@@ -28,17 +28,32 @@ Que Reportes responda de un vistazo cómo va el negocio en el mes, con tres cifr
 
 Una vista de resumen con:
 - Selector de mes (anterior y siguiente).
-- Tres tarjetas: Ventas, Compras y Ganancia, con la cifra grande, la comparación frente al mes anterior y una línea de explicación. La de Ganancia aclara que no es ventas menos compras.
-- Una línea de cobertura de datos, que avisa cuando la ganancia es parcial.
+- Tres tarjetas: Ventas, Compras y Ganancia, con la cifra grande, la comparación frente al mes anterior, una línea de explicación y un enlace de texto "Ver detalle" al pie.
+- Si ninguna tarjeta tiene datos del mes anterior, una sola línea bajo el selector de mes en vez de repetirla en cada tarjeta.
+- Una línea de cobertura de datos, solo cuando la ganancia es parcial (o hay documentos sin neto válido). Con cobertura completa no se muestra.
 - Estados:
   - **Carga:** indicador del sistema, no texto plano.
   - **Error:** mensaje propio, separado del vacío. Un fallo de carga nunca se muestra como "no hay datos".
   - **Vacío (primer día):** ceros sin gráficos, texto "Aún no hay ventas confirmadas este mes" y accesos para registrar la primera venta o compra.
   - **Sin mes anterior:** "Sin datos del mes anterior para comparar", sin porcentaje.
 - Textos de las explicaciones:
-  - Ventas: "Ventas confirmadas del mes, sin IVA."
-  - Compras: "Compras confirmadas del mes, sin IVA. Incluye mercadería que todavía no vendes."
-  - Ganancia: "Lo vendido menos lo que costó esa mercadería, más lo que dejaron los proyectos. No es ventas menos compras: lo que compraste para el stock aún no se vende."
+  - Ventas: "Confirmadas, sin IVA."
+  - Compras: "Confirmadas, sin IVA. Incluye stock aún no vendido."
+  - Ganancia: "Lo vendido menos su costo, más lo que dejaron los proyectos."
+- Encabezado: el selector "Moneda" y la nota "Las monedas se muestran por separado y no se convierten" solo aparecen cuando los datos cargados tienen dos o más monedas.
+
+### 3.1 Pestañas de detalle (limpieza visual)
+
+- Pestañas: Resumen, Ventas, Compras y Ganancia. "Rentabilidad y estado" se elimina porque repetía Ganancia; una URL con `?vista=rentabilidad` abre Ganancia. Su sección "Estado del sistema" pasa al final de Ganancia y solo se muestra si hay alertas.
+- Ganancia muestra el desglose y la evolución mensual. Se retiran de la pantalla la tarjeta de margen comercial de Ventas y los gráficos de margen por cliente y por producto.
+- Rótulos en lenguaje simple, sin cambiar valores: "Ganancia", "Ganancia (parcial)", "Margen sobre ventas", "Ventas de productos (sin IVA)", "Costo de lo vendido", "Ganancia por productos" y "Resultado de proyectos". Encabezados de tabla en texto normal.
+- Ventas y Compras: solo total y cantidad; sin tarjetas de promedio.
+
+**Puntos de la SPEC 022 reemplazados** (solo estos; el resto sigue vigente, incluida la definición de la ganancia de §4.3):
+- §6.1: la pestaña "Rentabilidad y estado" y la lista de pestañas.
+- §6.2: la vista inicial "Rentabilidad y estado"; sus alertas viven al final de Ganancia.
+- §6.5: la tarjeta de margen comercial y los gráficos de margen por cliente y por producto en Ganancias.
+- §8.1: el rótulo visible "Ganancia neta operacional" pasa a "Ganancia". Se conservan "sin IVA", "No incluye gastos generales del negocio" y "Ventas sin costo registrado".
 
 ## 4. Decisiones pendientes
 

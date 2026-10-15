@@ -8,9 +8,9 @@ import {OPERATIONAL_NET_PROFIT_COVERAGE as COVERAGE} from "./operationalNetProfi
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export const MONTHLY_EXPLANATIONS = Object.freeze({
-  sales: "Ventas confirmadas del mes, sin IVA.",
-  purchases: "Compras confirmadas del mes, sin IVA. Incluye mercadería que todavía no vendes.",
-  profit: "Lo vendido menos lo que costó esa mercadería, más lo que dejaron los proyectos. No es ventas menos compras: lo que compraste para el stock aún no se vende.",
+  sales: "Confirmadas, sin IVA.",
+  purchases: "Confirmadas, sin IVA. Incluye stock aún no vendido.",
+  profit: "Lo vendido menos su costo, más lo que dejaron los proyectos.",
 });
 
 export const NO_PREVIOUS_MONTH_TEXT = "Sin datos del mes anterior para comparar";
@@ -176,6 +176,18 @@ export function buildMonthlySummaryGroups({
     };
     return row;
   });
+}
+
+// ¿Alguna tarjeta visible tiene base del mes anterior? Si ninguna la tiene, la
+// pantalla muestra una sola línea "Sin datos del mes anterior para comparar"
+// en vez de repetirla en cada tarjeta. La ganancia solo cuenta cuando está lista.
+export function hasPreviousMonthBase(groups, {sales = true, purchases = true, profit = true} = {}) {
+  const baseOf = (metric) => Boolean(metric && (metric.reference ? metric.reference.hasBase : metric.comparison?.hasBase));
+  return groups.some((group) =>
+    (sales && baseOf(group.sales)) ||
+    (purchases && baseOf(group.purchases)) ||
+    (profit && group.profit?.status === "ready" && baseOf(group.profit))
+  );
 }
 
 // Vacío del primer día: ningún dato visible del mes. Mientras la ganancia se

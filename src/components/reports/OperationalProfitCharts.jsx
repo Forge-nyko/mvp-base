@@ -53,12 +53,12 @@ export function MonthlyOperationalProfitChart({currency, months}) {
   if (!months.length) return <div className="financial-chart-empty">Sin meses con datos en el período.</div>;
   const labels = months.map((month) => `${formatMonth(month.mes)}${month.parcial ? " *" : ""}`);
   const description = months.map((month) => `${month.mes}${month.parcial ? " (parcial)" : ""}: ${formatMoney(month.ganancia, currency, businessLocale)}`).join(". ");
-  return <div className="financial-chart" role="img" aria-label={`Ganancia neta operacional por mes. ${description}.`}>
+  return <div className="financial-chart" role="img" aria-label={`Ganancia por mes. ${description}.`}>
     <Bar
       data={{
         labels,
         datasets: [
-          {label: "Margen de ventas sin proyecto", data: months.map((month) => month.margenVentas), backgroundColor: tokens["--color-data-cost-materials"], borderRadius: 4, maxBarThickness: 28, stack: "ganancia"},
+          {label: "Ganancia por productos", data: months.map((month) => month.margenVentas), backgroundColor: tokens["--color-data-cost-materials"], borderRadius: 4, maxBarThickness: 28, stack: "ganancia"},
           {label: "Resultado de proyectos", data: months.map((month) => month.resultadoProyectos), backgroundColor: tokens["--color-data-cost-direct"], borderRadius: 4, maxBarThickness: 28, stack: "ganancia"},
         ],
       }}
@@ -71,7 +71,7 @@ export function MonthlyOperationalProfitChart({currency, months}) {
           tooltip: {
             callbacks: {
               label(context) { return `${context.dataset.label}: ${formatMoney(context.parsed.y, currency, businessLocale)}`; },
-              footer(items) { return `Ganancia neta operacional: ${formatMoney(months[items[0].dataIndex].ganancia, currency, businessLocale)}`; },
+              footer(items) { return `Ganancia: ${formatMoney(months[items[0].dataIndex].ganancia, currency, businessLocale)}`; },
             },
           },
         },

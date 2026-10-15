@@ -437,8 +437,11 @@ function readRequiredSource(path, purpose) {
 // compartiendo período/moneda por query param.
 assert.deepEqual(
   [...reportsNavSource.matchAll(/id: "(\w+)"/g)].map((match) => match[1]),
-  ["resumen", "rentabilidad", "ventas", "compras", "ganancias"]
+  ["resumen", "ventas", "compras", "ganancias"]
 );
+// SPEC 025 §3.1: la pestaña se llama "Ganancia" y "Rentabilidad y estado" ya no existe.
+assert.match(reportsNavSource, /{id: "ganancias", label: "Ganancia", permission: "canViewProfitability"}/);
+assert.doesNotMatch(reportsNavSource.replace(/\/\/.*$/gm, ""), /Rentabilidad y estado/);
 assert.match(reportsNavSource, /DEFAULT_REPORT_VIEW_ID = "resumen"/);
 assert.match(reportPageSource, /searchParams\.get\("vista"\)/);
 assert.match(reportPageSource, /<ReportsNav active=\{vista\} onSelect=\{goToView\}/);
@@ -457,10 +460,12 @@ try {
   const fullAccess = {canViewProfitability: true, canViewSales: true, canViewPurchases: true};
   const salesOnly = {canViewProfitability: false, canViewSales: true, canViewPurchases: false};
   const purchasesOnly = {canViewProfitability: false, canViewSales: false, canViewPurchases: true};
-  for (const legacy of ["inventario", "proyectos"]) {
-    assert.equal(normalizeReportView(legacy, fullAccess), "rentabilidad", `${legacy} redirige a rentabilidad`);
-    assert.equal(normalizeReportView(legacy, salesOnly), "resumen", `${legacy} sin rentabilidad cae al resumen`);
-    assert.equal(normalizeReportView(legacy, purchasesOnly), "resumen", `${legacy} sin rentabilidad cae al resumen`);
+  // SPEC 025 §3.1: ?vista=rentabilidad (y las retiradas inventario/proyectos)
+  // abren Ganancia; sin permiso de ganancia caen al resumen.
+  for (const legacy of ["rentabilidad", "inventario", "proyectos"]) {
+    assert.equal(normalizeReportView(legacy, fullAccess), "ganancias", `${legacy} abre Ganancia`);
+    assert.equal(normalizeReportView(legacy, salesOnly), "resumen", `${legacy} sin permiso de ganancia cae al resumen`);
+    assert.equal(normalizeReportView(legacy, purchasesOnly), "resumen", `${legacy} sin permiso de ganancia cae al resumen`);
   }
   // SPEC 025 etapa 3: el resumen es la vista por defecto y ningún perfil queda
   // en una pestaña que no puede abrir.
@@ -468,7 +473,7 @@ try {
   assert.equal(normalizeReportView(undefined, salesOnly), "resumen");
   assert.equal(normalizeReportView("desconocida", fullAccess), "resumen");
   assert.equal(normalizeReportView("resumen", purchasesOnly), "resumen", "el resumen no exige permisos de informe");
-  for (const view of ["resumen", "rentabilidad", "ventas", "compras", "ganancias"]) {
+  for (const view of ["resumen", "ventas", "compras", "ganancias"]) {
     assert.equal(normalizeReportView(view, fullAccess), view, `${view} es una vista válida`);
   }
   for (const restricted of ["rentabilidad", "ganancias"]) {
@@ -479,15 +484,11 @@ try {
   await navVite.close();
 }
 
-// SPEC 022 §6.2: vista inicial "Rentabilidad y estado" con la ganancia, el
-// desglose, las ventas sin costo registrado (vía el componente compartido) y
-// la lista de alertas. Reportes ya no carga inventario ni renderiza Resumen,
-// Inventario o Proyectos como pestañas.
-const rentabilidadViewSource = readRequiredSource("src/features/reports/views/ReportsRentabilidadView.jsx", "vista inicial Rentabilidad y estado, §6.2");
-assert.match(rentabilidadViewSource, /<OperationalNetProfitBreakdown/);
-assert.match(rentabilidadViewSource, /Estado del sistema/);
-assert.doesNotMatch(rentabilidadViewSource, /<OperationalComparisonChart/);
-assert.doesNotMatch(rentabilidadViewSource, /[Tt]otal de ganancias|ganancia neta(?! operacional)|utilidad neta/i);
+// SPEC 025 §3.1: "Rentabilidad y estado" se eliminó (repetía Ganancia). Su
+// "Estado del sistema" vive al final de Ganancia y solo con alertas. Reportes
+// ya no carga inventario ni renderiza Resumen, Inventario o Proyectos.
+assert.equal(existsSync("src/features/reports/views/ReportsRentabilidadView.jsx"), false, "la vista Rentabilidad y estado debe estar eliminada");
+assert.doesNotMatch(reportPageSource, /ReportsRentabilidadView|vista === "rentabilidad"/);
 assert.doesNotMatch(reportPageSource, /<OperationalComparisonChart/);
 assert.doesNotMatch(reportPageSource, /<ReportsResumenView|<ReportsInventarioView|<ReportsProyectosView/);
 // SPEC 025 etapa 4: las tres vistas huérfanas y sus tarjetas compartidas ya no existen.
@@ -522,20 +523,48 @@ assert.match(ventasViewSource, /<th>Neto<\/th><th>Total<\/th>/);
 assert.match(comprasViewSource, /topPurchaseSuppliers/);
 assert.match(comprasViewSource, /topPurchaseProducts/);
 
-// Ganancias: la única suma permitida es la ganancia neta operacional, que
-// llega calculada desde el helper de dominio; la vista no suma bloques.
-assert.match(gananciasViewSource, /<SalesCommercialMarginV4Card/);
-// SPEC 022 §6.5 punto 2: la tarjeta incluye Ventas con Proyecto, así que
-// lleva el rótulo que aclara que no se suma a la ganancia.
-assert.match(gananciasViewSource, /Análisis de margen comercial, no se suma a la ganancia neta operacional/);
+// Ganancia: la única suma permitida es la ganancia, que llega calculada desde
+// el helper de dominio; la vista no suma bloques. SPEC 025 §3.1: sin tarjeta de
+// margen comercial ni gráficos de margen por cliente o producto; queda la
+// evolución mensual y, al final, el estado del sistema solo con alertas.
+assert.match(gananciasViewSource, /<OperationalNetProfitBreakdown/);
+assert.match(gananciasViewSource, /<MonthlyOperationalProfitChart/);
+assert.doesNotMatch(gananciasViewSource, /<SalesCommercialMarginV4Card|Análisis de margen comercial|<RankedMarginChart|Margen por cliente|Margen bruto por producto|buildClientOperationalProfit|buildProductGrossMargin/);
+assert.match(gananciasViewSource, /\{hasAlerts && <section[\s\S]*?<h2>Estado del sistema<\/h2>[\s\S]*?<OperationalSystemStatus/);
+assert.ok(gananciasViewSource.indexOf("<OperationalSystemStatus") > gananciasViewSource.indexOf("<MonthlyOperationalProfitChart"), "el estado del sistema va al final de Ganancia");
 // SPEC 022 §6.5 (decisión del dueño): "Ganancias por Proyectos" y
 // ProjectProfitabilityV4Summary salen de esta pestaña.
 assert.doesNotMatch(gananciasViewSource, /Ganancias por Proyectos/);
 assert.doesNotMatch(gananciasViewSource, /<ProjectProfitabilityV4Summary/);
 assert.doesNotMatch(gananciasViewSource, /[Tt]otal de ganancias|ganancia neta(?! operacional)|utilidad neta/i);
-assert.match(gananciasViewSource, /Ganancia neta operacional/);
+assert.doesNotMatch(gananciasViewSource, /Ganancia neta operacional/);
+// SPEC 025 §3.1: rótulos en lenguaje simple, sin jerga, en el desglose y el gráfico.
+{
+  const breakdownSource = readFileSync("src/features/reports/OperationalNetProfitBreakdown.jsx", "utf8");
+  const profitChartsSource = readFileSync("src/components/reports/OperationalProfitCharts.jsx", "utf8");
+  const visibleBreakdown = breakdownSource.replace(/\/\/.*$/gm, "");
+  for (const jargon of [/Ganancia neta operacional/, /Sobre ingreso neto considerado/, /Ingreso neto de productos/, /Costo histórico de productos/, /Margen bruto de productos/, /Margen Comercial V1/]) {
+    assert.doesNotMatch(visibleBreakdown, jargon, `el desglose no debe mostrar ${jargon}`);
+    assert.doesNotMatch(gananciasViewSource, jargon);
+    assert.doesNotMatch(reportPageSource, jargon);
+  }
+  assert.doesNotMatch(profitChartsSource, /Ganancia neta operacional|Margen de ventas sin proyecto/);
+  for (const label of ['"Ganancia (parcial)"', '"Ganancia"', "Margen sobre ventas", '"Ventas de productos (sin IVA)"', '"Costo de lo vendido"', '"Ganancia por productos"', '"Resultado de proyectos"']) {
+    assert.ok(breakdownSource.includes(label), `el desglose debe usar ${label}`);
+  }
+  const reportsCss = readFileSync("src/styles/interior.css", "utf8");
+  assert.match(reportsCss, /\.reports-plain-headings \.reports-top-list-table th,[\s\S]*?text-transform: none;/);
+  assert.match(gananciasViewSource, /reports-plain-headings/);
+}
+// Ventas y Compras: solo total y cantidad, sin tarjetas de promedio.
+assert.doesNotMatch(ventasViewSource, /Ticket promedio/);
+assert.doesNotMatch(comprasViewSource, /Monto promedio/);
+// Encabezado: selector "Moneda" y su nota solo con dos o más monedas cargadas.
+assert.match(reportPageSource, /const showCurrencyControls = loadedCurrencies\.size > 1 \|\| selectedCurrency !== "todos";/);
+assert.match(reportPageSource, /\{showCurrencyControls && <label className="erp-field reports-simple-currency">/);
+assert.match(reportPageSource, /\{showCurrencyControls && <p className="reports-simple-help">Las monedas se muestran por separado y no se convierten\.<\/p>\}/);
 assert.doesNotMatch(gananciasViewSource, /commercial\.bloque.*\+.*projects\.bloque|projects\.bloque.*\+.*commercial\.bloque/);
-console.log("OK reportes SPEC 022: cuatro pestañas, redirección legacy por permisos, Rentabilidad y estado, gráfico en Compras y wording de ganancia neta operacional");
+console.log("OK reportes SPEC 022/025: pestañas Resumen, Ventas, Compras y Ganancia; ?vista=rentabilidad abre Ganancia; gráfico en Compras; rótulos sin jerga");
 
 // SPEC 025 etapa 3: resumen mensual.
 const monthlyPageSource = reportPageSource;
@@ -568,9 +597,19 @@ assert.match(monthlyPageSource, /canViewProfitability = hasBusinessPermission\(r
 assert.match(monthlyPageSource, /canRegisterSale = hasBusinessPermission\(role, BUSINESS_PERMISSIONS\.SALES_WRITE\)/);
 assert.match(monthlyPageSource, /canRegisterPurchase = hasBusinessPermission\(role, BUSINESS_PERMISSIONS\.PURCHASES_WRITE\)/);
 // Textos exactos de la SPEC §3.
-assert.equal(MONTHLY_EXPLANATIONS.sales, "Ventas confirmadas del mes, sin IVA.");
-assert.equal(MONTHLY_EXPLANATIONS.purchases, "Compras confirmadas del mes, sin IVA. Incluye mercadería que todavía no vendes.");
-assert.equal(MONTHLY_EXPLANATIONS.profit, "Lo vendido menos lo que costó esa mercadería, más lo que dejaron los proyectos. No es ventas menos compras: lo que compraste para el stock aún no se vende.");
+assert.equal(MONTHLY_EXPLANATIONS.sales, "Confirmadas, sin IVA.");
+assert.equal(MONTHLY_EXPLANATIONS.purchases, "Confirmadas, sin IVA. Incluye stock aún no vendido.");
+assert.equal(MONTHLY_EXPLANATIONS.profit, "Lo vendido menos su costo, más lo que dejaron los proyectos.");
+// Resumen: cobertura solo como aviso parcial, "Ver detalle" dentro de cada tarjeta
+// y una sola línea cuando ningún mes anterior tiene base.
+assert.doesNotMatch(monthlyViewSource, /Cobertura completa/);
+assert.doesNotMatch(monthlyViewSource, /reports-month-links|Ver detalle de ventas|Ver detalle de compras|Ver detalle de ganancia/);
+assert.match(monthlyViewSource, /onOpenDetail && <Button type="button" variant="ghost" className="reports-month-card-link"[^>]*>Ver detalle<\/Button>/);
+assert.match(monthlyViewSource, /onOpenDetail=\{links\.sales \? \(\) => onOpenDetail\("ventas"\) : null\}/);
+assert.match(monthlyViewSource, /onOpenDetail=\{links\.purchases \? \(\) => onOpenDetail\("compras"\) : null\}/);
+assert.match(monthlyViewSource, /onOpenDetail=\{\(\) => onOpenDetail\("ganancias"\)\}/);
+assert.match(monthlyViewSource, /\{hasCards && !showComparison && <p className="reports-month-no-previous">\{NO_PREVIOUS_MONTH_TEXT\}<\/p>\}/);
+assert.doesNotMatch(monthlyViewSource, /onOpenDetail\("rentabilidad"\)/);
 assert.equal(NO_PREVIOUS_MONTH_TEXT, "Sin datos del mes anterior para comparar");
 // Dashboard: rótulos sin IVA (sus cálculos no cambian).
 assert.match(dashboardSource, /label="Total vendido \(sin IVA\)"/);
@@ -713,8 +752,8 @@ assert.match(monthlyViewSource, /import \{[^}]*\bisMonthInProgress\b[^}]*\} from
 assert.match(monthlyViewSource, /buildMonthlySummaryGroups\(\{[^}]*\binProgress\b[^}]*\}\)/);
 assert.match(monthlyViewSource, /formatReferenceText\(metric\.reference, previousMonthName, money\(metric\.reference\.amount\)\)/);
 assert.match(monthlyViewSource, /formatMonthName\(shiftMonthKey\(month, -1\), locale\)/);
-assert.match(monthlyViewSource, /referenceText=\{referenceOf\(group\.sales\)\}/);
-assert.match(monthlyViewSource, /referenceText=\{referenceOf\(group\.purchases\)\}/);
+assert.match(monthlyViewSource, /referenceText=\{showComparison \? referenceOf\(group\.sales\) : null\}/);
+assert.match(monthlyViewSource, /referenceText=\{showComparison \? referenceOf\(group\.purchases\) : null\}/);
 assert.match(monthlyViewSource, /group\.profit\.status === "ready" \? referenceOf\(group\.profit\)/);
 assert.match(monthlyViewSource, /No hubo ventas confirmadas en \{formatMonthLabel\(month, locale\)\.toLocaleLowerCase\(locale\)\}/);
 assert.match(monthlyViewSource, /\{inProgress && \(canRegisterSale \|\| canRegisterPurchase\) && <div className="reports-month-actions">/);

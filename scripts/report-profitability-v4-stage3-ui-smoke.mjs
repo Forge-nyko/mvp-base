@@ -280,18 +280,19 @@ try {
   assert.equal(staleResult, "respuesta-rango-nuevo", "una respuesta lenta de una carga anterior no debe sobrescribir la más reciente");
   console.log("OK caso 17: una respuesta lenta de un rango/negocio anterior no pisa el resultado del más reciente");
 
-  // SPEC 022 §8.1: el componente de la ganancia neta operacional (compartido
-  // por Rentabilidad y estado y Ganancias, §6.2/§6.5) EXIGE su wording honesto.
+  // SPEC 022 §8.1 (rótulo reemplazado por SPEC 025 §3.1): el componente de la
+  // ganancia EXIGE su wording honesto, ahora en lenguaje simple ("Ganancia").
   // Va al final para que, mientras no exista, los casos anteriores sigan corriendo.
   const gananciaPath = "src/features/reports/OperationalNetProfitBreakdown.jsx";
   assert.ok(existsSync(gananciaPath), `SPEC 022: falta ${gananciaPath} (componente de ganancia neta operacional, §6.2)`);
   const gananciaSource = await readFile(new URL(`../${gananciaPath}`, import.meta.url), "utf8");
-  assert.match(gananciaSource, /Ganancia neta operacional/);
+  assert.match(gananciaSource, /"Ganancia"/);
+  assert.doesNotMatch(gananciaSource.replace(/\/\/.*$/gm, ""), /Ganancia neta operacional/);
   assert.match(gananciaSource, /No incluye gastos generales del negocio/);
   assert.match(gananciaSource, /sin IVA/i);
   assert.match(gananciaSource, /Ventas sin costo registrado/);
   assert.doesNotMatch(gananciaSource, /ganancia neta(?! operacional)|utilidad neta|utilidad total|[Tt]otal de ganancias/i);
-  console.log("OK SPEC 022 §8.1: el componente de ganancia exige 'ganancia neta operacional', sin IVA, sin gastos generales y ventas sin costo registrado");
+  console.log("OK SPEC 022 §8.1 / SPEC 025 §3.1: el componente de ganancia exige 'Ganancia', sin IVA, sin gastos generales y ventas sin costo registrado");
 
   console.log("REPORT_PROFITABILITY_V4_STAGE3_UI_SMOKE_OK");
 } finally {

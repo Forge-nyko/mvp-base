@@ -14,6 +14,8 @@ import {
   getTopPurchaseSuppliers,
   getTopSalesClients,
   getTopSalesProducts,
+  normalizeReportCurrency,
+  resolveReportCurrency,
 } from "../domain/reportModel.mjs";
 import {
   BUSINESS_PERMISSIONS,
@@ -32,7 +34,6 @@ import ReportsNav, {DEFAULT_REPORT_VIEW_ID, normalizeReportView} from "../featur
 import ReportsComprasView from "../features/reports/views/ReportsComprasView";
 import ReportsGananciasView from "../features/reports/views/ReportsGananciasView";
 import ReportsMonthlySummary from "../features/reports/views/ReportsMonthlySummary";
-import ReportsRentabilidadView from "../features/reports/views/ReportsRentabilidadView";
 import ReportsVentasView from "../features/reports/views/ReportsVentasView";
 import {loadSimplifiedReportData} from "../services/reportService";
 
@@ -100,6 +101,15 @@ function StatisticsPage({businessId, currencyCode = "CLP", role = ""}) {
     if (selectedCurrency !== "todos" && !values.includes(selectedCurrency)) values.push(selectedCurrency);
     return values.sort();
   }, [canViewProfitability, currencyCode, data, range, selectedCurrency]);
+  // Monedas presentes en todo lo cargado (no solo en el período). Con una sola,
+  // el selector "Moneda" y su nota sobran; si la URL ya filtra por una moneda,
+  // el selector se mantiene para poder volver a "Todas".
+  const loadedCurrencies = useMemo(() => new Set([
+    ...data.sales.map((entry) => resolveReportCurrency(entry, currencyCode)),
+    ...data.purchases.map((entry) => resolveReportCurrency(entry, currencyCode)),
+    ...data.projectBalances.map((entry) => normalizeReportCurrency(entry.balance?.moneda, currencyCode)),
+  ]), [currencyCode, data]);
+  const showCurrencyControls = loadedCurrencies.size > 1 || selectedCurrency !== "todos";
   const salesTimeline = useMemo(() => aggregateOperationalTimeline(summary.sales.confirmed, {range, dateField: "fechaVenta", fallbackCurrency: currencyCode}), [currencyCode, range, summary.sales.confirmed]);
   const purchaseTimeline = useMemo(() => aggregateOperationalTimeline(summary.purchases.confirmed, {range, dateField: "fechaCompra", fallbackCurrency: currencyCode}), [currencyCode, range, summary.purchases.confirmed]);
   const operationalTimeline = useMemo(() => combineOperationalTimelines(salesTimeline, purchaseTimeline), [purchaseTimeline, salesTimeline]);
@@ -137,22 +147,21 @@ function StatisticsPage({businessId, currencyCode = "CLP", role = ""}) {
       <div className="erp-page-intro"><span className="reports-simple-eyebrow">Reportes</span><h1>Centro de reportes</h1><p>{REPORTS_SUBTITLE}</p></div>
       <div className="reports-simple-toolbar">
         {!isSummary && <FinancialPeriodSelector customEnd={customEnd} customStart={customStart} idPrefix="reports-period" onCustomEndChange={(value) => updateSearchParams(searchParams, setSearchParams, {to: value})} onCustomStartChange={(value) => updateSearchParams(searchParams, setSearchParams, {from: value})} onPeriodChange={(value) => updateSearchParams(searchParams, setSearchParams, {period: value})} options={REPORT_PERIOD_OPTIONS} period={period} />}
-        <label className="erp-field reports-simple-currency"><span className="erp-field__label">Moneda</span><select className="erp-control" value={selectedCurrency} onChange={(event) => updateSearchParams(searchParams, setSearchParams, {currency: event.target.value})}><option value="todos">Todas, separadas</option>{availableCurrencies.map((currency) => <option key={currency} value={currency}>{currency}</option>)}</select></label>
+        {showCurrencyControls && <label className="erp-field reports-simple-currency"><span className="erp-field__label">Moneda</span><select className="erp-control" value={selectedCurrency} onChange={(event) => updateSearchParams(searchParams, setSearchParams, {currency: event.target.value})}><option value="todos">Todas, separadas</option>{availableCurrencies.map((currency) => <option key={currency} value={currency}>{currency}</option>)}</select></label>}
       </div>
     </header>
 
     <ReportsNav active={vista} onSelect={goToView} permissions={viewPermissions} />
-    <p className="reports-simple-help">Las monedas se muestran por separado y no se convierten.</p>
+    {showCurrencyControls && <p className="reports-simple-help">Las monedas se muestran por separado y no se convierten.</p>}
 
     {error && <div className="erp-card reports-simple-state reports-simple-state--error" role="alert"><span>{error}</span><Button variant="secondary" onClick={() => setReloadKey((value) => value + 1)}><RefreshCw size={16} /> Reintentar</Button></div>}
     {loading && !error && <LoadingState variant="section" label="Cargando reportes..." />}
 
     {!loading && !error && <>
       {isSummary && <ReportsMonthlySummary canRegisterPurchase={canRegisterPurchase} canRegisterSale={canRegisterSale} canViewProfitability={canViewProfitability} canViewPurchases={viewPermissions.canViewPurchases} canViewSales={viewPermissions.canViewSales} currency={selectedCurrency} links={links} month={monthKey} onMonthChange={changeMonth} onNavigate={navigate} onOpenDetail={openDetail} onRetryProfit={profitabilityV4.reload} previousProfit={previousOperationalProfit} previousSummary={previousSummary} profit={operationalProfit} summary={summary} todayKey={today} />}
-      {vista === "rentabilidad" && <ReportsRentabilidadView canViewProfitability={canViewProfitability} currency={selectedCurrency} links={links} navigate={navigate} onRetry={profitabilityV4.reload} operationalProfit={operationalProfit} />}
       {vista === "ventas" && <ReportsVentasView canOpenSales={links.sales} navigate={navigate} salesTimeline={salesTimeline} summary={summary} topSalesClients={topSalesClients} topSalesProducts={topSalesProducts} />}
       {vista === "compras" && <ReportsComprasView canOpenPurchases={links.purchases} chartGroups={chartGroups} navigate={navigate} purchaseTimeline={purchaseTimeline} summary={summary} topPurchaseProducts={topPurchaseProducts} topPurchaseSuppliers={topPurchaseSuppliers} />}
-      {vista === "ganancias" && <ReportsGananciasView currency={selectedCurrency} operationalProfit={operationalProfit} profitabilityV4={profitabilityV4} range={range} />}
+      {vista === "ganancias" && <ReportsGananciasView currency={selectedCurrency} links={links} navigate={navigate} operationalProfit={operationalProfit} profitabilityV4={profitabilityV4} range={range} />}
     </>}
   </section>;
 }
