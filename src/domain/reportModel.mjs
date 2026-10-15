@@ -67,9 +67,13 @@ function safeAmount(value) {
 // Monto sin IVA de una venta o compra. Mismo criterio que operationalNetProfit
 // y workBalance: un neto válido es un número finito ≥ 0 y nunca se sustituye por
 // `total`. En boleta de compra (SPEC 023 §5.2) `neto` ya es lo pagado.
-function netAmount(record) {
+function hasValidNet(record) {
   const value = record?.neto;
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function netAmount(record) {
+  return hasValidNet(record) ? record.neto : 0;
 }
 
 function amountOf(record, field) {
@@ -164,6 +168,8 @@ export function getSalesMetrics(sales, range, options = {}) {
   return {
     confirmed,
     count: confirmed.length,
+    // Documentos que aportan 0 a la suma por no traer un neto válido.
+    withoutNetCount: confirmed.filter((sale) => !hasValidNet(sale)).length,
     total,
     average: singleCurrencyValue(totalsByCurrency, "average"),
     totalsByCurrency,
@@ -204,6 +210,7 @@ export function getPurchaseMetrics(purchases, range, options = {}) {
   return {
     confirmed,
     count: confirmed.length,
+    withoutNetCount: confirmed.filter((purchase) => !hasValidNet(purchase)).length,
     total,
     average: singleCurrencyValue(totalsByCurrency, "average"),
     totalsByCurrency,
@@ -415,62 +422,6 @@ export function getTopPurchaseSuppliers(confirmedPurchases, {fallbackCurrency = 
 
 export function getTopPurchaseProducts(confirmedPurchases, {fallbackCurrency = "CLP", limit = 5} = {}) {
   return rankTopLinesByCurrency(confirmedPurchases, {fallbackCurrency, limit});
-}
-
-// Igual que reportModel.getInventoryMetrics: sólo lee productos activos y no
-// introduce ninguna consulta nueva (opera sobre el arreglo ya obtenido por
-// getInventoryItems). El "valor" de cada producto usa el mismo costo
-// (costoPromedio, con costoBase como respaldo) que ya usa inventoryValue en
-// getInventoryMetrics, para no introducir un segundo criterio de costeo.
-export function getInventoryTopValueProducts(items, {fallbackCurrency = "CLP", limit = 8} = {}) {
-  const active = (Array.isArray(items) ? items : []).filter(
-    (item) => item.tipoItem === "producto" && (item.estado || "activo") === "activo"
-  );
-  return active
-    .map((item) => {
-      const cost = Number(item.costoPromedio ?? item.costoBase);
-      const stock = Number(item.stock);
-      const value = Number.isFinite(cost) && Number.isFinite(stock) ? cost * stock : 0;
-      return {
-        id: text(item.id || item.itemId),
-        nombre: text(item.nombre) || "Ítem histórico",
-        categoria: text(item.categoria) || "Sin categoría",
-        stock: Number.isFinite(stock) ? stock : 0,
-        currency: resolveReportCurrency(
-          {moneda: item.costoPromedioMoneda || item.moneda},
-          fallbackCurrency
-        ),
-        value,
-      };
-    })
-    .filter((entry) => entry.value > 0)
-    .sort((left, right) => right.value - left.value)
-    .slice(0, limit);
-}
-
-export function getInventoryCategoryDistribution(items, {fallbackCurrency = "CLP"} = {}) {
-  const active = (Array.isArray(items) ? items : []).filter(
-    (item) => item.tipoItem === "producto" && (item.estado || "activo") === "activo"
-  );
-  const buckets = new Map();
-  active.forEach((item) => {
-    const cost = Number(item.costoPromedio ?? item.costoBase);
-    const stock = Number(item.stock);
-    const value = Number.isFinite(cost) && Number.isFinite(stock) ? cost * stock : 0;
-    const currency = resolveReportCurrency(
-      {moneda: item.costoPromedioMoneda || item.moneda},
-      fallbackCurrency
-    );
-    const categoria = text(item.categoria) || "Sin categoría";
-    const key = `${currency}__${categoria}`;
-    const current = buckets.get(key) || {categoria, currency, count: 0, value: 0};
-    current.count += 1;
-    current.value += value;
-    buckets.set(key, current);
-  });
-  return [...buckets.values()].sort((left, right) =>
-    left.currency.localeCompare(right.currency) || right.value - left.value
-  );
 }
 
 export function filterQuotes(

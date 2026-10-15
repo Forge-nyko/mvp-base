@@ -12,9 +12,7 @@ import {
   filterSales,
   filterWorkCosts,
   groupAmountsByCurrency,
-  getInventoryCategoryDistribution,
   getInventoryMetrics,
-  getInventoryTopValueProducts,
   getProjectProfitabilitySummary,
   getProjectResultMetrics,
   getPurchaseMetrics,
@@ -31,6 +29,24 @@ import {
   normalizeWorkCost,
   resolveReportCurrency,
 } from "../src/domain/reportModel.mjs";
+import {calculateOperationalNetProfit} from "../src/domain/operationalNetProfit.mjs";
+import {
+  MONTHLY_EXPLANATIONS,
+  NO_PREVIOUS_MONTH_TEXT,
+  buildMonthlySummaryGroups,
+  canShowNextMonth,
+  compareWithPreviousMonth,
+  formatComparisonText,
+  formatMonthLabel,
+  formatMonthName,
+  formatReferenceText,
+  getMonthRange,
+  isMonthEmpty,
+  isMonthInProgress,
+  normalizeMonthKey,
+  shiftMonthKey,
+  summarizeProfitCoverage,
+} from "../src/domain/reportMonthlySummary.mjs";
 import {canViewWorkProfitability} from "../src/domain/workModel.mjs";
 
 const range = {start: "2026-08-01", end: "2026-08-31", days: 31};
@@ -259,35 +275,12 @@ assert.equal(topSuppliersClp.entries[0].total, 4000);
 const topPurchaseProducts = getTopPurchaseProducts(purchasesWithLines, {limit: 5});
 assert.equal(topPurchaseProducts.find((group) => group.currency === "CLP").entries[0].total, 6000);
 
-const inventoryForTopValue = [
-  {id: "i1", nombre: "Cemento", tipoItem: "producto", estado: "activo", categoria: "Materiales", stock: 10, costoBase: 100, moneda: "CLP"},
-  {id: "i2", nombre: "Taladro", tipoItem: "producto", estado: "activo", categoria: "Materiales", stock: 2, costoBase: 5000, moneda: "CLP"},
-  {id: "i3", nombre: "Sierra", tipoItem: "producto", estado: "activo", categoria: "Herramientas", stock: 1, costoBase: 200, moneda: "CLP"},
-  {id: "i4", nombre: "Sin stock", tipoItem: "producto", estado: "activo", stock: 0, costoBase: 100, moneda: "CLP"},
-  {id: "i5", nombre: "Instalación", tipoItem: "servicio", estado: "activo", categoria: "Materiales", costoBase: 999999, moneda: "CLP"},
-];
-const topValue = getInventoryTopValueProducts(inventoryForTopValue, {limit: 2});
-assert.equal(topValue.length, 2);
-assert.equal(topValue[0].nombre, "Taladro");
-assert.equal(topValue[0].value, 10000);
-assert.equal(topValue[1].nombre, "Cemento");
-assert.equal(topValue[1].value, 1000);
-const categoryDistribution = getInventoryCategoryDistribution(inventoryForTopValue);
-const materialesBucket = categoryDistribution.find((entry) => entry.categoria === "Materiales");
-assert.equal(materialesBucket.count, 2);
-assert.equal(materialesBucket.value, 11000);
-const sinCategoriaBucket = categoryDistribution.find((entry) => entry.categoria === "Sin categoría");
-assert.equal(sinCategoriaBucket.count, 1);
-assert.equal(sinCategoriaBucket.value, 0);
 assert.deepEqual(getTopSalesClients([]), []);
 assert.deepEqual(getTopSalesProducts([]), []);
 assert.deepEqual(getTopPurchaseSuppliers([]), []);
 assert.deepEqual(getTopPurchaseProducts([]), []);
-assert.deepEqual(getInventoryTopValueProducts([]), []);
-assert.deepEqual(getInventoryCategoryDistribution([]), []);
-assert.deepEqual(getInventoryTopValueProducts(null), []);
-console.log("OK reportes v5: estado sin datos (ventas/compras/inventario vacíos) no rompe ningún agregador nuevo");
-console.log("OK reportes v5: top clientes/productos de ventas, top proveedores/productos de compras y agrupación de inventario por moneda, sin mezclar monedas");
+console.log("OK reportes v5: estado sin datos (ventas/compras vacías) no rompe ningún agregador nuevo");
+console.log("OK reportes v5: top clientes/productos de ventas y top proveedores/productos de compras por moneda, sin mezclar monedas");
 
 const purchaseMovement = normalizeInventoryMovement({
   movimientoId: "m1",
@@ -439,12 +432,14 @@ function readRequiredSource(path, purpose) {
   return readFileSync(path, "utf8");
 }
 
-// SPEC 022 §6.1: cuatro pestañas; Inventario y Proyectos dejan de serlo.
-// Siguen compartiendo período/moneda por query param.
+// SPEC 022 §6.1 y SPEC 025 etapa 3: el Resumen es la primera pestaña y las
+// cuatro de detalle siguen; Inventario y Proyectos dejaron de serlo. Siguen
+// compartiendo período/moneda por query param.
 assert.deepEqual(
   [...reportsNavSource.matchAll(/id: "(\w+)"/g)].map((match) => match[1]),
-  ["rentabilidad", "ventas", "compras", "ganancias"]
+  ["resumen", "rentabilidad", "ventas", "compras", "ganancias"]
 );
+assert.match(reportsNavSource, /DEFAULT_REPORT_VIEW_ID = "resumen"/);
 assert.match(reportPageSource, /searchParams\.get\("vista"\)/);
 assert.match(reportPageSource, /<ReportsNav active=\{vista\} onSelect=\{goToView\}/);
 assert.match(reportPageSource, /searchParams\.get\("period"\)/);
@@ -462,19 +457,24 @@ try {
   const fullAccess = {canViewProfitability: true, canViewSales: true, canViewPurchases: true};
   const salesOnly = {canViewProfitability: false, canViewSales: true, canViewPurchases: false};
   const purchasesOnly = {canViewProfitability: false, canViewSales: false, canViewPurchases: true};
-  for (const legacy of ["resumen", "inventario", "proyectos"]) {
+  for (const legacy of ["inventario", "proyectos"]) {
     assert.equal(normalizeReportView(legacy, fullAccess), "rentabilidad", `${legacy} redirige a rentabilidad`);
-    assert.equal(normalizeReportView(legacy, salesOnly), "ventas", `${legacy} sin rentabilidad redirige a ventas`);
-    assert.equal(normalizeReportView(legacy, purchasesOnly), "compras", `${legacy} sin rentabilidad ni ventas redirige a compras`);
+    assert.equal(normalizeReportView(legacy, salesOnly), "resumen", `${legacy} sin rentabilidad cae al resumen`);
+    assert.equal(normalizeReportView(legacy, purchasesOnly), "resumen", `${legacy} sin rentabilidad cae al resumen`);
   }
-  assert.equal(normalizeReportView(null, fullAccess), "rentabilidad", "la vista inicial es rentabilidad");
-  assert.equal(normalizeReportView("desconocida", fullAccess), "rentabilidad");
-  for (const view of ["rentabilidad", "ventas", "compras", "ganancias"]) {
+  // SPEC 025 etapa 3: el resumen es la vista por defecto y ningún perfil queda
+  // en una pestaña que no puede abrir.
+  assert.equal(normalizeReportView(null, fullAccess), "resumen", "la vista inicial es el resumen");
+  assert.equal(normalizeReportView(undefined, salesOnly), "resumen");
+  assert.equal(normalizeReportView("desconocida", fullAccess), "resumen");
+  assert.equal(normalizeReportView("resumen", purchasesOnly), "resumen", "el resumen no exige permisos de informe");
+  for (const view of ["resumen", "rentabilidad", "ventas", "compras", "ganancias"]) {
     assert.equal(normalizeReportView(view, fullAccess), view, `${view} es una vista válida`);
   }
   for (const restricted of ["rentabilidad", "ganancias"]) {
-    assert.equal(normalizeReportView(restricted, salesOnly), "ventas", `${restricted} exige profitability.read`);
+    assert.equal(normalizeReportView(restricted, salesOnly), "resumen", `${restricted} exige profitability.read`);
   }
+  assert.equal(normalizeReportView("ventas", purchasesOnly), "resumen", "ventas exige sales.read");
 } finally {
   await navVite.close();
 }
@@ -490,6 +490,17 @@ assert.doesNotMatch(rentabilidadViewSource, /<OperationalComparisonChart/);
 assert.doesNotMatch(rentabilidadViewSource, /[Tt]otal de ganancias|ganancia neta(?! operacional)|utilidad neta/i);
 assert.doesNotMatch(reportPageSource, /<OperationalComparisonChart/);
 assert.doesNotMatch(reportPageSource, /<ReportsResumenView|<ReportsInventarioView|<ReportsProyectosView/);
+// SPEC 025 etapa 4: las tres vistas huérfanas y sus tarjetas compartidas ya no existen.
+for (const removed of [
+  "src/features/reports/views/ReportsResumenView.jsx",
+  "src/features/reports/views/ReportsInventarioView.jsx",
+  "src/features/reports/views/ReportsProyectosView.jsx",
+  "src/features/reports/ReportsSharedCards.jsx",
+]) {
+  assert.equal(existsSync(removed), false, `${removed} debe estar eliminado`);
+}
+assert.equal(typeof (await import("../src/domain/reportModel.mjs")).getInventoryTopValueProducts, "undefined");
+assert.equal(typeof (await import("../src/domain/reportModel.mjs")).getInventoryCategoryDistribution, "undefined");
 assert.doesNotMatch(reportPageSource, /getInventoryItems\(/);
 
 // Ventas y Compras: cada subvista es exclusiva de su dominio. El gráfico
@@ -506,6 +517,8 @@ assert.match(comprasViewSource, /Las compras muestran egresos registrados del ne
 // SPEC 025 etapa 1: los montos de Ventas y Compras van sin IVA.
 assert.match(comprasViewSource, /ambos montos van sin IVA/);
 assert.doesNotMatch(comprasViewSource, /incluyen IVA/);
+assert.match(comprasViewSource, /<th>Neto<\/th><th>Total<\/th>/);
+assert.match(ventasViewSource, /<th>Neto<\/th><th>Total<\/th>/);
 assert.match(comprasViewSource, /topPurchaseSuppliers/);
 assert.match(comprasViewSource, /topPurchaseProducts/);
 
@@ -523,5 +536,188 @@ assert.doesNotMatch(gananciasViewSource, /[Tt]otal de ganancias|ganancia neta(?!
 assert.match(gananciasViewSource, /Ganancia neta operacional/);
 assert.doesNotMatch(gananciasViewSource, /commercial\.bloque.*\+.*projects\.bloque|projects\.bloque.*\+.*commercial\.bloque/);
 console.log("OK reportes SPEC 022: cuatro pestañas, redirección legacy por permisos, Rentabilidad y estado, gráfico en Compras y wording de ganancia neta operacional");
+
+// SPEC 025 etapa 3: resumen mensual.
+const monthlyPageSource = reportPageSource;
+const monthlyViewSource = readRequiredSource("src/features/reports/views/ReportsMonthlySummary.jsx", "resumen mensual, SPEC 025 §3");
+const dashboardSource = readFileSync("src/pages/DashboardPage.jsx", "utf8");
+
+// El resumen es la vista por defecto y solo se pinta cuando la carga terminó
+// sin error: un fallo de carga muestra su propio error, nunca el vacío.
+assert.match(monthlyPageSource, /vista === DEFAULT_REPORT_VIEW_ID/);
+assert.match(monthlyPageSource, /\{error && <div[^>]*role="alert"[^>]*>[\s\S]*?Reintentar/);
+const pageStatesStart = monthlyPageSource.indexOf("{!loading && !error && <>");
+assert.ok(pageStatesStart > 0);
+assert.ok(monthlyPageSource.slice(pageStatesStart).includes("<ReportsMonthlySummary"), "el resumen vive dentro de !loading && !error");
+assert.equal(monthlyPageSource.slice(0, pageStatesStart).includes("<ReportsMonthlySummary"), false);
+assert.match(monthlyPageSource, /loading && !error && <LoadingState/);
+assert.match(monthlyPageSource, /profitFetchRange/);
+// Un fallo de la ganancia es un error propio (alerta + reintentar) y el vacío
+// solo se declara con la ganancia lista.
+assert.match(monthlyViewSource, /profit\.status === "error"[\s\S]*?role="alert"[\s\S]*?Reintentar/);
+assert.match(monthlyViewSource, /<LoadingState variant="inline"/);
+assert.match(monthlyViewSource, /isMonthEmpty\(groups\) && <div[\s\S]*?Aún no hay ventas confirmadas este mes/);
+assert.equal((monthlyViewSource.match(/Aún no hay ventas confirmadas este mes/g) || []).length, 1);
+assert.match(monthlyViewSource, /"\/ventas\/nueva"/);
+assert.match(monthlyViewSource, /"\/compras\/nueva"/);
+// Cada tarjeta se oculta por su permiso; Ganancia exige PROFITABILITY_READ.
+assert.match(monthlyViewSource, /canViewSales && <MonthlyCard/);
+assert.match(monthlyViewSource, /canViewPurchases && <MonthlyCard/);
+assert.match(monthlyViewSource, /canViewProfitability && group\.profit && <MonthlyCard/);
+assert.match(monthlyPageSource, /canViewProfitability = hasBusinessPermission\(role, BUSINESS_PERMISSIONS\.PROFITABILITY_READ\)/);
+assert.match(monthlyPageSource, /canRegisterSale = hasBusinessPermission\(role, BUSINESS_PERMISSIONS\.SALES_WRITE\)/);
+assert.match(monthlyPageSource, /canRegisterPurchase = hasBusinessPermission\(role, BUSINESS_PERMISSIONS\.PURCHASES_WRITE\)/);
+// Textos exactos de la SPEC §3.
+assert.equal(MONTHLY_EXPLANATIONS.sales, "Ventas confirmadas del mes, sin IVA.");
+assert.equal(MONTHLY_EXPLANATIONS.purchases, "Compras confirmadas del mes, sin IVA. Incluye mercadería que todavía no vendes.");
+assert.equal(MONTHLY_EXPLANATIONS.profit, "Lo vendido menos lo que costó esa mercadería, más lo que dejaron los proyectos. No es ventas menos compras: lo que compraste para el stock aún no se vende.");
+assert.equal(NO_PREVIOUS_MONTH_TEXT, "Sin datos del mes anterior para comparar");
+// Dashboard: rótulos sin IVA (sus cálculos no cambian).
+assert.match(dashboardSource, /label="Total vendido \(sin IVA\)"/);
+assert.match(dashboardSource, /label="Total comprado \(sin IVA\)"/);
+assert.match(dashboardSource, /Evolución operacional \(sin IVA\)/);
+
+// Meses.
+const today = "2026-10-15";
+assert.equal(normalizeMonthKey(undefined, today), "2026-10");
+assert.equal(normalizeMonthKey("2026-09", today), "2026-09");
+for (const invalid of ["2026-11", "2027-01", "2026-13", "2026-00", "septiembre", "2026-9", ""]) {
+  assert.equal(normalizeMonthKey(invalid, today), "2026-10", `${invalid} cae al mes actual`);
+}
+assert.equal(shiftMonthKey("2026-01", -1), "2025-12");
+assert.equal(shiftMonthKey("2026-12", 1), "2027-01");
+assert.equal(canShowNextMonth("2026-10", today), false, "no se pasa del mes actual");
+assert.equal(canShowNextMonth("2026-09", today), true);
+assert.deepEqual(getMonthRange("2026-02"), {start: "2026-02-01", end: "2026-02-28", days: 28, period: "month"});
+assert.equal(getMonthRange("2028-02").end, "2028-02-29");
+assert.equal(formatMonthLabel("2026-10"), "Octubre de 2026");
+
+// Comparación: sin base no hay porcentaje.
+assert.deepEqual(compareWithPreviousMonth(150, 100), {hasBase: true, percent: 50, direction: "up"});
+assert.deepEqual(compareWithPreviousMonth(80, 100), {hasBase: true, percent: -20, direction: "down"});
+assert.deepEqual(compareWithPreviousMonth(100, 100), {hasBase: true, percent: 0, direction: "flat"});
+assert.deepEqual(compareWithPreviousMonth(-50, -100), {hasBase: true, percent: 50, direction: "up"});
+for (const before of [0, null, undefined, Number.NaN, "100"]) {
+  assert.deepEqual(compareWithPreviousMonth(100, before), {hasBase: false, percent: null, direction: "none"});
+}
+assert.equal(formatComparisonText(compareWithPreviousMonth(100, 0)), NO_PREVIOUS_MONTH_TEXT);
+assert.equal(formatComparisonText(compareWithPreviousMonth(150, 100)), "50 % más que el mes anterior");
+assert.equal(formatComparisonText(compareWithPreviousMonth(80, 100)), "20 % menos que el mes anterior");
+assert.equal(formatComparisonText(compareWithPreviousMonth(100, 100)), "Sin variación frente al mes anterior");
+
+// Tarjetas: ventas y compras salen de reportModel (neto), la ganancia de operationalNetProfit.
+const monthRangeOctober = getMonthRange("2026-10");
+const monthRangeSeptember = getMonthRange("2026-09");
+const monthlySales = [
+  {fechaVenta: "2026-10-03", estado: "confirmada", neto: 3000, total: 3570, moneda: "CLP"},
+  {fechaVenta: "2026-09-10", estado: "confirmada", neto: 2000, total: 2380, moneda: "CLP"},
+  {fechaVenta: "2026-10-05", estado: "cancelada", neto: 9000, total: 10710, moneda: "CLP"},
+];
+const monthlyPurchases = [
+  {fechaCompra: "2026-10-04", estado: "confirmada", neto: 1000, total: 1190, moneda: "CLP"},
+  {fechaCompra: "2026-10-06", estado: "confirmada", total: 5000, moneda: "CLP"},
+];
+const monthlySummaryOf = (range, salesList = monthlySales, purchasesList = monthlyPurchases) =>
+  getSimplifiedReportSummary({sales: salesList, purchases: purchasesList, projectBalances: [], range});
+const readyProfit = (amount, coverage = "COMPLETA") => ({
+  status: "ready",
+  error: "",
+  result: {grupos: [{moneda: "CLP", gananciaNetaOperacional: amount, cobertura: coverage}]},
+});
+const octoberSummary = monthlySummaryOf(monthRangeOctober);
+assert.equal(octoberSummary.sales.withoutNetCount, 0);
+assert.equal(octoberSummary.purchases.withoutNetCount, 1, "una compra sin neto válido aporta 0 y se avisa");
+const [withData] = buildMonthlySummaryGroups({
+  summary: octoberSummary,
+  previousSummary: monthlySummaryOf(monthRangeSeptember),
+  profit: readyProfit(500),
+  previousProfit: readyProfit(300),
+});
+assert.equal(withData.sales.total, 3000);
+assert.deepEqual(withData.sales.comparison, {hasBase: true, percent: 50, direction: "up"});
+assert.equal(withData.purchases.total, 1000, "las compras suman neto y la compra sin neto aporta 0");
+assert.equal(withData.purchases.comparison.hasBase, false, "sin compras el mes anterior no hay porcentaje");
+assert.equal(withData.profit.amount, 500);
+assert.equal(withData.profit.coverage, "complete");
+assert.deepEqual(withData.profit.comparison, {hasBase: true, percent: 66.7, direction: "up"});
+assert.equal(isMonthEmpty([withData]), false);
+
+// Cobertura parcial y estados de la ganancia.
+assert.equal(summarizeProfitCoverage(readyProfit(1, "PARCIAL")), "partial");
+assert.equal(summarizeProfitCoverage(readyProfit(1, "SIN_DATOS")), "empty");
+assert.equal(summarizeProfitCoverage({status: "loading"}), "pending");
+assert.equal(summarizeProfitCoverage({status: "error", error: "x"}), "pending");
+
+// Vacío del primer día: ceros, sin porcentaje, y solo con la ganancia lista.
+const emptySummaryOctober = monthlySummaryOf(monthRangeOctober, [], []);
+const emptyProfit = {status: "ready", error: "", result: calculateOperationalNetProfit({sales: [], projectBalances: [], period: {desde: monthRangeOctober.start, hasta: monthRangeOctober.end}})};
+const [firstDay] = buildMonthlySummaryGroups({summary: emptySummaryOctober, previousSummary: monthlySummaryOf(monthRangeSeptember, [], []), profit: emptyProfit, previousProfit: emptyProfit});
+assert.equal(firstDay.sales.total, 0);
+assert.equal(firstDay.purchases.total, 0);
+assert.equal(firstDay.profit.amount, 0);
+assert.equal(firstDay.sales.comparison.hasBase, false);
+assert.equal(firstDay.profit.comparison.hasBase, false);
+assert.equal(isMonthEmpty([firstDay]), true);
+for (const unfinished of [{status: "loading", error: ""}, {status: "error", error: "No se pudo calcular"}]) {
+  const [pending] = buildMonthlySummaryGroups({summary: emptySummaryOctober, previousSummary: emptySummaryOctober, profit: unfinished, previousProfit: unfinished});
+  assert.equal(pending.profit.status, unfinished.status);
+  assert.equal(pending.profit.amount, null);
+  assert.equal(isMonthEmpty([pending]), false, `un estado ${unfinished.status} de la ganancia nunca se muestra como vacío`);
+}
+
+// Permisos: sin PROFITABILITY_READ no hay tarjeta de ganancia ni dato de ganancia.
+const [withoutProfit] = buildMonthlySummaryGroups({summary: octoberSummary, previousSummary: octoberSummary, profit: readyProfit(500), previousProfit: readyProfit(300), canViewProfitability: false});
+assert.equal(withoutProfit.profit, null);
+assert.equal(isMonthEmpty(buildMonthlySummaryGroups({summary: emptySummaryOctober, previousSummary: emptySummaryOctober, profit: {status: "loading"}, previousProfit: {status: "loading"}, canViewProfitability: false})), true);
+
+// Una moneda que solo aparece en la ganancia también tiene su fila.
+const usdOnlyProfit = {status: "ready", error: "", result: {grupos: [{moneda: "USD", gananciaNetaOperacional: 40, cobertura: "COMPLETA"}]}};
+const usdRows = buildMonthlySummaryGroups({summary: emptySummaryOctober, previousSummary: emptySummaryOctober, profit: usdOnlyProfit, previousProfit: usdOnlyProfit});
+assert.deepEqual(usdRows.map((row) => row.currency), ["CLP", "USD"]);
+assert.equal(usdRows.find((row) => row.currency === "USD").profit.amount, 40);
+// Mes en curso vs mes cerrado: el mes en curso no muestra porcentaje, solo la
+// referencia del mes anterior completo; el mes cerrado sí muestra porcentaje.
+assert.equal(isMonthInProgress("2026-10", today), true);
+assert.equal(isMonthInProgress("2026-09", today), false);
+assert.equal(formatMonthName("2026-09"), "Septiembre");
+const inProgressInput = {
+  summary: octoberSummary,
+  previousSummary: monthlySummaryOf(monthRangeSeptember),
+  profit: readyProfit(500),
+  previousProfit: readyProfit(300),
+};
+const [running] = buildMonthlySummaryGroups({...inProgressInput, inProgress: true});
+for (const metric of [running.sales, running.profit]) {
+  assert.deepEqual(metric.comparison, {hasBase: false, percent: null, direction: "none"}, "mes en curso: sin porcentaje");
+  assert.equal(metric.reference.hasBase, true);
+}
+assert.equal(running.sales.reference.amount, 2000, "referencia de ventas: septiembre completo, en neto");
+assert.equal(running.profit.reference.amount, 300, "referencia de ganancia: septiembre completo");
+assert.deepEqual(running.purchases.comparison, {hasBase: false, percent: null, direction: "none"});
+assert.deepEqual(running.purchases.reference, {hasBase: false, amount: null}, "sin compras en septiembre: sin base");
+assert.equal(formatReferenceText(running.sales.reference, "Septiembre", "$ 2.000"), "Septiembre completo: $ 2.000");
+assert.equal(formatReferenceText(running.purchases.reference, "Septiembre", "$ 0"), NO_PREVIOUS_MONTH_TEXT);
+// La ganancia anterior debe estar lista para ser referencia.
+const [runningLoadingPrev] = buildMonthlySummaryGroups({...inProgressInput, previousProfit: {status: "loading"}, inProgress: true});
+assert.equal(runningLoadingPrev.profit.reference.hasBase, false);
+// Mes cerrado: porcentaje y sin referencia.
+const [closed] = buildMonthlySummaryGroups({...inProgressInput, inProgress: false});
+assert.equal(closed.sales.reference, null);
+assert.equal(closed.profit.reference, null);
+assert.equal(closed.sales.comparison.percent, 50);
+assert.equal(closed.profit.comparison.percent, 66.7);
+// Otros asserts estáticos: el componente decide por isMonthInProgress y el
+// vacío de un mes pasado no ofrece registrar.
+assert.match(monthlyViewSource, /isMonthInProgress\(month, todayKey\)/);
+assert.match(monthlyViewSource, /import \{[^}]*\bisMonthInProgress\b[^}]*\} from "\.\.\/\.\.\/\.\.\/domain\/reportMonthlySummary\.mjs"/);
+assert.match(monthlyViewSource, /buildMonthlySummaryGroups\(\{[^}]*\binProgress\b[^}]*\}\)/);
+assert.match(monthlyViewSource, /formatReferenceText\(metric\.reference, previousMonthName, money\(metric\.reference\.amount\)\)/);
+assert.match(monthlyViewSource, /formatMonthName\(shiftMonthKey\(month, -1\), locale\)/);
+assert.match(monthlyViewSource, /referenceText=\{referenceOf\(group\.sales\)\}/);
+assert.match(monthlyViewSource, /referenceText=\{referenceOf\(group\.purchases\)\}/);
+assert.match(monthlyViewSource, /group\.profit\.status === "ready" \? referenceOf\(group\.profit\)/);
+assert.match(monthlyViewSource, /No hubo ventas confirmadas en \{formatMonthLabel\(month, locale\)\.toLocaleLowerCase\(locale\)\}/);
+assert.match(monthlyViewSource, /\{inProgress && \(canRegisterSale \|\| canRegisterPurchase\) && <div className="reports-month-actions">/);
+console.log("OK reportes SPEC 025: resumen mensual por defecto, comparación sin base, cobertura, permisos y estados carga/error/vacío separados");
 
 console.log("Report model smoke: OK");

@@ -354,8 +354,8 @@ export default function DashboardPage({businessId, currencyCode = "CLP", role}) 
       {!reportState.loading && !reportState.error && (
         <>
           <section className="financial-metric-grid dashboard-v2-metrics" aria-label="Indicadores principales">
-            <DashboardCountCard icon={ShoppingCart} label="Total vendido" value={formatCurrencyGroups(salesMetrics.totalsByCurrency, currencyCode, businessLocale)} tone="income" note={`${salesMetrics.count} ventas confirmadas`} />
-            <DashboardCountCard icon={Truck} label="Total comprado" value={formatCurrencyGroups(purchaseMetrics.totalsByCurrency, currencyCode, businessLocale)} tone="expense" note={`${purchaseMetrics.count} compras confirmadas`} />
+            <DashboardCountCard icon={ShoppingCart} label="Total vendido (sin IVA)" value={formatCurrencyGroups(salesMetrics.totalsByCurrency, currencyCode, businessLocale)} tone="income" note={`${salesMetrics.count} ventas confirmadas`} />
+            <DashboardCountCard icon={Truck} label="Total comprado (sin IVA)" value={formatCurrencyGroups(purchaseMetrics.totalsByCurrency, currencyCode, businessLocale)} tone="expense" note={`${purchaseMetrics.count} compras confirmadas`} />
             <DashboardCountCard icon={ReceiptText} label="Cotizaciones" value={quoteMetrics.count.toLocaleString("es-CL")} note={`${quoteMetrics.counts.aceptada} aceptadas · ${quoteMetrics.conversion === null ? "Sin base de conversión" : formatPercent(quoteMetrics.conversion)}`} />
             <DashboardCountCard icon={Boxes} label="Inventario actual" value={inventoryMetrics.activeProducts.length.toLocaleString("es-CL")} tone={inventoryMetrics.lowStockProducts.length ? "pending" : "neutral"} note={`Estado actual · ${inventoryMetrics.lowStockProducts.length} productos con stock bajo`} />
             <DashboardCountCard icon={WalletCards} label="Saldo financiero registrado" value={financial.loading || financial.error ? "—" : formatBusinessAmount(financial.summary.netResult)} tone="net" note={financial.error ? "Finanzas no disponible" : financial.loading ? "Actualizando movimientos registrados" : `Por cobrar ${formatBusinessAmount(financial.summary.receivable)} · Por pagar ${formatBusinessAmount(financial.summary.payable)}`} />
@@ -368,7 +368,7 @@ export default function DashboardPage({businessId, currencyCode = "CLP", role}) 
 
           <div className="dashboard-v2-visual-grid">
             <section className="erp-panel financial-chart-panel">
-              <div className="financial-chart-panel__header"><h2>Evolución operacional</h2><p>Ventas y compras confirmadas según su fecha comercial.</p></div>
+              <div className="financial-chart-panel__header"><h2>Evolución operacional (sin IVA)</h2><p>Ventas y compras confirmadas, sin IVA, según su fecha comercial.</p></div>
               {operationalCurrencies.length ? operationalCurrencies.map((currency) => <OperationalComparisonChart currency={currency} items={operationalTimeline.filter((item) => item.currency === currency)} key={currency} />) : <OperationalComparisonChart items={[]} />}
             </section>
             <section className="erp-panel financial-chart-panel">

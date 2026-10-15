@@ -75,12 +75,13 @@ function ReportsVentasView({canOpenSales, navigate, salesTimeline, summary, topS
       <div className="reports-section-heading"><div><span>Operaciones</span><h2>Ventas del período</h2><p>Listado de ventas confirmadas usadas en las métricas de esta vista.</p></div>{canOpenSales && <button type="button" onClick={() => navigate("/ventas")}>Ir a Ventas<ArrowRight size={14} /></button>}</div>
       {!hasSales ? <p className="reports-empty-note">Sin ventas confirmadas en el período.</p> : (
         <div className="reports-top-list-table-wrap"><table className="reports-top-list-table">
-          <thead><tr><th>Número</th><th>Fecha</th><th>Cliente</th><th>Moneda</th><th>Total</th></tr></thead>
+          <thead><tr><th>Número</th><th>Fecha</th><th>Cliente</th><th>Moneda</th><th>Neto</th><th>Total</th></tr></thead>
           <tbody>{summary.sales.confirmed.map((sale) => <tr key={sale.id || sale.ventaId || sale.numero}>
             <td>{sale.numero || "Venta"}</td>
             <td>{String(sale.fechaVenta || "").slice(0, 10)}</td>
             <td>{sale.clienteSnapshot?.nombreRazonSocial || "Cliente histórico"}</td>
             <td>{sale.moneda || sale.monedaCodigo || "CLP"}</td>
+            <td>{Number.isFinite(sale.neto) ? formatMoney(sale.neto, sale.moneda || sale.monedaCodigo || "CLP", businessLocale) : "—"}</td>
             <td>{formatMoney(sale.total, sale.moneda || sale.monedaCodigo || "CLP", businessLocale)}</td>
           </tr>)}</tbody>
         </table></div>

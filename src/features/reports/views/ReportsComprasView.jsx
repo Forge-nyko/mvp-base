@@ -93,12 +93,13 @@ function ReportsComprasView({canOpenPurchases, chartGroups, navigate, purchaseTi
       <div className="reports-section-heading"><div><span>Operaciones</span><h2>Compras del período</h2><p>Listado de compras confirmadas usadas en las métricas de esta vista.</p></div>{canOpenPurchases && <button type="button" onClick={() => navigate("/compras")}>Ir a Compras<ArrowRight size={14} /></button>}</div>
       {!hasPurchases ? <p className="reports-empty-note">Sin compras confirmadas en el período.</p> : (
         <div className="reports-top-list-table-wrap"><table className="reports-top-list-table">
-          <thead><tr><th>Número</th><th>Fecha</th><th>Proveedor</th><th>Moneda</th><th>Total</th></tr></thead>
+          <thead><tr><th>Número</th><th>Fecha</th><th>Proveedor</th><th>Moneda</th><th>Neto</th><th>Total</th></tr></thead>
           <tbody>{summary.purchases.confirmed.map((purchase) => <tr key={purchase.id || purchase.compraId || purchase.numero}>
             <td>{purchase.numero || "Compra"}</td>
             <td>{String(purchase.fechaCompra || "").slice(0, 10)}</td>
             <td>{purchase.proveedorSnapshot?.razonSocial || "Proveedor histórico"}</td>
             <td>{purchase.moneda || purchase.monedaCodigo || "CLP"}</td>
+            <td>{Number.isFinite(purchase.neto) ? formatMoney(purchase.neto, purchase.moneda || purchase.monedaCodigo || "CLP", businessLocale) : "—"}</td>
             <td>{formatMoney(purchase.total, purchase.moneda || purchase.monedaCodigo || "CLP", businessLocale)}</td>
           </tr>)}</tbody>
         </table></div>
