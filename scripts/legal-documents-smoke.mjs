@@ -36,3 +36,99 @@ for (const check of [isCurrentLegalVersion, backend.isCurrentLegalVersion]) {
   }
 }
 console.log("OK Legal: solo la versión vigente exacta es válida");
+
+// Etapa 3: textos y páginas públicas (aserciones estáticas).
+const {readFile} = await import("node:fs/promises");
+const {
+  LEGAL_DOCUMENTS_CONTENT,
+  LEGAL_NOTICE,
+  LEGAL_PROVIDER,
+} = await import("../src/domain/legalDocumentsContent.mjs");
+
+const [appSource, pageSource, cssSource] = await Promise.all([
+  readFile(new URL("../src/app/App.jsx", import.meta.url), "utf8"),
+  readFile(new URL("../src/features/legal/LegalDocumentPage.jsx", import.meta.url), "utf8"),
+  readFile(new URL("../src/features/legal/legal-page.css", import.meta.url), "utf8"),
+]);
+
+function documentText(documentKey) {
+  return LEGAL_DOCUMENTS_CONTENT[documentKey].sections
+    .flatMap((section) => section.blocks)
+    .flatMap((block) =>
+      block.type === "list" ?
+        block.items.map((item) => `${item.label || ""} ${item.text}`) :
+        [block.text]
+    )
+    .join("\n");
+}
+
+assert.equal(
+  LEGAL_NOTICE,
+  "Versión inicial. Este texto está pendiente de revisión legal por parte de Bagner."
+);
+assert.deepEqual(Object.keys(LEGAL_DOCUMENTS_CONTENT).sort(), Object.keys(LEGAL_DOCUMENTS).sort());
+for (const documentKey of Object.keys(LEGAL_DOCUMENTS)) {
+  const {sections} = LEGAL_DOCUMENTS_CONTENT[documentKey];
+  assert.equal(sections.length, 12, `${documentKey}: 12 secciones`);
+  sections.forEach((section, index) => {
+    assert.match(section.title, new RegExp(`^${index + 1}\\. \\S`));
+    assert.ok(section.blocks.length > 0);
+    for (const block of section.blocks) {
+      assert.ok(["paragraph", "list"].includes(block.type));
+      if (block.type === "paragraph") assert.ok(block.text.trim().length > 0);
+      else assert.ok(block.items.length > 0 && block.items.every((item) => item.text.trim()));
+    }
+  });
+  assert.ok(Object.isFrozen(LEGAL_DOCUMENTS_CONTENT[documentKey]));
+  assert.doesNotMatch(documentText(documentKey), /\\|\*\*|`|undefined|\[object/);
+}
+console.log("OK Legal: cada documento tiene 12 secciones con contenido");
+
+assert.deepEqual(LEGAL_PROVIDER, {
+  razonSocial: "[RAZON_SOCIAL_BAGNER]",
+  rut: "[RUT_BAGNER]",
+  domicilio: "[DOMICILIO_BAGNER]",
+  correoPrivacidad: "[CORREO_PRIVACIDAD]",
+  sitio: "https://valoracloud.bagner.cl",
+});
+const privacyText = documentText("privacidad");
+const termsText = documentText("terminos");
+for (const marker of [
+  LEGAL_PROVIDER.razonSocial,
+  LEGAL_PROVIDER.rut,
+  LEGAL_PROVIDER.domicilio,
+  LEGAL_PROVIDER.correoPrivacidad,
+]) {
+  assert.ok(privacyText.includes(marker), `privacidad usa ${marker}`);
+}
+for (const marker of [
+  LEGAL_PROVIDER.razonSocial,
+  LEGAL_PROVIDER.rut,
+  LEGAL_PROVIDER.correoPrivacidad,
+]) {
+  assert.ok(termsText.includes(marker), `términos usa ${marker}`);
+}
+assert.equal(privacyText.match(/\[CONFIRMAR/g).length, 4);
+assert.equal(termsText.match(/\[A DEFINIR/g).length, 4);
+assert.equal(termsText.includes("[CONFIRMAR"), false);
+console.log("OK Legal: marcadores del proveedor, [CONFIRMAR] y [A DEFINIR] conservados");
+
+const publicBlockStart = appSource.indexOf("/^\\/propuesta\\/");
+const legalRoutesBlock = appSource.indexOf("(privacidad|terminos)");
+const loadingGate = appSource.indexOf("if (loading) return <LoadingScreen />;");
+assert.ok(publicBlockStart > -1 && legalRoutesBlock > publicBlockStart);
+assert.ok(loadingGate > legalRoutesBlock, "rutas legales antes de loading");
+for (const document of Object.values(LEGAL_DOCUMENTS)) {
+  const routeIndex = appSource.indexOf(`path="${document.path}"`);
+  assert.ok(routeIndex > legalRoutesBlock && routeIndex < loadingGate, document.path);
+  assert.ok(appSource.includes(`documentKey="${document.key}"`));
+}
+console.log("OK Legal: /privacidad y /terminos en el bloque superior de App.jsx");
+
+assert.ok(pageSource.includes("LEGAL_NOTICE"));
+assert.match(pageSource, /<BrandLogo\b/);
+assert.match(pageSource, /<SkipLink\b/);
+assert.match(pageSource, /<Button variant="ghost"/);
+assert.doesNotMatch(cssSource, /#[0-9a-fA-F]{3,8}\b|\b(?:rgb|hsl)a?\(/);
+assert.doesNotMatch(cssSource, /(?:border-radius|box-shadow|transition|animation)\s*:[^;]*\d(?:px|ms|s)\b/);
+console.log("OK Legal: página con aviso, logo, SkipLink y volver; CSS sin literales");

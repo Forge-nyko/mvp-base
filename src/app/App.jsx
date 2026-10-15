@@ -25,6 +25,7 @@ import InitialBusinessActivationPage from "../pages/InitialBusinessActivationPag
 import PricingPage from "../pages/PricingPage";
 import QuoteHistoryPage from "../pages/QuoteHistoryPage";
 import PublicQuoteProposalPage from "../pages/PublicQuoteProposalPage";
+import LegalDocumentPage from "../features/legal/LegalDocumentPage";
 import NewPurchaseOrderPage from "../pages/NewPurchaseOrderPage";
 import PurchaseOrdersPage from "../pages/PurchaseOrdersPage";
 import NewPurchasePage from "../pages/NewPurchasePage";
@@ -123,6 +124,15 @@ function AppRoutes({
       <Routes>
         <Route path="/propuesta/:token" element={<PublicQuoteProposalPage />} />
         <Route path="*" element={<PublicQuoteProposalPage />} />
+      </Routes>
+    );
+  }
+
+  if (/^\/(privacidad|terminos)\/?$/.test(location.pathname)) {
+    return (
+      <Routes>
+        <Route path="/privacidad" element={<LegalDocumentPage documentKey="privacidad" />} />
+        <Route path="/terminos" element={<LegalDocumentPage documentKey="terminos" />} />
       </Routes>
     );
   }

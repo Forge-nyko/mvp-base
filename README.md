@@ -242,10 +242,17 @@ RewriteRule ^ index.html [L]
 El sistema almacena datos de cuenta, empresa, inventario, referencias,
 cotizaciones y datos de contacto de clientes. Gemini procesa descripciones e
 inventario resumido cuando se habilita; Resend procesa destinatario, contenido
-del correo y PDF. Antes de usar datos reales de Bagner se deben definir y
-revisar profesionalmente política de privacidad, aviso de tratamiento,
-retención, respaldo, eliminación, rectificación, exportación y
-responsabilidades entre las partes.
+del correo y PDF.
+
+Los textos publicados en `/privacidad` y `/terminos` son una versión
+inicial (borrador técnico) y contienen marcadores `[CONFIRMAR]` y
+`[A DEFINIR]` pendientes. Bagner, como propietario del sistema, debe
+revisarlos con su asesoría legal y completar los datos del proveedor: con
+prioridad desde que se usen datos reales y, en todo caso, antes de
+comercializar el sistema a otros negocios. También deben definirse y
+revisarse profesionalmente aviso de tratamiento, retención, respaldo,
+eliminación, rectificación, exportación y responsabilidades entre las
+partes.
 
 ## Limitaciones conocidas
 
