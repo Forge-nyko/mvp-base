@@ -319,3 +319,13 @@
 }
 
 /* Tokens faltantes nuevos encontrados en esta pasada: ninguno. */
+
+/* Error de carga de lista y ficha: mensaje + Reintentar (nunca el vacío). */
+.works-load-error { align-items: center; display: flex; gap: var(--space-3); justify-content: space-between; }
+
+/* Tableros en móvil: las columnas se apilan en una sola, sin scroll horizontal. */
+@media(max-width:767px) {
+  .works-load-error { align-items: stretch; flex-direction: column; }
+  .works-board, .works-task-board { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+  .works-panel:has(.works-board), .works-panel:has(.works-task-board), .works-detail-section:has(.works-task-board) { overflow-x: visible; }
+}

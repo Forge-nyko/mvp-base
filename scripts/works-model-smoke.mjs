@@ -574,4 +574,52 @@ assert.equal(resolveWorkMaterialScan(scanProducts, "", {}).status, "not_availabl
 assert.equal(resolveWorkMaterialScan(scanProducts, "012345678905", {cantidad: "5"}).cantidad, "5");
 console.log("OK escáner de salida de material: disponible, no disponible y cantidad conservada");
 
+// Interfaz de Proyectos y Trabajos: un fallo de carga nunca se muestra como vacío.
+{
+  const mainStart = page.indexOf("export default function WorksPage");
+  const mainEnd = page.indexOf("function commercialStatusLabel");
+  const main = page.slice(mainStart, mainEnd);
+  // Lista: error propio, separado del error de acciones, y la lista/tablero/vacío
+  // solo se renderizan en la rama sin error.
+  assert.match(main, /const \[loadError, setLoadError\] = useState\(""\)/);
+  assert.match(main, /catch \(failure\) \{\s*setLoadError\(/);
+  assert.doesNotMatch(main.slice(main.indexOf("const load = useCallback"), main.indexOf("useEffect(() => { load(); }")), /setError\(failure|setError\(loadError/);
+  const listBranch = main.indexOf("{loadError ? <LoadFailure message={loadError} onRetry={load} /> : <>");
+  assert.ok(listBranch > 0, "la lista tiene una rama de error de carga");
+  const beforeListBranch = main.slice(0, listBranch);
+  assert.doesNotMatch(beforeListBranch, /<WorkList|<WorkBoard|<WorksEmptyState/);
+  const afterListBranch = main.slice(listBranch);
+  assert.match(afterListBranch, /<WorkList[\s\S]*<\/>\}\s*<\/section>/);
+  assert.match(main, /\{canManage && !loadError && <div className="erp-module-intro">/);
+  // Ficha: loadDetail guarda su error aparte y el error reemplaza todas las secciones.
+  assert.match(main, /const \[detailError, setDetailError\] = useState\(""\)/);
+  assert.match(main, /catch \(failure\) \{ setDetailError\(/);
+  const detailBranch = main.indexOf("{detailError ? <LoadFailure message={detailError} onRetry={() => loadDetail(selectedWork.id)} /> : <>");
+  assert.ok(detailBranch > 0, "la ficha tiene una rama de error de carga");
+  assert.doesNotMatch(main.slice(0, detailBranch), /<TaskSection|<MaterialsSection|<FinancialSection|Notas del proyecto|Historial del trabajo/);
+  const detailRest = main.slice(detailBranch);
+  for (const section of ["<TaskSection", "<MaterialsSection", "<FinancialSection", "<WorkAdditionalsSection", 'title="Notas del proyecto"', 'title="Historial del trabajo"']) {
+    assert.ok(detailRest.includes(section), `${section} solo se renderiza sin error de carga`);
+  }
+  // Los textos de vacío de la ficha viven dentro de esas secciones, nunca fuera de la rama sin error.
+  assert.doesNotMatch(main.slice(0, detailBranch), /Aún no hay notas|Aún no hay tareas/);
+  // Tablero: "no hay Proyectos" frente a "los filtros no coinciden", con el mismo vacío de la Lista.
+  assert.match(main, /view === "board" \? \(visibleWorks\.length \? <WorkBoard works=\{visibleWorks\} onOpen=\{openDetail\} \/> : <WorksEmptyState hasAnyWork=\{works\.length > 0\}/);
+  const emptyState = page.slice(page.indexOf("function WorksEmptyState"), page.indexOf("function WorkList"));
+  assert.match(emptyState, /No hay trabajos coincidentes/);
+  assert.match(emptyState, /Aún no hay trabajos/);
+  assert.match(page, /function WorkList[\s\S]*?<WorksEmptyState/);
+  // Menores.
+  assert.doesNotMatch(page, /window\.alert/);
+  assert.match(page, /setEvidenceError\("No se pudo abrir el documento\. Intenta nuevamente\."\)/);
+  assert.match(page, /<LoadingState variant="section" label="Calculando desde fuentes autoritativas\.\.\." \/>/);
+  assert.doesNotMatch(page, /<p>Calculando desde fuentes autoritativas/);
+  assert.match(page, /function CommercialFile[\s\S]*?useBusinessFormat\(\)/);
+  assert.doesNotMatch(page.slice(page.indexOf("function commercialTotal"), page.indexOf("function CommercialFile")), /es-CL/);
+  // Móvil: los tableros se apilan en una columna, sin scroll horizontal.
+  assert.match(styles, /@media\(max-width:767px\)\s*\{[^}]*\.works-load-error[^}]*\}\s*\.works-board, \.works-task-board \{ grid-template-columns: minmax\(0, 1fr\); min-width: 0; \}/);
+  assert.match(styles, /\.works-panel:has\(\.works-board\), \.works-panel:has\(\.works-task-board\), \.works-detail-section:has\(\.works-task-board\) \{ overflow-x: visible; \}/);
+}
+console.log("OK interfaz de trabajos: error de carga separado del vacío (lista y ficha), vacío del tablero, sin window.alert y tableros apilados en móvil");
+
 console.log("WORKS_MODEL_SMOKE_OK");

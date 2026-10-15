@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {Columns3, LayoutList, Pencil, Plus, Search, Trash2} from "lucide-react";
+import {Columns3, LayoutList, Pencil, Plus, RefreshCw, Search, Trash2} from "lucide-react";
 import {useLocation, useNavigate} from "react-router-dom";
 import AppIcon from "../components/ui/AppIcon";
 import BarcodeInput from "../components/barcode/BarcodeInput";
@@ -60,6 +60,10 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
   const [catalogItems, setCatalogItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Un fallo de carga nunca se muestra como vacío: lista y ficha tienen su
+  // propio estado de error, separado de `error` (errores de acciones).
+  const [loadError, setLoadError] = useState("");
+  const [detailError, setDetailError] = useState("");
   const [view, setView] = useState("list");
   const [filters, setFilters] = useState({query: "", estado: "todos", prioridad: "todas", responsableUid: "todos"});
   const [formOpen, setFormOpen] = useState(false);
@@ -78,13 +82,13 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
 
   const load = useCallback(async () => {
     if (!businessId) return;
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setLoadError("");
     try {
       const access = {role, currentUserUid};
       const [workList, clientList, memberList, inventoryList, quoteList, saleList] = await Promise.all([listarTrabajos(businessId, access), canManage ? listarClientes(businessId) : Promise.resolve([]), canManage ? listarMiembrosNegocio(businessId) : Promise.resolve([]), getInventoryItems(businessId), canManage ? getQuotes(businessId) : Promise.resolve([]), canManage ? listarVentas(businessId) : Promise.resolve([])]);
       setWorks(workList); setClients(clientList.filter((client) => client.estado === "activo")); setMembers(memberList.filter((member) => member.estado === "activo")); setInventoryProducts(inventoryList.filter((item) => item.estado === "activo" && item.tipoItem === "producto")); setCatalogItems(inventoryList.filter((item) => item.estado === "activo")); setQuotes(quoteList); setSales(saleList);
-    } catch (loadError) {
-      setError(loadError.message || "No se pudo cargar Proyectos y trabajos.");
+    } catch (failure) {
+      setLoadError(failure.message || "No se pudo cargar Proyectos y trabajos.");
     } finally { setLoading(false); }
   }, [businessId, canManage, currentUserUid, role]);
 
@@ -102,7 +106,7 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
   }, [draft.estado, editingWork, formOpen]);
 
   const loadDetail = useCallback(async (workId) => {
-    setDetailLoading(true);
+    setDetailLoading(true); setDetailError("");
     try {
       const [file, balance] = await Promise.all([
         cargarFichaTrabajo(businessId, workId, {role, currentUserUid}),
@@ -110,7 +114,7 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
       ]);
       setDetail({...file, balance});
     }
-    catch (detailError) { setError(detailError.message || "No se pudo cargar la ficha del trabajo."); }
+    catch (failure) { setDetailError(failure.message || "No se pudo cargar la ficha del trabajo."); }
     finally { setDetailLoading(false); }
   }, [businessId, currentUserUid, role]);
 
@@ -211,12 +215,14 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
   };
 
   return <main className="erp-page works-page">
-    {canManage && <div className="erp-module-intro"><Button type="button" icon={Plus} onClick={openNew}>Nuevo trabajo</Button></div>}
+    {canManage && !loadError && <div className="erp-module-intro"><Button type="button" icon={Plus} onClick={openNew}>Nuevo trabajo</Button></div>}
     {error && <div className="works-message works-message--error" role="alert">{error}</div>}
     <section className="erp-panel works-panel" aria-label="Trabajos registrados">
+      {loadError ? <LoadFailure message={loadError} onRetry={load} /> : <>
       <div className="works-toolbar"><div className="works-view-switch" role="group" aria-label="Vista"><button type="button" className={view === "list" ? "is-active" : ""} onClick={() => setView("list")}><AppIcon icon={LayoutList} size={17} />Lista</button><button type="button" className={view === "board" ? "is-active" : ""} onClick={() => setView("board")}><AppIcon icon={Columns3} size={17} />Tablero</button></div><span>{visibleWorks.length} trabajo{visibleWorks.length === 1 ? "" : "s"}</span></div>
       <div className="erp-filters works-filters"><label className="erp-field works-search"><span className="erp-field__label">Buscar por número, título o cliente</span><span className="works-search-control"><AppIcon icon={Search} size={18} /><input className="erp-control" value={filters.query} onChange={(event) => setFilters((current) => ({...current, query: event.target.value}))} /></span></label><Filter label="Estado" value={filters.estado} onChange={(value) => setFilters((current) => ({...current, estado: value}))}><option value="todos">Todos</option>{WORK_STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Filter><Filter label="Prioridad" value={filters.prioridad} onChange={(value) => setFilters((current) => ({...current, prioridad: value}))}><option value="todas">Todas</option>{WORK_PRIORITIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Filter><Filter label="Responsable principal" value={filters.responsableUid} onChange={(value) => setFilters((current) => ({...current, responsableUid: value}))}><option value="todos">Todos</option>{members.map((member) => <option key={member.uid} value={member.uid}>{getWorkMemberIdentity(member)}</option>)}</Filter></div>
-      {loading ? (view === "board" ? <LoadingState variant="section" label="Cargando trabajos..." /> : <SkeletonRegion label="Cargando trabajos..."><SkeletonTable className="erp-desktop-only" columns={7} twoLine /><SkeletonCards className="erp-card-list erp-mobile-only" /></SkeletonRegion>) : view === "board" ? <WorkBoard works={visibleWorks} onOpen={openDetail} /> : <WorkList works={visibleWorks} hasAnyWork={works.length > 0} canManage={canManage} onCreate={openNew} onEdit={openEdit} onOpen={openDetail} />}
+      {loading ? (view === "board" ? <LoadingState variant="section" label="Cargando trabajos..." /> : <SkeletonRegion label="Cargando trabajos..."><SkeletonTable className="erp-desktop-only" columns={7} twoLine /><SkeletonCards className="erp-card-list erp-mobile-only" /></SkeletonRegion>) : view === "board" ? (visibleWorks.length ? <WorkBoard works={visibleWorks} onOpen={openDetail} /> : <WorksEmptyState hasAnyWork={works.length > 0} canManage={canManage} onCreate={openNew} />) : <WorkList works={visibleWorks} hasAnyWork={works.length > 0} canManage={canManage} onCreate={openNew} onEdit={openEdit} onOpen={openDetail} />}
+      </>}
     </section>
 
     <ResponsiveDialog className="works-form-dialog" open={formOpen} onClose={() => !saving && setFormOpen(false)} size="large" eyebrow="Proyectos y trabajos" title={editingWork ? `Editar ${editingWork.numero}` : "Crear proyecto"} description="Registra la información y planificación inicial del proyecto." footer={<><Button type="button" variant="secondary" disabled={saving} onClick={() => setFormOpen(false)}>Cancelar</Button><Button type="submit" form="work-form" loading={saving}>{saving ? "Guardando..." : editingWork ? "Guardar cambios" : "Crear proyecto"}</Button></>}>
@@ -269,6 +275,7 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
             {getWorkOperationalIndicators(selectedWork).noRecentActivity && <p className="works-message works-message--warning">Sin actividad reciente (3 días o más).</p>}
           </div>
 
+          {detailError ? <LoadFailure message={detailError} onRetry={() => loadDetail(selectedWork.id)} /> : <>
           <section className="works-detail-section works-overview">
             <h3>Resumen</h3>
             <div className="works-overview-description">
@@ -321,6 +328,7 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
           <DetailDisclosure key={`history-${selectedWork.id}`} title="Historial del trabajo" summary={`${detail.historial.length} evento${detail.historial.length === 1 ? "" : "s"}`}>
             {detailLoading ? <LoadingState variant="section" label="Cargando historial..." /> : <ol className="works-timeline">{detail.historial.map((event) => <li key={event.id}><time>{dateLabel(event.fecha, true)}</time><p>{humanizeWorkEvent({...event, actorSnapshot: {...event.actorSnapshot, nombre: workPersonIdentity(event.actorSnapshot, "", members, "Una persona del equipo")}}, {includeAmounts: canManage})}</p>{event.tipo === "nota_agregada" && event.detalle?.texto && <blockquote>{event.detalle.texto}</blockquote>}</li>)}</ol>}
           </DetailDisclosure>
+          </>}
         </div>}
       </>
     </ResponsiveDialog>
@@ -418,6 +426,7 @@ function FinancialSection({businessId, canManage, currency, currentUserUid, expe
   const [expenseDraft, setExpenseDraft] = useState({concepto: "", monto: "", categoria: "MATERIAL", responsableDelGastoUid: "", fecha: chileToday(), observacion: "", tareaId: ""});
   const [laborDraft, setLaborDraft] = useState({tecnicoUid: "", horas: "", costoHora: "", fecha: chileToday(), concepto: "", tareaId: ""});
   const [annulReasons, setAnnulReasons] = useState({});
+  const [evidenceError, setEvidenceError] = useState("");
   const canRegister = canManage || ["TECNICO", "MEMBER"].includes(role);
   const visibleExpenses = canManage ? expenses : expenses.filter((entry) => [entry.registradoPorUid, entry.responsableDelGastoUid].includes(currentUserUid));
   const visibleLabor = canManage ? labor : labor.filter((entry) => [entry.registradoPorUid, entry.tecnicoUid].includes(currentUserUid));
@@ -460,13 +469,15 @@ function FinancialSection({businessId, canManage, currency, currentUserUid, expe
     (canManage || (["TECNICO", "MEMBER"].includes(role) && [entry.registradoPorUid, entry.responsableDelGastoUid].includes(currentUserUid)));
   const uploadEvidence = (expenseId, file) => runAction(`evidence-${expenseId}`, () => subirEvidenciaGastoTrabajo(businessId, workId, expenseId, file, createWorkCostRequestId("expense-evidence")));
   const openEvidence = (storagePath) => {
+    setEvidenceError("");
     obtenerEnlaceEvidenciaGastoTrabajo(storagePath)
       .then((url) => window.open(url, "_blank", "noopener,noreferrer"))
-      .catch(() => window.alert("No se pudo abrir el documento. Intenta nuevamente."));
+      .catch(() => setEvidenceError("No se pudo abrir el documento. Intenta nuevamente."));
   };
 
   return <section className="works-detail-section works-financial-file">
     <div className="works-section-heading"><div><h3>Costos reales</h3><span>Moneda {currency}</span></div></div>
+    {evidenceError && <div className="works-message works-message--error" role="alert">{evidenceError}</div>}
     <p className="works-financial-note">{readOnly ? "Los costos históricos permanecen visibles. Reabre el proyecto para registrar o corregir operaciones." : "Los registros no se editan ni eliminan: para corregir, anula el original y crea el reemplazo."}</p>
     <div className="works-financial-columns">
       <section><header><div><h4>Gastos</h4><strong>{formatMoney(expenseTotal, currency, businessLocale)}</strong></div><small>Directos e indirectos, sin balance final.</small></header>
@@ -584,21 +595,22 @@ function MaterialsSection({businessId, canManage, currency, currentUserUid, hasA
   </section>;
 }
 
-function commercialTotal(document) {
+function commercialTotal(document, locale) {
   const currency = /^[A-Z]{3}$/.test(String(document?.moneda || "")) ? document.moneda : "CLP";
-  return new Intl.NumberFormat("es-CL", {style: "currency", currency, maximumFractionDigits: currency === "CLP" ? 0 : 2}).format(Number(document?.total || 0));
+  return new Intl.NumberFormat(locale, {style: "currency", currency, maximumFractionDigits: currency === "CLP" ? 0 : 2}).format(Number(document?.total || 0));
 }
 
 function CommercialFile({canManage, detail, loading, navigate}) {
+  const { locale: businessLocale } = useBusinessFormat();
   return <div className="works-commercial-file">
     <div className="works-commercial-heading"><div><h4>Resumen comercial</h4><span>{detail.cotizaciones.length} cotización{detail.cotizaciones.length === 1 ? "" : "es"} · {detail.ventas.length} venta{detail.ventas.length === 1 ? "" : "s"}</span></div></div>
     {loading ? <LoadingState variant="section" label="Cargando expediente..." /> : <div className="works-commercial-list">
       {detail.cotizaciones.map((quote) => {
         const relatedSale = detail.ventas.find((sale) => sale.cotizacionId === quote.id);
         const rejection = quote.motivoRechazoCliente || quote.comentarioRechazoCliente || "";
-        return <article key={quote.id}><div><strong>{quote.numero || "Cotización"}</strong><span>{commercialStatusLabel(quote.estado)}{canManage ? ` · ${commercialTotal(quote)}` : ""}</span>{quote.estado === "rechazada" && rejection && <small>{rejection}</small>}</div><div><button type="button" onClick={() => navigate("/cotizaciones", {state: {openQuoteId: quote.id}})}>Abrir cotización</button>{relatedSale && <button type="button" onClick={() => navigate(`/ventas/${relatedSale.id}/editar`)}>Venta {relatedSale.numero}</button>}</div></article>;
+        return <article key={quote.id}><div><strong>{quote.numero || "Cotización"}</strong><span>{commercialStatusLabel(quote.estado)}{canManage ? ` · ${commercialTotal(quote, businessLocale)}` : ""}</span>{quote.estado === "rechazada" && rejection && <small>{rejection}</small>}</div><div><button type="button" onClick={() => navigate("/cotizaciones", {state: {openQuoteId: quote.id}})}>Abrir cotización</button>{relatedSale && <button type="button" onClick={() => navigate(`/ventas/${relatedSale.id}/editar`)}>Venta {relatedSale.numero}</button>}</div></article>;
       })}
-      {detail.ventas.filter((sale) => !detail.cotizaciones.some((quote) => quote.id === sale.cotizacionId)).map((sale) => <article key={sale.id}><div><strong>{sale.numero || "Venta"}</strong><span>{commercialStatusLabel(sale.estado)}{canManage ? ` · ${commercialTotal(sale)}` : ""}</span></div><div><button type="button" onClick={() => navigate(`/ventas/${sale.id}/editar`)}>Abrir venta</button></div></article>)}
+      {detail.ventas.filter((sale) => !detail.cotizaciones.some((quote) => quote.id === sale.cotizacionId)).map((sale) => <article key={sale.id}><div><strong>{sale.numero || "Venta"}</strong><span>{commercialStatusLabel(sale.estado)}{canManage ? ` · ${commercialTotal(sale, businessLocale)}` : ""}</span></div><div><button type="button" onClick={() => navigate(`/ventas/${sale.id}/editar`)}>Abrir venta</button></div></article>)}
       {!detail.cotizaciones.length && !detail.ventas.length && <p className="works-empty-copy">Este proyecto aún no tiene cotizaciones ni ventas vinculadas.</p>}
     </div>}
   </div>;
@@ -614,27 +626,37 @@ function workPersonIdentity(snapshot, uid, members = [], fallback = "Sin respons
   return getWorkHistoricalPersonIdentity(snapshot, uid, members, fallback);
 }
 
+// Error de carga (lista o ficha): solo el mensaje y Reintentar. Nunca convive
+// con los textos de vacío, porque esos arreglos vacíos no son datos reales.
+function LoadFailure({message, onRetry}) {
+  return <div className="works-message works-message--error works-load-error" role="alert"><span>{message}</span><Button type="button" variant="secondary" icon={RefreshCw} onClick={onRetry}>Reintentar</Button></div>;
+}
+
+// Vacío compartido por la Lista y el Tablero: "no hay Proyectos" frente a
+// "los filtros no coinciden".
+function WorksEmptyState({canManage, hasAnyWork, onCreate}) {
+  return (
+    <div className="erp-empty-state ui-empty-state">
+      <EmptyStateIllustration variant={hasAnyWork ? "no-results" : "empty-list"} />
+      <h3>{hasAnyWork ? "No hay trabajos coincidentes" : "Aún no hay trabajos"}</h3>
+      <p>
+        {hasAnyWork
+          ? "Prueba con otra búsqueda, estado, prioridad o responsable."
+          : canManage
+            ? "Crea el primer trabajo para organizar tareas, costos y avance del proyecto."
+            : "Los perfiles autorizados pueden crear el primer trabajo."}
+      </p>
+      {!hasAnyWork && canManage && (
+        <div className="ui-empty-state__actions">
+          <Button type="button" icon={Plus} onClick={onCreate}>Nuevo trabajo</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function WorkList({canManage, hasAnyWork, onCreate, onEdit, onOpen, works}) {
-  if (!works.length) {
-    return (
-      <div className="erp-empty-state ui-empty-state">
-        <EmptyStateIllustration variant={hasAnyWork ? "no-results" : "empty-list"} />
-        <h3>{hasAnyWork ? "No hay trabajos coincidentes" : "Aún no hay trabajos"}</h3>
-        <p>
-          {hasAnyWork
-            ? "Prueba con otra búsqueda, estado, prioridad o responsable."
-            : canManage
-              ? "Crea el primer trabajo para organizar tareas, costos y avance del proyecto."
-              : "Los perfiles autorizados pueden crear el primer trabajo."}
-        </p>
-        {!hasAnyWork && canManage && (
-          <div className="ui-empty-state__actions">
-            <Button type="button" icon={Plus} onClick={onCreate}>Nuevo trabajo</Button>
-          </div>
-        )}
-      </div>
-    );
-  }
+  if (!works.length) return <WorksEmptyState canManage={canManage} hasAnyWork={hasAnyWork} onCreate={onCreate} />;
   return <><div className="erp-table-region erp-desktop-only"><table className="erp-table works-table"><thead><tr><th>Trabajo</th><th>Cliente</th><th>Responsable principal</th><th>Prioridad</th><th>Término planificado</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{works.map((work) => <tr key={work.id}><td><button className="works-link" type="button" onClick={() => onOpen(work)}><strong>{work.numero}</strong><span>{work.titulo}</span></button></td><td>{work.clienteSnapshot?.nombreRazonSocial || "Sin cliente"}</td><td>{workPersonIdentity(work.responsableSnapshot, work.responsableUid)}</td><td><Priority value={work.prioridad} /></td><td>{dateLabel(work.fechaPrevista)}</td><td><Status value={work.estado} /></td><td><div className="works-row-actions"><button type="button" onClick={() => onOpen(work)}>Ver</button>{canManage && !isWorkOperationalReadOnly(work) && <button type="button" onClick={() => onEdit(work)}>Editar</button>}</div></td></tr>)}</tbody></table></div><div className="erp-card-list erp-mobile-only">{works.map((work) => <article key={work.id} className="erp-record-card"><header className="erp-record-card__header"><div><span className="works-number">{work.numero}</span><h3 className="erp-record-card__title">{work.titulo}</h3></div><Status value={work.estado} /></header><dl className="erp-meta-grid"><div className="erp-meta"><dt className="erp-meta__label">Cliente</dt><dd className="erp-meta__value">{work.clienteSnapshot?.nombreRazonSocial || "Sin cliente"}</dd></div><div className="erp-meta"><dt className="erp-meta__label">Responsable principal</dt><dd className="erp-meta__value">{workPersonIdentity(work.responsableSnapshot, work.responsableUid)}</dd></div><div className="erp-meta"><dt className="erp-meta__label">Prioridad</dt><dd className="erp-meta__value"><Priority value={work.prioridad} /></dd></div><div className="erp-meta"><dt className="erp-meta__label">Término planificado</dt><dd className="erp-meta__value">{dateLabel(work.fechaPrevista)}</dd></div></dl><div className="works-card-actions"><Button type="button" variant="secondary" onClick={() => onOpen(work)}>Ver ficha</Button>{canManage && !isWorkOperationalReadOnly(work) && <Button type="button" variant="secondary" onClick={() => onEdit(work)}>Editar</Button>}</div></article>)}</div></>;
 }
 
@@ -646,7 +668,7 @@ function DailyCostSummary({currency, rows}) { const { locale: businessLocale } =
 
 function WorkBalanceSection({balance, loading}) {
   const { locale: businessLocale } = useBusinessFormat();
-  if (loading) return <section className="works-detail-section"><h3>Balance y margen</h3><p>Calculando desde fuentes autoritativas...</p></section>;
+  if (loading) return <section className="works-detail-section"><h3>Balance y margen</h3><LoadingState variant="section" label="Calculando desde fuentes autoritativas..." /></section>;
   if (!balance) return null;
   const money = (value) => value == null ? "No disponible" : formatMoney(value, balance.moneda, businessLocale);
   const inconsistent = balance.estado === "INCONSISTENTE_MONEDA";
