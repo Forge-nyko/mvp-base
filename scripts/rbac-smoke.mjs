@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import {createRequire} from "node:module";
 import {
   ASSIGNABLE_BUSINESS_ROLES,
@@ -30,6 +31,35 @@ assert.equal(hasBusinessPermission("COMPRAS", P.PURCHASES_WRITE), true);
 assert.equal(hasBusinessPermission("COMPRAS", P.SALES_READ), false);
 assert.equal(hasBusinessPermission("TECNICO", P.WORKS_OPERATE), true);
 assert.equal(hasBusinessPermission("TECNICO", P.PROFITABILITY_READ), false);
+// Decisión de Bruno: el técnico ve costos de inventario, y nada más que eso.
+assert.equal(hasBusinessPermission("TECNICO", P.INVENTORY_COSTS_READ), true);
+for (const permission of [P.INVENTORY_WRITE, P.PURCHASES_READ, P.PURCHASES_WRITE, P.SALES_READ, P.FINANCE_READ, P.REPORTS_READ, P.PRICING_READ]) {
+  assert.equal(hasBusinessPermission("TECNICO", permission), false, `TECNICO no debe tener ${permission}`);
+}
+assert.equal(hasBusinessPermission("VENTAS", P.INVENTORY_COSTS_READ), false, "VENTAS sigue sin costos de inventario");
+assert.equal(canAccessBusinessPath("TECNICO", "/inventario"), true);
+assert.equal(canAccessBusinessPath("TECNICO", "/compras"), false);
+assert.equal(canAccessBusinessPath("TECNICO", "/ordenes-compra"), false);
+assert.equal(canAccessBusinessPath("TECNICO", "/ventas"), false);
+// Un perfil por módulos no hereda el permiso del rol.
+assert.equal(hasBusinessPermission({role: "TECNICO", profileId: "p", modules: ["inventario"]}, P.INVENTORY_COSTS_READ), false);
+// El historial de adquisiciones de la ficha de Inventario sigue la regla de
+// adquisicionesInventario: la lista de roles se lee de firestore.rules y debe
+// coincidir con quienes tienen PURCHASES_READ, que es lo que usa la interfaz.
+const rulesSource = readFileSync(new URL("../firestore.rules", import.meta.url), "utf8");
+const acquisitionRead = rulesSource.match(/match \/adquisicionesInventario\/\{adquisicionId\} \{\s*allow read: if hasBusinessModuleAccess\(businessId, \[([^\]]*)\]/);
+assert.ok(acquisitionRead, "no se encontró la regla de lectura de adquisicionesInventario");
+const acquisitionRoles = [...acquisitionRead[1].matchAll(/"([A-Z]+)"/g)].map((match) => match[1]).sort();
+assert.deepEqual(BUSINESS_ROLES.filter((role) => hasBusinessPermission(role, P.PURCHASES_READ)).sort(), acquisitionRoles);
+assert.equal(acquisitionRoles.includes("TECNICO"), false);
+const inventorySource = readFileSync(new URL("../src/features/inventory/InventoryManager.jsx", import.meta.url), "utf8");
+assert.match(inventorySource, /const canReadAcquisitions = canReadCosts && hasBusinessPermission\(role, BUSINESS_PERMISSIONS\.PURCHASES_READ\)/);
+assert.match(inventorySource, /if \(!businessId \|\| !canReadAcquisitions \|\|/, "sin permiso no se consulta adquisiciones");
+assert.match(inventorySource, /showCosts=\{canReadCosts\} showAcquisitions=\{canReadAcquisitions\}/);
+assert.match(inventorySource, /\{showAcquisitions && adapted\.tipoItem === "producto" && <AcquisitionHistory/);
+assert.match(inventorySource, /\{showCosts && <Detail label="Costo promedio neto"/, "el técnico sigue viendo los costos de la ficha");
+assert.equal(/\{showCosts && adapted\.tipoItem === "producto" && <AcquisitionHistory/.test(inventorySource), false);
+assert.equal(hasBusinessPermission("TECNICO", P.INVENTORY_COSTS_READ) && !hasBusinessPermission("TECNICO", P.PURCHASES_READ), true, "TECNICO ve costos pero no el historial");
 assert.equal(hasBusinessPermission("FINANZAS", P.PROFITABILITY_READ), true);
 assert.equal(hasBusinessPermission("FINANZAS", P.COMPANY_WRITE), false);
 assert.equal(hasBusinessPermission("MEMBER", P.CLIENTS_READ), true);

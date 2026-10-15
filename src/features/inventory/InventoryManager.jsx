@@ -93,6 +93,9 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
   const cannotWrite = readOnly || !hasBusinessPermission(role, BUSINESS_PERMISSIONS.INVENTORY_WRITE);
   const canStartPurchase = !readOnly && hasBusinessPermission(role, BUSINESS_PERMISSIONS.PURCHASES_WRITE);
   const canReadCosts = hasBusinessPermission(role, BUSINESS_PERMISSIONS.INVENTORY_COSTS_READ);
+  // adquisicionesInventario solo la leen los roles con PURCHASES_READ (misma lista
+  // de firestore.rules); ver los costos de la ficha no basta para consultarla.
+  const canReadAcquisitions = canReadCosts && hasBusinessPermission(role, BUSINESS_PERMISSIONS.PURCHASES_READ);
   const [items, setItems] = useState([]);
   const [areas, setAreas] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -166,7 +169,7 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
   }, [businessId]);
 
   useEffect(() => {
-    if (!businessId || !canReadCosts || !detailItem?.id || adaptInventoryItem(detailItem).tipoItem !== "producto") {
+    if (!businessId || !canReadAcquisitions || !detailItem?.id || adaptInventoryItem(detailItem).tipoItem !== "producto") {
       setAcquisitions([]);
       setAcquisitionsState({loading: false, error: ""});
       return undefined;
@@ -190,7 +193,7 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
         }
       });
     return () => { active = false; };
-  }, [businessId, canReadCosts, detailItem]);
+  }, [businessId, canReadAcquisitions, detailItem]);
 
   const summary = useMemo(
     () =>
@@ -571,7 +574,7 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
       <ResponsiveDialog className="inventory-catalog-dialog" open={catalogOpen} onClose={closeCatalogManager} size="large" eyebrow="Inventario" title="Áreas y categorías" description="Organiza el catálogo según las necesidades de tu negocio."><InventoryCatalogManager areas={areas} businessId={businessId} categories={categories} loadErrors={catalogState.errors} loading={catalogState.loading} onRetry={() => setCatalogState((current) => ({ ...current, retry: current.retry + 1 }))} /></ResponsiveDialog>
       <ResponsiveDialog open={Boolean(quickCreate)} onClose={closeQuickCreate} initialFocusRef={quickNameRef} size="small" eyebrow="Clasificación" title={quickCreate === "area" ? "Nueva área" : "Nueva categoría"} description={quickCreate === "area" ? "Crea un área sin perder los datos del ítem." : "La categoría quedará asociada al área seleccionada."} footer={<><Button type="button" variant="secondary" disabled={quickSaving} onClick={closeQuickCreate}>Cancelar</Button><Button type="submit" form="inventory-quick-classification-form" loading={quickSaving}>{quickSaving ? "Creando..." : quickCreate === "area" ? "Crear área" : "Crear categoría"}</Button></>}><form id="inventory-quick-classification-form" className="inventory-quick-classification-form" onSubmit={submitQuickCreate}>{quickCreate === "category" && <p>Área: <strong>{areas.find((area) => area.id === draft.areaId)?.nombre || "Área seleccionada"}</strong></p>}<Field label="Nombre" required error={quickError}><input ref={quickNameRef} className="erp-control" maxLength={80} value={quickName} onChange={(event) => { setQuickName(event.target.value); setQuickError(""); }} /></Field></form></ResponsiveDialog>
       <InventoryImportDialog open={importOpen} onClose={() => setImportOpen(false)} onImported={(info) => setFeedback(info?.partial ? { type: "notice", message: "La importación quedó parcial; revisa el resumen antes de continuar." } : { type: "success", message: "Importación confirmada correctamente." })} businessId={businessId} areas={areas} categories={categories} existingItems={items} />
-      <ItemDetail item={detailItem} taxRate={businessTaxRate} areas={areas} categories={categories} acquisitions={acquisitions} acquisitionsState={acquisitionsState} cannotWrite={cannotWrite} lowStockSettings={settings} showCosts={canReadCosts} onClose={() => setDetailItem(null)} onEdit={openEditItem} onArchive={(item) => changeStatus(item, "inactivo")} onReactivate={(item) => changeStatus(item, "activo")} onViewReferences={(item) => navigate(`/inventario/${encodeURIComponent(item.id)}/referencias`)} />
+      <ItemDetail item={detailItem} taxRate={businessTaxRate} areas={areas} categories={categories} acquisitions={acquisitions} acquisitionsState={acquisitionsState} cannotWrite={cannotWrite} lowStockSettings={settings} showCosts={canReadCosts} showAcquisitions={canReadAcquisitions} onClose={() => setDetailItem(null)} onEdit={openEditItem} onArchive={(item) => changeStatus(item, "inactivo")} onReactivate={(item) => changeStatus(item, "activo")} onViewReferences={(item) => navigate(`/inventario/${encodeURIComponent(item.id)}/referencias`)} />
     </section>
   );
 }
@@ -631,7 +634,7 @@ function RowActions({ cannotWrite, item, onArchive, onEdit, onReactivate, onView
 function Status({ item }) { return <span className={`inventory-status inventory-status--${item.estado === "activo" ? "active" : "archived"}`}>{item.estado === "activo" ? "Activo" : "Archivado"}</span>; }
 function Actions({ cannotWrite, item, onArchive, onEdit, onReactivate, onViewReferences }) { const canView = item.tipoItem === "producto" && item.estado === "activo"; if (cannotWrite && !canView) return null; return <div className="inventory-row-actions">{canView && <button type="button" onClick={() => onViewReferences(item)}>Ver referencias</button>}{!cannotWrite && <><button type="button" onClick={() => onEdit(item)}>Editar</button>{item.estado === "activo" ? <button type="button" onClick={() => onArchive(item)}><AppIcon icon={Archive} size={15} />Archivar</button> : <button type="button" onClick={() => onReactivate(item)}><AppIcon icon={RotateCcw} size={15} />Reactivar</button>}</>}</div>; }
 
-function ItemDetail({ acquisitions, acquisitionsState, areas, cannotWrite, categories, item, lowStockSettings, onArchive, onClose, onEdit, onReactivate, onViewReferences, showCosts, taxRate = null }) {
+function ItemDetail({ acquisitions, acquisitionsState, areas, cannotWrite, categories, item, lowStockSettings, onArchive, onClose, onEdit, onReactivate, onViewReferences, showAcquisitions, showCosts, taxRate = null }) {
   const formatBusinessAmount = useBusinessMoney();
   const { locale: businessLocale } = useBusinessFormat();
   if (!item) return null;
@@ -676,7 +679,7 @@ function ItemDetail({ acquisitions, acquisitionsState, areas, cannotWrite, categ
       {adapted.tipoItem === "producto" && <><Detail label="Stock actual" value={`${adapted.stock} ${adapted.unidadStock || adapted.unidad}`} /><Detail label="Stock mínimo" value={adapted.stockMinimo} /><Detail label="Nivel de stock" value={isInventoryLowStock(adapted, lowStockSettings) ? "Stock bajo" : "Disponible"} /></>}
     </dl>
     {adapted.descripcion && <div className="inventory-detail-description"><strong>Descripción</strong><p>{adapted.descripcion}</p></div>}
-    {showCosts && adapted.tipoItem === "producto" && <AcquisitionHistory acquisitions={acquisitions} state={acquisitionsState} />}
+    {showAcquisitions && adapted.tipoItem === "producto" && <AcquisitionHistory acquisitions={acquisitions} state={acquisitionsState} />}
   </ResponsiveDialog>;
 }
 function AcquisitionHistory({ acquisitions, state }) {
