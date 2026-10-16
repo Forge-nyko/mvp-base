@@ -530,7 +530,7 @@ assert.match(rules, /match \/trabajos\/\{trabajoId\}/); assert.match(rules, /mat
 assert.match(backend, /workCounters/); assert.match(backend, /workCreateRequests/); assert.match(backend, /workTaskRequests/); assert.match(backend, /workCostRequests/); assert.match(backend, /requireBusinessAccess/);
 assert.match(backend, /runTransaction[\s\S]*transaction\.get\(counterRef\)[\s\S]*transaction\.set\(counterRef/);
 assert.match(page, /ResponsiveDialog/); assert.doesNotMatch(page, /window\.confirm|actorUid/); assert.match(page, /works-board/); assert.match(page, /Historial del trabajo/); assert.match(page, /TaskSection/); assert.match(page, /FinancialSection/); assert.match(page, /No tienes tareas asignadas/);
-assert.match(page, /\+ Nuevo cliente/); assert.match(page, /openCreateClient/); assert.match(page, /editingWork \|\| hasAdditionalMembers/);
+assert.match(page, /\+ Nuevo cliente/); assert.match(page, /openCreateClient/); assert.match(page, /No hay otros miembros activos en tu negocio/); assert.doesNotMatch(page, /hasAdditionalMembers|editingWork \|\| hasAdditionalMembers/); assert.match(page, /<legend>Equipo</); assert.match(page, /participanteUids: draft\.participanteUids\.includes\(member\.uid\)|draft\.participanteUids\.includes\(member\.uid\)/);
 assert.match(page, /Responsable principal/); assert.match(page, /Equipo adicional/); assert.match(page, /Sin integrantes/); assert.doesNotMatch(page, /<Field[^>]+label="Número"/);
 assert.match(page, /member\.uid === currentUserUid && member\.estado === "activo"/); assert.match(page, /responsableUid: currentMember\?\.uid \|\| ""/);
 assert.match(page, /label="Cotización asociada" optional/); assert.match(page, /<WorkQuoteSelector/); assert.match(page, /getEligibleWorkQuoteOptions/);
@@ -540,10 +540,10 @@ assert.match(page, /label="Descripción" optional/); assert.match(page, /label="
 assert.match(page, /Escribe un nombre breve para identificar el proyecto/); assert.match(page, /Describe el requerimiento o lo informado por el cliente/); assert.match(page, /El número TRB y el estado Pendiente se asignarán automáticamente\./);
 assert.doesNotMatch(page, /Nueva cotización/); assert.doesNotMatch(page, /fecha de ingreso se asignarán automáticamente/);
 assert.match(styles, /works-form-automatic-note/); assert.match(styles, /@media\(min-width:768px\)[\s\S]*works-form-dialog \.responsive-dialog__body/);
-assert.match(page, /function DetailDisclosure[\s\S]*<details className="works-detail-disclosure">/); assert.match(page, /className="works-costs-focus"/); assert.match(page, /title="Notas del proyecto"/); assert.match(page, /title="Historial del trabajo"/);
-assert.match(page, /<h3>Resumen<\/h3>[\s\S]*<TaskSection[\s\S]*<h3>Costos<\/h3>[\s\S]*title="Notas del proyecto"[\s\S]*title="Historial del trabajo"/);
+assert.match(page, /function DetailDisclosure[\s\S]*<details className="works-detail-disclosure"/); assert.match(page, /className="works-costs-focus"/); assert.match(page, /title="Notas del proyecto"/); assert.match(page, /title="Historial del trabajo"/);
+assert.match(page, /id="datos"[\s\S]*id="comercial"[\s\S]*<CommercialFile[\s\S]*<WorkAdditionalsSection[\s\S]*id="operacion"[\s\S]*<TaskSection[\s\S]*<h3>Costos<\/h3>[\s\S]*<MaterialsSection[\s\S]*<FinancialSection[\s\S]*id="balance"[\s\S]*<WorkBalanceSection[\s\S]*<DailyCostSummary[\s\S]*<SaleMaterialsGroup[\s\S]*id="notas"[\s\S]*title="Notas del proyecto"[\s\S]*title="Historial del trabajo"/);
 assert.match(page, /Aún no hay venta confirmada para calcular resultado y margen\./); assert.match(page, /Aún no se han registrado consumos adicionales\./); assert.match(page, /Aún no se han registrado gastos\./); assert.match(page, /Aún no se han registrado horas hombre\./);
-assert.match(page, /Materiales incluidos en la venta/); assert.match(page, /Registra aquí sólo consumos adicionales del proyecto/); assert.match(page, /Costo estimado de esta salida/);
+assert.match(page, /Materiales incluidos en la venta/); assert.match(page, /Los consumos adicionales del proyecto se registran en Operación/); assert.match(page, /Costo estimado de esta salida/);
 assert.match(page, /Costo asignado a esta tarea/); assert.match(page, /Último avance/); assert.match(page, /Sin actividad reciente/); assert.match(page, /Completar igualmente/); assert.match(page, /Motivo de espera/);
 assert.match(page, /TaskCostSelect/); assert.match(page, /Costos por día/); assert.match(page, /Nueva subtarea/); assert.match(page, /subtask\.completada/);
 assert.match(page, /const completed = selectedWork\?\.estado === "completado"/);
@@ -554,7 +554,7 @@ assert.match(page, /canRegister && !readOnly && <form className="works-cost-form
 assert.match(page, /canRegister && !readOnly && <form className="works-cost-form" onSubmit=\{saveLabor\}/);
 assert.match(page, /canManage && !readOnly && entry\.estado !== "anulado"/);
 assert.match(page, /canManage && !readOnly && remaining > 0/);
-assert.match(page, /!operationalReadOnly && <Button[^>]+onClick=\{\(\) => setCancelWork\(selectedWork\)\}>Cancelar trabajo/);
+assert.match(page, /!operationalReadOnly && <MoreActionsMenu actions=\{\[\{label: "Cancelar trabajo", onSelect: \(\) => setCancelWork\(selectedWork\)\}\]\}/); assert.doesNotMatch(page, /variant="ghost-danger" onClick=\{\(\) => setCancelWork/);
 assert.match(page, /open=\{Boolean\(cancelWork\) && !isWorkOperationalReadOnly\(cancelWork\)\}/);
 assert.match(page, /Reabrir proyecto/);
 assert.match(page, /visibleExpenses\.map/); assert.match(page, /visibleLabor\.map/); assert.match(page, /exits\.map/); assert.match(page, /saleMaterials\.map/);
@@ -563,6 +563,24 @@ assert.doesNotMatch(page, /Costos \/ ingreso|<dt>Rentabilidad<\/dt>|<th>Avance<\
 assert.match(page, /El costo histórico de/);
 assert.match(backend, /agregarSubtareaTrabajoHandler/); assert.match(backend, /actualizarSubtareaTrabajoHandler/); assert.match(backend, /eliminarSubtareaTrabajoHandler/); assert.match(backend, /tareaId: taskId/);
 assert.match(styles, /works-detail-disclosure\[open\]/); assert.match(styles, /works-commercial-list[\s\S]*grid-template-columns/);
+// Ficha por pestañas: cabecera siempre visible, componente compartido <Tabs>, formulario con "Más detalles" cerrado.
+assert.match(page, /import \{TabPanel, Tabs\} from "\.\.\/components\/ui\/Tabs"/); assert.match(page, /import MoreActionsMenu from "\.\.\/components\/ui\/MoreActionsMenu"/);
+assert.match(page, /const WORK_DETAIL_TABS = Object\.freeze\(\[\s*\{id: "datos", label: "Datos"\},\s*\{id: "comercial", label: "Comercial"\},\s*\{id: "operacion", label: "Operación"\},\s*\{id: "balance", label: "Balance"\},\s*\{id: "notas", label: "Notas e historial"\},\s*\]\)/);
+assert.match(page, /const \[detailTab, setDetailTab\] = useState\("datos"\)/); assert.match(page, /setDetailTab\("datos"\);\s*loadDetail\(requestedWork\.id\)/); assert.match(page, /const openDetail = \(work\) => \{[^}]*setDetailTab\("datos"\)/);
+assert.ok(page.indexOf('<div className="works-detail-header">') < page.indexOf("<WorkSummary work={selectedWork}") && page.indexOf("<WorkSummary work={selectedWork}") < page.indexOf("<Tabs className="), "la cabecera (estado, acciones y franja) va antes y fuera de las pestañas");
+assert.match(page, /<details className="works-more-details" open=\{moreDetailsOpen\}/); assert.match(page, /useState\(false\);\s*const \[detailTab/);
+assert.ok(page.indexOf("<summary>Más detalles</summary>") < page.indexOf('label="Descripción" optional') && page.indexOf("<summary>Más detalles</summary>") < page.indexOf('label="Inicio planificado" optional'), "Descripción e Inicio planificado viven dentro de Más detalles");
+assert.ok(page.indexOf('label="Término planificado" optional') < page.indexOf("<summary>Más detalles</summary>"), "Término planificado queda visible");
+{
+  const datos = page.slice(page.indexOf('id="datos" idPrefix'), page.indexOf('id="comercial" idPrefix'));
+  assert.doesNotMatch(datos, /Término planificado/, "Datos no repite el término que ya muestra la franja");
+  assert.match(datos, /works-empty-line/);
+}
+assert.match(page, /\{canViewWorkProfitability\(role\) && <WorkBalanceSection balance=\{detail\.balance\} loading=\{detailLoading\} \/>\}/);
+const tabsSource = fs.readFileSync("src/components/ui/Tabs.jsx", "utf8");
+assert.match(tabsSource, /role="tablist"/); assert.match(tabsSource, /role="tab"/); assert.match(tabsSource, /role="tabpanel"/); assert.match(tabsSource, /aria-selected=/); assert.match(tabsSource, /ArrowRight/); assert.match(tabsSource, /hidden=\{!active\}/);
+const componentsCss = fs.readFileSync("src/styles/components.css", "utf8");
+assert.match(componentsCss, /\.ui-tabs \{/); assert.match(componentsCss, /\.ui-tab\.is-active \{/); assert.match(componentsCss, /\.ui-tab-panel\[hidden\] \{/);
 console.log("OK integración: Rules, autoridad backend, lista/tablero y confirmación segura");
 
 const scanProducts = [{id: "p1", nombre: "Cable", barcode: "0012345678905"}, {id: "p2", nombre: "Switch", codigoBarras: "7801234567890"}];

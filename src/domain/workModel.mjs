@@ -144,10 +144,20 @@ export function isWorkOperationalReadOnly(work = {}) {
   return ["completado", "cancelado"].includes(work?.estado);
 }
 
+// Textos de relleno que el backend (businessMemberships.js) y el adaptador
+// (adaptBusinessMember) escriben cuando una persona no tiene nombre. Ninguno
+// es un nombre real: la identidad debe caer al correo.
+const PLACEHOLDER_PERSON_NAMES = new Set(["sin nombre registrado", "nombre no informado", "usuario sin identificar"]);
+
+function realPersonName(value) {
+  const name = String(value || "").trim();
+  return name && !PLACEHOLDER_PERSON_NAMES.has(name.toLocaleLowerCase("es-CL")) ? name : "";
+}
+
 export function getWorkMemberIdentity(member) {
   const safeMember = member || {};
-  const name = String(safeMember.nombre || "").trim();
-  if (name && name !== "Sin nombre registrado") return name;
+  const name = realPersonName(safeMember.nombre);
+  if (name) return name;
   const email = String(safeMember.correo || "").trim();
   if (email && email !== "Sin correo disponible") return email;
   return "Usuario sin identificar";
@@ -155,10 +165,7 @@ export function getWorkMemberIdentity(member) {
 
 export function getWorkHistoricalPersonIdentity(snapshot, uid = "", members = [], fallback = "Una persona del equipo") {
   const safeSnapshot = snapshot || {};
-  const validName = (value) => {
-    const name = String(value || "").trim();
-    return name && !["sin nombre registrado", "usuario sin identificar"].includes(name.toLocaleLowerCase("es-CL")) ? name : "";
-  };
+  const validName = realPersonName;
   const snapshotName = validName(safeSnapshot.nombre);
   if (snapshotName) return snapshotName;
   const snapshotEmail = String(safeSnapshot.correo || "").trim();

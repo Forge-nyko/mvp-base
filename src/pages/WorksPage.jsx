@@ -6,14 +6,16 @@ import BarcodeInput from "../components/barcode/BarcodeInput";
 import Button from "../components/ui/Button";
 import EmptyStateIllustration from "../components/ui/EmptyStateIllustration";
 import LoadingState from "../components/ui/LoadingState";
+import MoreActionsMenu from "../components/ui/MoreActionsMenu";
 import ResponsiveDialog from "../components/ui/ResponsiveDialog";
 import {SkeletonCards, SkeletonRegion, SkeletonTable} from "../components/ui/Skeleton";
 import StatusBadge from "../components/ui/StatusBadge";
+import {TabPanel, Tabs} from "../components/ui/Tabs";
 import WorkAdditionalsSection from "../features/works/WorkAdditionalsSection.jsx";
 import WorkExpenseEvidence from "../features/works/WorkExpenseEvidence.jsx";
 import WorkQuoteSelector from "../features/works/WorkQuoteSelector.jsx";
 import WorkTaskBoard from "../features/works/WorkTaskBoard.jsx";
-import {WORK_EXPENSE_CATEGORIES, WORK_PRIORITIES, WORK_STATUSES, WORK_TASK_STATUSES, buildQuickWorkCreationPayload, buildWorkDailyCostSummary, canManageWorks, canOperateWorkTask, canViewWorkProfitability, getEligibleWorkQuoteOptions, getInventoryCurrentCost, getTaskProgress, getVisibleWorkTasks, getWorkAccumulatedCost, getWorkCostSummary, getWorkDraftErrors, getWorkHistoricalPersonIdentity, getWorkMemberIdentity, getWorkMemberOptionLabel, getWorkOperationalIndicators, getWorkPriorityLabel, getWorkSaleMaterials, getWorkStatusLabel, getWorkTaskProgress, getWorkTaskStatusOptions, hasAdditionalWorkMembers, humanizeWorkEvent, isWorkOperationalReadOnly, matchesWorkFilters, resolveWorkMaterialScan} from "../domain/workModel.mjs";
+import {WORK_EXPENSE_CATEGORIES, WORK_PRIORITIES, WORK_STATUSES, WORK_TASK_STATUSES, buildQuickWorkCreationPayload, buildWorkDailyCostSummary, canManageWorks, canOperateWorkTask, canViewWorkProfitability, getEligibleWorkQuoteOptions, getInventoryCurrentCost, getTaskProgress, getVisibleWorkTasks, getWorkAccumulatedCost, getWorkCostSummary, getWorkDraftErrors, getWorkHistoricalPersonIdentity, getWorkMemberIdentity, getWorkMemberOptionLabel, getWorkOperationalIndicators, getWorkPriorityLabel, getWorkSaleMaterials, getWorkStatusLabel, getWorkTaskProgress, getWorkTaskStatusOptions, humanizeWorkEvent, isWorkOperationalReadOnly, matchesWorkFilters, resolveWorkMaterialScan} from "../domain/workModel.mjs";
 import {canManageSales} from "../domain/saleModel.mjs";
 import {listarMiembrosNegocio} from "../services/businessMemberService.js";
 import {listarClientes} from "../services/clientService.js";
@@ -28,6 +30,13 @@ import useBusinessFormat from "../hooks/useBusinessFormat";
 const EMPTY_WORK = Object.freeze({titulo: "", descripcion: "", clienteId: "", cotizacionId: "", responsableUid: "", participanteUids: [], estado: "pendiente", prioridad: "normal", fechaInicio: "", fechaPrevista: ""});
 const BOARD_STATUSES = ["pendiente", "en_progreso", "en_espera", "completado"];
 const NEW_CLIENT_VALUE = "__new_client__";
+const WORK_DETAIL_TABS = Object.freeze([
+  {id: "datos", label: "Datos"},
+  {id: "comercial", label: "Comercial"},
+  {id: "operacion", label: "Operación"},
+  {id: "balance", label: "Balance"},
+  {id: "notas", label: "Notas e historial"},
+]);
 
 function dateLabel(value, withTime = false) {
   if (!value) return "—";
@@ -79,6 +88,8 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
   const [cancelWork, setCancelWork] = useState(null);
   const [pendingState, setPendingState] = useState(null);
   const [waitReason, setWaitReason] = useState("");
+  const [moreDetailsOpen, setMoreDetailsOpen] = useState(false);
+  const [detailTab, setDetailTab] = useState("datos");
 
   const load = useCallback(async () => {
     if (!businessId) return;
@@ -126,11 +137,12 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
     if (requestedWork) {
       setSelectedWork(requestedWork);
       setNoteText("");
+      setDetailTab("datos");
       loadDetail(requestedWork.id);
     }
   }, [loadDetail, loading, location.state, navigate, works]);
 
-  const openDetail = (work) => { setSelectedWork(work); setNoteText(""); loadDetail(work.id); };
+  const openDetail = (work) => { setSelectedWork(work); setNoteText(""); setDetailTab("datos"); loadDetail(work.id); };
   const refreshWork = async (workId) => {
     const [list, inventoryList] = await Promise.all([listarTrabajos(businessId, {role, currentUserUid}), getInventoryItems(businessId)]); setWorks(list); setInventoryProducts(inventoryList.filter((item) => item.estado === "activo" && item.tipoItem === "producto")); setCatalogItems(inventoryList.filter((item) => item.estado === "activo"));
     const current = list.find((work) => work.id === workId);
@@ -147,7 +159,7 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
     return selectedQuote ? [{quote: selectedQuote, sale: selectedSale}, ...eligible] : eligible;
   }, [draft.cotizacionId, editingWork?.id, quotes, sales]);
   const commercialLinkLocked = Boolean(editingWork && (editingWork.cotizacionId || editingWork.cotizacionesVinculadas || editingWork.ventasVinculadas));
-  const hasAdditionalMembers = hasAdditionalWorkMembers(members, currentUserUid);
+  const teamCandidates = members.filter((member) => member.uid !== draft.responsableUid);
   const updateDraft = (field, value) => { setDraft((current) => ({...current, [field]: value})); setFieldErrors((current) => ({...current, [field]: ""})); };
   const selectPrincipal = (event) => {
     const responsableUid = event.target.value;
@@ -160,9 +172,10 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
     setDraft(buildQuickWorkCreationPayload({...EMPTY_WORK, responsableUid: currentMember?.uid || ""}));
     setFieldErrors({});
     createRequestRef.current = createWorkRequestId();
+    setMoreDetailsOpen(false);
     setFormOpen(true);
   };
-  const openEdit = (work) => { if (isWorkOperationalReadOnly(work)) return; setSelectedWork(null); setEditingWork(work); setDraft({titulo: work.titulo, descripcion: work.descripcion, clienteId: work.clienteId, cotizacionId: work.cotizacionId, responsableUid: work.responsableUid, participanteUids: work.participanteUids, estado: work.estado, prioridad: work.prioridad, fechaInicio: work.fechaInicio, fechaPrevista: work.fechaPrevista}); setFieldErrors({}); setFormOpen(true); };
+  const openEdit = (work) => { if (isWorkOperationalReadOnly(work)) return; setSelectedWork(null); setEditingWork(work); setDraft({titulo: work.titulo, descripcion: work.descripcion, clienteId: work.clienteId, cotizacionId: work.cotizacionId, responsableUid: work.responsableUid, participanteUids: work.participanteUids, estado: work.estado, prioridad: work.prioridad, fechaInicio: work.fechaInicio, fechaPrevista: work.fechaPrevista}); setFieldErrors({}); setMoreDetailsOpen(false); setFormOpen(true); };
   const selectQuote = (cotizacionId) => {
     const option = quoteOptions.find(({quote}) => quote.id === cotizacionId);
     setDraft((current) => ({...current, cotizacionId, clienteId: option?.quote.clienteId || ""}));
@@ -178,7 +191,7 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
   };
 
   const save = async (event) => {
-    event.preventDefault(); const payload = editingWork ? draft : buildQuickWorkCreationPayload(draft); const errors = getWorkDraftErrors(payload); setFieldErrors(errors); if (Object.keys(errors).length) return;
+    event.preventDefault(); const payload = editingWork ? draft : buildQuickWorkCreationPayload(draft); const errors = getWorkDraftErrors(payload); setFieldErrors(errors); if (errors.descripcion || errors.fechaInicio) setMoreDetailsOpen(true); if (Object.keys(errors).length) return;
     setSaving(true); setError("");
     try {
       let workId = editingWork?.id;
@@ -232,18 +245,23 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
             <Field className="works-field--wide" label="Nombre" required error={fieldErrors.titulo}><input autoFocus className="erp-control" maxLength="180" placeholder="Escribe un nombre breve para identificar el proyecto" value={draft.titulo} onChange={(event) => updateDraft("titulo", event.target.value)} /></Field>
             <Field className="works-field--wide" label="Cotización asociada" optional error={fieldErrors.cotizacionId}><WorkQuoteSelector currencyCode={currencyCode} disabled={commercialLinkLocked} loading={loading} onChange={selectQuote} options={quoteOptions} value={draft.cotizacionId} /></Field>
             <Field className="works-field--wide" label="Cliente" optional><select className="erp-control" disabled={Boolean(draft.cotizacionId)} value={draft.clienteId} onChange={selectClient}><option value="">Sin cliente</option>{clients.map((client) => <option key={client.clienteId} value={client.clienteId}>{client.nombreRazonSocial} · {client.rut}</option>)}{!draft.cotizacionId && <option value={NEW_CLIENT_VALUE}>+ Nuevo cliente</option>}</select></Field>
-            <Field className="works-field--wide" label="Descripción" optional error={fieldErrors.descripcion}><textarea className="erp-control" rows="2" maxLength="5000" placeholder="Describe el requerimiento o lo informado por el cliente" value={draft.descripcion} onChange={(event) => updateDraft("descripcion", event.target.value)} /></Field>
           </div>
         </FormSection>
         <FormSection title="Planificación">
           <div className="works-form-grid">
             <Field label="Responsable" optional><select className="erp-control" value={draft.responsableUid} onChange={selectPrincipal}><option value="">Sin responsable</option>{members.map((member) => <option key={member.uid} value={member.uid}>{editingWork ? getWorkMemberIdentity(member) : getWorkMemberOptionLabel(member, currentUserUid)}</option>)}</select></Field>
             <Field label="Prioridad" required error={fieldErrors.prioridad}><select className="erp-control" value={draft.prioridad} onChange={(event) => updateDraft("prioridad", event.target.value)}>{WORK_PRIORITIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field>
-            <Field label="Inicio planificado" optional error={fieldErrors.fechaInicio}><input className="erp-control" type="date" value={draft.fechaInicio} onChange={(event) => updateDraft("fechaInicio", event.target.value)} /></Field>
+            <fieldset className="works-participants works-field--wide"><legend>Equipo<span className="works-field-optional">Opcional</span></legend>{teamCandidates.length ? <div>{teamCandidates.map((member) => <label key={member.uid} className="ui-checkbox"><input className="ui-checkbox__input" type="checkbox" checked={draft.participanteUids.includes(member.uid)} onChange={(event) => updateDraft("participanteUids", event.target.checked ? [...draft.participanteUids, member.uid] : draft.participanteUids.filter((uid) => uid !== member.uid))} /><span className="ui-checkbox__label">{getWorkMemberIdentity(member)}</span></label>)}</div> : <p className="works-empty-line">No hay otros miembros activos en tu negocio</p>}</fieldset>
             <Field label="Término planificado" optional error={fieldErrors.fechaPrevista}><input className="erp-control" type="date" value={draft.fechaPrevista} onChange={(event) => updateDraft("fechaPrevista", event.target.value)} /></Field>
-            {(editingWork || hasAdditionalMembers) && <fieldset className="works-participants works-field--wide"><legend>Equipo de trabajo</legend><div>{members.filter((member) => member.uid !== draft.responsableUid).map((member) => <label key={member.uid}><input type="checkbox" checked={draft.participanteUids.includes(member.uid)} onChange={(event) => updateDraft("participanteUids", event.target.checked ? [...draft.participanteUids, member.uid] : draft.participanteUids.filter((uid) => uid !== member.uid))} />{getWorkMemberIdentity(member)}</label>)}{!members.length && <span>No hay miembros activos disponibles.</span>}</div></fieldset>}
           </div>
         </FormSection>
+        <details className="works-more-details" open={moreDetailsOpen} onToggle={(event) => setMoreDetailsOpen(event.currentTarget.open)}>
+          <summary>Más detalles</summary>
+          <div className="works-form-grid">
+            <Field className="works-field--wide" label="Descripción" optional error={fieldErrors.descripcion}><textarea className="erp-control" rows="2" maxLength="5000" placeholder="Describe el requerimiento o lo informado por el cliente" value={draft.descripcion} onChange={(event) => updateDraft("descripcion", event.target.value)} /></Field>
+            <Field label="Inicio planificado" optional error={fieldErrors.fechaInicio}><input className="erp-control" type="date" value={draft.fechaInicio} onChange={(event) => updateDraft("fechaInicio", event.target.value)} /></Field>
+          </div>
+        </details>
         {!editingWork && <p className="works-form-automatic-note">El número TRB y el estado Pendiente se asignarán automáticamente.</p>}
       </form>
     </ResponsiveDialog>
@@ -267,7 +285,7 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
                     {WORK_STATUSES.filter((item) => item.value !== "cancelado" && item.value !== selectedWork.estado).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
                 </label>}
-                {!operationalReadOnly && <Button type="button" variant="ghost-danger" onClick={() => setCancelWork(selectedWork)}>Cancelar trabajo</Button>}
+                {!operationalReadOnly && <MoreActionsMenu actions={[{label: "Cancelar trabajo", onSelect: () => setCancelWork(selectedWork)}]} menuLabel="Más acciones del proyecto" />}
               </>}
             </div>
             <WorkSummary work={selectedWork} cost={projectCost.total} members={members} />
@@ -276,58 +294,68 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
           </div>
 
           {detailError ? <LoadFailure message={detailError} onRetry={() => loadDetail(selectedWork.id)} /> : <>
-          <section className="works-detail-section works-overview">
-            <h3>Resumen</h3>
-            <div className="works-overview-description">
-              <h4>Descripción</h4>
-              <p>{selectedWork.descripcion || "Sin descripción registrada."}</p>
-            </div>
-            <dl className="works-overview-meta">
-              <div><dt>Equipo adicional</dt><dd>{selectedWork.participantesSnapshot?.map((person) => workPersonIdentity(person, person.uid, members, "Integrante sin identificar")).join(", ") || "Sin integrantes"}</dd></div>
-              <div><dt>Inicio planificado</dt><dd>{dateLabel(selectedWork.fechaInicio)}</dd></div>
-              <div><dt>Término planificado</dt><dd>{dateLabel(selectedWork.fechaPrevista)}</dd></div>
-              {completed && selectedWork.fechaCompletado && <div><dt>Completado el</dt><dd>{dateLabel(selectedWork.fechaCompletado, true)}</dd></div>}
-            </dl>
-            <CommercialFile canManage={canManage} detail={detail} loading={detailLoading} navigate={navigate} />
-          </section>
-
-          <TaskSection key={selectedWork.id} businessId={businessId} canManage={canManage} costs={{expenses: detail.gastos, labor: detail.horasHombre, materials: detail.materiales}} currency={selectedWork.moneda || currencyCode || "CLP"} currentUserUid={currentUserUid} loading={detailLoading} members={members} processing={processing} role={role} runAction={runDetailAction} tasks={detail.tareas} terminal={terminal} workId={selectedWork.id} />
-
-          <section className="works-costs-focus">
-            <div className="works-section-heading"><div><h3>Costos</h3><span>Materiales, HH, gastos y resumen diario</span></div><strong>{formatMoney(projectCost.total, selectedWork.moneda || currencyCode || "CLP", businessLocale)}</strong></div>
-            <div className="works-resources">
-              <MaterialsSection key={`materials-${selectedWork.id}`} businessId={businessId} canManage={canManage} currency={selectedWork.moneda || currencyCode || "CLP"} currentUserUid={currentUserUid} hasAssociatedSale={detail.ventas.some((sale) => sale.estado === "confirmada")} loading={detailLoading} movements={detail.materiales} processing={processing} products={inventoryProducts} readOnly={operationalReadOnly} role={role} runAction={runDetailAction} saleMaterials={saleMaterials} tasks={detail.tareas} workId={selectedWork.id} />
-              <FinancialSection key={`costs-${selectedWork.id}`} businessId={businessId} canManage={canManage} currency={selectedWork.moneda || currencyCode || "CLP"} currentUserUid={currentUserUid} expenses={detail.gastos} labor={detail.horasHombre} loading={detailLoading} members={members} processing={processing} readOnly={operationalReadOnly} role={role} runAction={runDetailAction} tasks={detail.tareas} workId={selectedWork.id} />
-              <WorkAdditionalsSection
-                key={`additionals-${selectedWork.id}`}
-                additionals={detail.adicionales}
-                canManage={canManage}
-                catalogItems={catalogItems}
-                currency={selectedWork.moneda || currencyCode || "CLP"}
-                loading={detailLoading}
-                onAnnul={(additionalId, motivo) => runDetailAction(`additional-annul-${additionalId}`, () => anularAdicionalTrabajo(businessId, selectedWork.id, additionalId, motivo, createWorkCostRequestId("additional-annul")))}
-                onCreate={(payload) => runDetailAction("additional-new", () => crearAdicionalTrabajo(businessId, selectedWork.id, payload, createWorkCostRequestId("additional-create")))}
-                onCreateSale={canManageSales(role) ? () => navigate("/ventas/nueva", {state: {trabajoId: selectedWork.id, trabajoNumero: selectedWork.numero, trabajoTitulo: selectedWork.titulo}}) : undefined}
-                processing={processing}
-                readOnly={operationalReadOnly}
-                role={role}
-                tasks={detail.tareas}
-              />
-              <DailyCostSummary currency={selectedWork.moneda || currencyCode || "CLP"} rows={dailyCosts} />
-              {canViewWorkProfitability(role) && <WorkBalanceSection balance={detail.balance} loading={detailLoading} />}
-            </div>
-          </section>
-
-          <DetailDisclosure key={`notes-${selectedWork.id}`} title="Notas del proyecto" summary={`${detail.notas.length} nota${detail.notas.length === 1 ? "" : "s"}`}>
-            <section className="works-notes-section">
-              {canManage && !operationalReadOnly && <form className="works-note-form" onSubmit={addNote}><textarea className="erp-control" rows="2" maxLength="4000" value={noteText} onChange={(event) => setNoteText(event.target.value)} placeholder="Agrega una actualización o antecedente relevante." /><Button type="submit" disabled={processing === "note-new"}>Agregar nota</Button></form>}
-              <div className="works-notes">{detail.notas.map((note) => <article key={note.id}><header><strong>{workPersonIdentity(note.autorSnapshot, note.autorUid, members, "Persona del equipo")}</strong><time>{dateLabel(note.creadoEn, true)}</time></header><p>{note.texto}</p></article>)}{!detail.notas.length && <p className="works-empty-copy">Aún no hay notas.</p>}</div>
+          <Tabs className="works-detail-tabs" idPrefix="work-detail" label="Secciones del proyecto" onChange={setDetailTab} tabs={WORK_DETAIL_TABS} value={detailTab} />
+          <TabPanel active={detailTab === "datos"} id="datos" idPrefix="work-detail">
+            <section className="works-detail-section works-overview">
+              <h3>Datos</h3>
+              <dl className="works-overview-meta">
+                <div className="works-overview-meta__wide"><dt>Descripción</dt><dd className={selectedWork.descripcion ? "works-overview-description" : "works-empty-line"}>{selectedWork.descripcion || "Sin descripción registrada."}</dd></div>
+                <div className="works-overview-meta__wide"><dt>Equipo adicional</dt><dd className={selectedWork.participantesSnapshot?.length ? "" : "works-empty-line"}>{selectedWork.participantesSnapshot?.map((person) => workPersonIdentity(person, person.uid, members, "Integrante sin identificar")).join(", ") || "Sin integrantes"}</dd></div>
+                <div><dt>Inicio planificado</dt><dd>{dateLabel(selectedWork.fechaInicio)}</dd></div>
+                {completed && selectedWork.fechaCompletado && <div><dt>Completado el</dt><dd>{dateLabel(selectedWork.fechaCompletado, true)}</dd></div>}
+              </dl>
             </section>
-          </DetailDisclosure>
+          </TabPanel>
 
-          <DetailDisclosure key={`history-${selectedWork.id}`} title="Historial del trabajo" summary={`${detail.historial.length} evento${detail.historial.length === 1 ? "" : "s"}`}>
-            {detailLoading ? <LoadingState variant="section" label="Cargando historial..." /> : <ol className="works-timeline">{detail.historial.map((event) => <li key={event.id}><time>{dateLabel(event.fecha, true)}</time><p>{humanizeWorkEvent({...event, actorSnapshot: {...event.actorSnapshot, nombre: workPersonIdentity(event.actorSnapshot, "", members, "Una persona del equipo")}}, {includeAmounts: canManage})}</p>{event.tipo === "nota_agregada" && event.detalle?.texto && <blockquote>{event.detalle.texto}</blockquote>}</li>)}</ol>}
-          </DetailDisclosure>
+          <TabPanel active={detailTab === "comercial"} id="comercial" idPrefix="work-detail">
+            <section className="works-detail-section"><CommercialFile canManage={canManage} detail={detail} loading={detailLoading} navigate={navigate} /></section>
+            <WorkAdditionalsSection
+              key={`additionals-${selectedWork.id}`}
+              additionals={detail.adicionales}
+              canManage={canManage}
+              catalogItems={catalogItems}
+              currency={selectedWork.moneda || currencyCode || "CLP"}
+              loading={detailLoading}
+              onAnnul={(additionalId, motivo) => runDetailAction(`additional-annul-${additionalId}`, () => anularAdicionalTrabajo(businessId, selectedWork.id, additionalId, motivo, createWorkCostRequestId("additional-annul")))}
+              onCreate={(payload) => runDetailAction("additional-new", () => crearAdicionalTrabajo(businessId, selectedWork.id, payload, createWorkCostRequestId("additional-create")))}
+              onCreateSale={canManageSales(role) ? () => navigate("/ventas/nueva", {state: {trabajoId: selectedWork.id, trabajoNumero: selectedWork.numero, trabajoTitulo: selectedWork.titulo}}) : undefined}
+              processing={processing}
+              readOnly={operationalReadOnly}
+              role={role}
+              tasks={detail.tareas}
+            />
+          </TabPanel>
+
+          <TabPanel active={detailTab === "operacion"} id="operacion" idPrefix="work-detail">
+            <TaskSection key={selectedWork.id} businessId={businessId} canManage={canManage} costs={{expenses: detail.gastos, labor: detail.horasHombre, materials: detail.materiales}} currency={selectedWork.moneda || currencyCode || "CLP"} currentUserUid={currentUserUid} loading={detailLoading} members={members} processing={processing} role={role} runAction={runDetailAction} tasks={detail.tareas} terminal={terminal} workId={selectedWork.id} />
+
+            <section className="works-costs-focus">
+              <div className="works-section-heading"><div><h3>Costos</h3><span>Materiales, HH y gastos</span></div><strong>{formatMoney(projectCost.total, selectedWork.moneda || currencyCode || "CLP", businessLocale)}</strong></div>
+              <div className="works-resources">
+                <MaterialsSection key={`materials-${selectedWork.id}`} businessId={businessId} canManage={canManage} currency={selectedWork.moneda || currencyCode || "CLP"} currentUserUid={currentUserUid} loading={detailLoading} movements={detail.materiales} processing={processing} products={inventoryProducts} readOnly={operationalReadOnly} role={role} runAction={runDetailAction} saleMaterials={saleMaterials} tasks={detail.tareas} workId={selectedWork.id} />
+                <FinancialSection key={`costs-${selectedWork.id}`} businessId={businessId} canManage={canManage} currency={selectedWork.moneda || currencyCode || "CLP"} currentUserUid={currentUserUid} expenses={detail.gastos} labor={detail.horasHombre} loading={detailLoading} members={members} processing={processing} readOnly={operationalReadOnly} role={role} runAction={runDetailAction} tasks={detail.tareas} workId={selectedWork.id} />
+              </div>
+            </section>
+          </TabPanel>
+
+          <TabPanel active={detailTab === "balance"} id="balance" idPrefix="work-detail">
+            {canViewWorkProfitability(role) && <WorkBalanceSection balance={detail.balance} loading={detailLoading} />}
+            <DailyCostSummary currency={selectedWork.moneda || currencyCode || "CLP"} loading={detailLoading} rows={dailyCosts} />
+            {detail.ventas.some((sale) => sale.estado === "confirmada") && <SaleMaterialsGroup currency={selectedWork.moneda || currencyCode || "CLP"} loading={detailLoading} readOnly={operationalReadOnly} saleMaterials={saleMaterials} />}
+          </TabPanel>
+
+          <TabPanel active={detailTab === "notas"} id="notas" idPrefix="work-detail">
+            <DetailDisclosure key={`notes-${selectedWork.id}`} defaultOpen title="Notas del proyecto" summary={`${detail.notas.length} nota${detail.notas.length === 1 ? "" : "s"}`}>
+              <section className="works-notes-section">
+                {canManage && !operationalReadOnly && <form className="works-note-form" onSubmit={addNote}><textarea className="erp-control" rows="2" maxLength="4000" value={noteText} onChange={(event) => setNoteText(event.target.value)} placeholder="Agrega una actualización o antecedente relevante." /><Button type="submit" disabled={processing === "note-new"}>Agregar nota</Button></form>}
+                <div className="works-notes">{detail.notas.map((note) => <article key={note.id}><header><strong>{workPersonIdentity(note.autorSnapshot, note.autorUid, members, "Persona del equipo")}</strong><time>{dateLabel(note.creadoEn, true)}</time></header><p>{note.texto}</p></article>)}{!detail.notas.length && <p className="works-empty-copy">Aún no hay notas.</p>}</div>
+              </section>
+            </DetailDisclosure>
+
+            <DetailDisclosure key={`history-${selectedWork.id}`} defaultOpen title="Historial del trabajo" summary={`${detail.historial.length} evento${detail.historial.length === 1 ? "" : "s"}`}>
+              {detailLoading ? <LoadingState variant="section" label="Cargando historial..." /> : <ol className="works-timeline">{detail.historial.map((event) => <li key={event.id}><time>{dateLabel(event.fecha, true)}</time><p>{humanizeWorkEvent({...event, actorSnapshot: {...event.actorSnapshot, nombre: workPersonIdentity(event.actorSnapshot, "", members, "Una persona del equipo")}}, {includeAmounts: canManage})}</p>{event.tipo === "nota_agregada" && event.detalle?.texto && <blockquote>{event.detalle.texto}</blockquote>}</li>)}</ol>}
+            </DetailDisclosure>
+          </TabPanel>
           </>}
         </div>}
       </>
@@ -395,12 +423,12 @@ function TaskSection({businessId, canManage, costs, currency, currentUserUid, lo
     {canManage && !terminal && <form className="works-task-create" onSubmit={createTask}>
       <input className="erp-control" maxLength="240" value={draft.titulo} onChange={(event) => setDraft((current) => ({...current, titulo: event.target.value}))} placeholder="Título de la tarea" required />
       <textarea className="erp-control" maxLength="4000" rows="2" value={draft.descripcion} onChange={(event) => setDraft((current) => ({...current, descripcion: event.target.value}))} placeholder="Descripción operativa" />
-      <select className="erp-control" value={draft.responsableUid} onChange={(event) => setDraft((current) => ({...current, responsableUid: event.target.value}))}><option value="">Sin responsable</option>{members.map((member) => <option key={member.uid} value={member.uid}>{member.nombre}</option>)}</select>
+      <select className="erp-control" value={draft.responsableUid} onChange={(event) => setDraft((current) => ({...current, responsableUid: event.target.value}))}><option value="">Sin responsable</option>{members.map((member) => <option key={member.uid} value={member.uid}>{getWorkMemberIdentity(member)}</option>)}</select>
       <Button type="submit" icon={Plus} disabled={processing === "task-new"}>Crear tarea</Button>
     </form>}
     {loading ? <LoadingState variant="section" label="Cargando tareas..." /> : taskView === "board" ? <WorkTaskBoard canManage={canManage} canOperate={canOperate} costs={costs} currency={currency} emptyCopy={emptyTasksCopy} onRemoveLegacy={removeLegacy} onRequestTaskState={requestTaskState} processing={processing} tasks={visibleTasks} terminal={terminal} /> : <div className="works-task-list works-task-list--v2">
       {visibleTasks.map((task) => { const progress = getTaskProgress(task); const taskCost = getWorkCostSummary({...costs, taskId: task.id}); return <article key={task.id} className={task.completada ? "is-complete" : ""}>
-        <header><div><strong>{task.titulo}</strong><span className={`works-task-state works-task-state--${task.estado}`}>{WORK_TASK_STATUSES.find((entry) => entry.value === task.estado)?.label || "Pendiente"}</span></div>{canManage && !terminal && <select aria-label={`Responsable de ${task.titulo}`} className="erp-control" disabled={Boolean(processing)} value={task.responsableUid} onChange={(event) => assign(task, event.target.value)}><option value="">Sin responsable</option>{members.map((member) => <option key={member.uid} value={member.uid}>{member.nombre}</option>)}</select>}</header>
+        <header><div><strong>{task.titulo}</strong><span className={`works-task-state works-task-state--${task.estado}`}>{WORK_TASK_STATUSES.find((entry) => entry.value === task.estado)?.label || "Pendiente"}</span></div>{canManage && !terminal && <select aria-label={`Responsable de ${task.titulo}`} className="erp-control" disabled={Boolean(processing)} value={task.responsableUid} onChange={(event) => assign(task, event.target.value)}><option value="">Sin responsable</option>{members.map((member) => <option key={member.uid} value={member.uid}>{getWorkMemberIdentity(member)}</option>)}</select>}</header>
         {task.descripcion && <p>{task.descripcion}</p>}
         <div className="works-task-metrics"><span>Progreso <strong>{progress.percent}%</strong>{progress.total > 0 && ` · ${progress.completed}/${progress.total} subtareas`}</span><span>Costo asignado a esta tarea <strong>{formatMoney(taskCost.total, currency, businessLocale)}</strong></span></div>
         {task.estado === "en_espera" && task.motivoEspera && <p className="works-wait-reason">En espera: {task.motivoEspera}</p>}
@@ -487,7 +515,7 @@ function FinancialSection({businessId, canManage, currency, currentUserUid, expe
           <input className="erp-control" type="number" min="0.01" max="999999999999.99" step="0.01" required value={expenseDraft.monto} onChange={(event) => setExpenseDraft((current) => ({...current, monto: event.target.value}))} placeholder="Monto" />
           <select className="erp-control" value={expenseDraft.categoria} onChange={(event) => setExpenseDraft((current) => ({...current, categoria: event.target.value}))}>{WORK_EXPENSE_CATEGORIES.map((category) => <option key={category.value} value={category.value}>{category.label}{category.classification === "INDIRECTO" ? " · indirecto" : " · directo"}</option>)}</select>
           <TaskCostSelect tasks={tasks} value={expenseDraft.tareaId} onChange={(tareaId) => setExpenseDraft((current) => ({...current, tareaId}))} />
-          {canManage && <select className="erp-control" value={expenseDraft.responsableDelGastoUid} onChange={(event) => setExpenseDraft((current) => ({...current, responsableDelGastoUid: event.target.value}))}><option value="">Sin responsable específico</option>{members.map((member) => <option key={member.uid} value={member.uid}>{member.nombre}</option>)}</select>}
+          {canManage && <select className="erp-control" value={expenseDraft.responsableDelGastoUid} onChange={(event) => setExpenseDraft((current) => ({...current, responsableDelGastoUid: event.target.value}))}><option value="">Sin responsable específico</option>{members.map((member) => <option key={member.uid} value={member.uid}>{getWorkMemberIdentity(member)}</option>)}</select>}
           <input className="erp-control" type="date" required value={expenseDraft.fecha} onChange={(event) => setExpenseDraft((current) => ({...current, fecha: event.target.value}))} />
           <textarea className="erp-control" maxLength="4000" rows="2" value={expenseDraft.observacion} onChange={(event) => setExpenseDraft((current) => ({...current, observacion: event.target.value}))} placeholder="Observación" />
           <Button type="submit" disabled={Boolean(processing)}>Registrar gasto</Button>
@@ -497,7 +525,7 @@ function FinancialSection({businessId, canManage, currency, currentUserUid, expe
       <section><header><div><h4>Horas hombre</h4><strong>{laborHours} HH · {formatMoney(laborTotal, currency, businessLocale)}</strong></div><small>El total se calcula en backend.</small></header>
         {canRegister && !readOnly && <form className="works-cost-form" onSubmit={saveLabor}>
           <input className="erp-control" maxLength="240" required value={laborDraft.concepto} onChange={(event) => setLaborDraft((current) => ({...current, concepto: event.target.value}))} placeholder="Concepto o actividad" />
-          {canManage && <select className="erp-control" required value={laborDraft.tecnicoUid} onChange={(event) => setLaborDraft((current) => ({...current, tecnicoUid: event.target.value}))}><option value="">Selecciona técnico</option>{members.map((member) => <option key={member.uid} value={member.uid}>{member.nombre}</option>)}</select>}
+          {canManage && <select className="erp-control" required value={laborDraft.tecnicoUid} onChange={(event) => setLaborDraft((current) => ({...current, tecnicoUid: event.target.value}))}><option value="">Selecciona técnico</option>{members.map((member) => <option key={member.uid} value={member.uid}>{getWorkMemberIdentity(member)}</option>)}</select>}
           <TaskCostSelect tasks={tasks} value={laborDraft.tareaId} onChange={(tareaId) => setLaborDraft((current) => ({...current, tareaId}))} />
           <input className="erp-control" type="number" min="0.01" max="1000" step="0.01" required value={laborDraft.horas} onChange={(event) => setLaborDraft((current) => ({...current, horas: event.target.value}))} placeholder="Horas" />
           <input className="erp-control" type="number" min="0.01" max="999999999999.99" step="0.01" required value={laborDraft.costoHora} onChange={(event) => setLaborDraft((current) => ({...current, costoHora: event.target.value}))} placeholder="Costo por hora" />
@@ -510,7 +538,7 @@ function FinancialSection({businessId, canManage, currency, currentUserUid, expe
   </section>;
 }
 
-function MaterialsSection({businessId, canManage, currency, currentUserUid, hasAssociatedSale, loading, movements, processing, products, readOnly, role, runAction, saleMaterials, tasks, workId}) {
+function MaterialsSection({businessId, canManage, currency, currentUserUid, loading, movements, processing, products, readOnly, role, runAction, saleMaterials, tasks, workId}) {
   const { locale: businessLocale } = useBusinessFormat();
   const [draft, setDraft] = useState({itemId: "", cantidad: "", fecha: chileToday(), tareaId: ""});
   const [returnDrafts, setReturnDrafts] = useState({});
@@ -520,7 +548,6 @@ function MaterialsSection({businessId, canManage, currency, currentUserUid, hasA
   const visibleExitIds = new Set(exits.map((movement) => movement.id));
   const visibleReturns = returns.filter((movement) => visibleExitIds.has(movement.movimientoOrigenId));
   const saleValuedTotal = saleMaterials.filter((entry) => entry.costoHistoricoDisponible).reduce((sum, entry) => sum + entry.costoTotal, 0);
-  const unavailableSaleMaterialCosts = saleMaterials.filter((entry) => !entry.costoHistoricoDisponible).length;
   const additionalValuedTotal = exits.reduce((sum, movement) => sum + movement.costoTotal, 0) - visibleReturns.reduce((sum, movement) => sum + movement.costoTotal, 0);
   const valuedTotal = saleValuedTotal + additionalValuedTotal;
   const selectedProduct = products.find((product) => product.id === draft.itemId);
@@ -554,17 +581,6 @@ function MaterialsSection({businessId, canManage, currency, currentUserUid, hasA
 
   return <section className="works-detail-section works-financial-file">
     <div className="works-section-heading"><div><h3>Materiales utilizados</h3><span>Consumo neto valorizado</span></div><strong>{formatMoney(Math.max(0, valuedTotal), currency, businessLocale)}</strong></div>
-    {hasAssociatedSale && <section className="works-material-group works-material-group--sale">
-      <header><div><h4>Materiales incluidos en la venta</h4><p>{readOnly ? "Los materiales de la venta asociada ya fueron descontados del inventario y se conservan como historial." : "Los materiales de la venta asociada ya fueron descontados del inventario. Registra aquí sólo consumos adicionales del proyecto."}</p></div><strong>{formatMoney(saleValuedTotal, currency, businessLocale)}</strong></header>
-      {saleMaterials.length > 0 ? <div className="works-sale-materials-list">{saleMaterials.map((material) => <article key={material.id}>
-        <div><small>Producto</small><strong>{material.nombre}</strong><span>{material.ventaNumero}</span></div>
-        <div><small>Cantidad</small><strong>{material.cantidad} {material.unidad}</strong></div>
-        <div><small>Costo unitario histórico</small><strong>{material.costoHistoricoDisponible ? formatMoney(material.costoUnitario, material.moneda || currency, businessLocale) : "No disponible"}</strong></div>
-        <div><small>Costo total</small><strong>{material.costoHistoricoDisponible ? formatMoney(material.costoTotal, material.moneda || currency, businessLocale) : "No disponible"}</strong></div>
-        <div className="works-material-stock-state"><small>Inventario</small><strong>Stock ya descontado por la Venta</strong></div>
-      </article>)}</div> : <p className="works-empty-copy">La venta confirmada no contiene productos físicos descontados del inventario.</p>}
-      {unavailableSaleMaterialCosts > 0 && <p className="works-message works-message--warning">El costo histórico de {unavailableSaleMaterialCosts} material{unavailableSaleMaterialCosts === 1 ? "" : "es"} no está disponible.</p>}
-    </section>}
     <section className="works-material-group">
       <header><div><h4>Consumos adicionales</h4><p>{readOnly ? "Salidas y devoluciones registradas durante la ejecución del proyecto." : "Estas salidas sí generan un movimiento nuevo de inventario."}</p></div><strong>{formatMoney(Math.max(0, additionalValuedTotal), currency, businessLocale)}</strong></header>
       <p className="works-financial-note">Cada salida congela su costo. Las devoluciones conservan el movimiento de origen y restituyen stock con el mismo costo.</p>
@@ -595,6 +611,26 @@ function MaterialsSection({businessId, canManage, currency, currentUserUid, hasA
   </section>;
 }
 
+// Materiales de la(s) venta(s) confirmada(s) del proyecto: ya descontados del
+// inventario por la Venta y valorizados con su costo histórico. Solo lectura;
+// los consumos adicionales se registran en la pestaña Operación.
+function SaleMaterialsGroup({currency, loading, readOnly, saleMaterials}) {
+  const { locale: businessLocale } = useBusinessFormat();
+  const saleValuedTotal = saleMaterials.filter((entry) => entry.costoHistoricoDisponible).reduce((sum, entry) => sum + entry.costoTotal, 0);
+  const unavailableSaleMaterialCosts = saleMaterials.filter((entry) => !entry.costoHistoricoDisponible).length;
+  return <section className="works-detail-section works-material-group works-material-group--sale">
+    <header><div><h3>Materiales incluidos en la venta</h3><p>{readOnly ? "Los materiales de la venta asociada ya fueron descontados del inventario y se conservan como historial." : "Los materiales de la venta asociada ya fueron descontados del inventario. Los consumos adicionales del proyecto se registran en Operación."}</p></div><strong>{formatMoney(saleValuedTotal, currency, businessLocale)}</strong></header>
+    {loading ? <LoadingState variant="section" label="Cargando materiales de la venta..." /> : saleMaterials.length > 0 ? <div className="works-sale-materials-list">{saleMaterials.map((material) => <article key={material.id}>
+      <div><small>Producto</small><strong>{material.nombre}</strong><span>{material.ventaNumero}</span></div>
+      <div><small>Cantidad</small><strong>{material.cantidad} {material.unidad}</strong></div>
+      <div><small>Costo unitario histórico</small><strong>{material.costoHistoricoDisponible ? formatMoney(material.costoUnitario, material.moneda || currency, businessLocale) : "No disponible"}</strong></div>
+      <div><small>Costo total</small><strong>{material.costoHistoricoDisponible ? formatMoney(material.costoTotal, material.moneda || currency, businessLocale) : "No disponible"}</strong></div>
+      <div className="works-material-stock-state"><small>Inventario</small><strong>Stock ya descontado por la Venta</strong></div>
+    </article>)}</div> : <p className="works-empty-copy">La venta confirmada no contiene productos físicos descontados del inventario.</p>}
+    {!loading && unavailableSaleMaterialCosts > 0 && <p className="works-message works-message--warning">El costo histórico de {unavailableSaleMaterialCosts} material{unavailableSaleMaterialCosts === 1 ? "" : "es"} no está disponible.</p>}
+  </section>;
+}
+
 function commercialTotal(document, locale) {
   const currency = /^[A-Z]{3}$/.test(String(document?.moneda || "")) ? document.moneda : "CLP";
   return new Intl.NumberFormat(locale, {style: "currency", currency, maximumFractionDigits: currency === "CLP" ? 0 : 2}).format(Number(document?.total || 0));
@@ -619,7 +655,7 @@ function CommercialFile({canManage, detail, loading, navigate}) {
 function Filter({children, label, onChange, value}) { return <label className="erp-field"><span className="erp-field__label">{label}</span><select className="erp-control" value={value} onChange={(event) => onChange(event.target.value)}>{children}</select></label>; }
 function Field({children, className = "", error, label, optional = false, required}) { return <label className={`erp-field ${className}`}><span className="erp-field__label">{label}{required ? " *" : optional ? <span className="works-field-optional">Opcional</span> : ""}</span>{children}{error && <small className="works-field-error">{error}</small>}</label>; }
 function FormSection({children, title}) { return <section className="works-form-section"><h3>{title}</h3>{children}</section>; }
-function DetailDisclosure({children, summary, title}) { return <details className="works-detail-disclosure"><summary><span><strong>{title}</strong><small>{summary}</small></span></summary><div className="works-detail-disclosure__content">{children}</div></details>; }
+function DetailDisclosure({children, defaultOpen = false, summary, title}) { return <details className="works-detail-disclosure" open={defaultOpen || undefined}><summary><span><strong>{title}</strong><small>{summary}</small></span></summary><div className="works-detail-disclosure__content">{children}</div></details>; }
 function taskLabel(tasks, taskId) { return taskId ? tasks.find((task) => task.id === taskId)?.titulo || "Tarea no disponible" : "Proyecto completo"; }
 function TaskCostSelect({onChange, tasks, value}) { return <select className="erp-control" value={value} onChange={(event) => onChange(event.target.value)}><option value="">Costo general del proyecto</option>{tasks.map((task) => <option key={task.id} value={task.id}>{task.titulo}</option>)}</select>; }
 function workPersonIdentity(snapshot, uid, members = [], fallback = "Sin responsable principal") {
@@ -664,7 +700,7 @@ function WorkBoard({onOpen, works}) { const { locale: businessLocale } = useBusi
 
 function WorkSummary({cost, members, work}) { const { locale: businessLocale } = useBusinessFormat(); const progress = getWorkTaskProgress(work); return <dl className="works-summary"><div><dt>Cliente</dt><dd>{work.clienteSnapshot?.nombreRazonSocial || "Sin cliente"}</dd></div><div><dt>Responsable principal</dt><dd>{workPersonIdentity(work.responsableSnapshot, work.responsableUid, members)}</dd></div><div><dt>Prioridad</dt><dd><Priority value={work.prioridad} /></dd></div><div><dt>Término planificado</dt><dd>{dateLabel(work.fechaPrevista)}</dd></div><div><dt>Progreso</dt><dd>{progress.percent}% · {progress.completed}/{progress.total} tareas</dd></div><div><dt>Costo acumulado</dt><dd>{formatMoney(cost, work.moneda || "CLP", businessLocale)}</dd></div></dl>; }
 
-function DailyCostSummary({currency, rows}) { const { locale: businessLocale } = useBusinessFormat(); return <section className="works-detail-section works-daily-costs"><h3>Costos por día</h3>{rows.length ? <div className="erp-table-region"><table className="erp-table"><thead><tr><th>Fecha</th><th>Materiales</th><th>HH</th><th>Gastos</th><th>Total</th></tr></thead><tbody>{rows.map((row) => <tr key={row.date}><td>{dateLabel(row.date)}</td><td>{formatMoney(row.materials, currency, businessLocale)}</td><td>{formatMoney(row.labor, currency, businessLocale)}</td><td>{formatMoney(row.expenses, currency, businessLocale)}</td><td><strong>{formatMoney(row.total, currency, businessLocale)}</strong></td></tr>)}</tbody></table></div> : <p className="works-empty-copy">Aún no hay costos fechados para resumir.</p>}</section>; }
+function DailyCostSummary({currency, loading, rows}) { const { locale: businessLocale } = useBusinessFormat(); return <section className="works-detail-section works-daily-costs"><h3>Costos por día</h3>{loading ? <LoadingState variant="section" label="Cargando costos..." /> : rows.length ? <div className="erp-table-region"><table className="erp-table"><thead><tr><th>Fecha</th><th>Materiales</th><th>HH</th><th>Gastos</th><th>Total</th></tr></thead><tbody>{rows.map((row) => <tr key={row.date}><td>{dateLabel(row.date)}</td><td>{formatMoney(row.materials, currency, businessLocale)}</td><td>{formatMoney(row.labor, currency, businessLocale)}</td><td>{formatMoney(row.expenses, currency, businessLocale)}</td><td><strong>{formatMoney(row.total, currency, businessLocale)}</strong></td></tr>)}</tbody></table></div> : <p className="works-empty-copy">Aún no hay costos fechados para resumir.</p>}</section>; }
 
 function WorkBalanceSection({balance, loading}) {
   const { locale: businessLocale } = useBusinessFormat();
