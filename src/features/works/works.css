@@ -344,3 +344,24 @@
   .works-board, .works-task-board { grid-template-columns: minmax(0, 1fr); min-width: 0; }
   .works-panel:has(.works-board), .works-panel:has(.works-task-board), .works-detail-section:has(.works-task-board) { overflow-x: visible; }
 }
+
+/* Tablero del proyecto (SPEC 028 etapa B): selector, tareas por estado y tarjetas de costos sin tarea. */
+.works-project-board { display: grid; gap: var(--space-3); min-width: 0; }
+.works-project-board__header { align-items: end; display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-4); justify-content: space-between; }
+.works-project-board__picker { flex: 1 1 280px; max-width: 520px; }
+.works-project-board__summary { align-items: center; color: var(--color-text-muted); display: flex; flex-wrap: wrap; font-size: var(--font-size-xs); gap: var(--space-2) var(--space-3); }
+.works-project-board__extras { display: grid; gap: var(--space-2); min-width: 0; }
+.works-project-board__description { color: var(--color-text-default); font-size: var(--font-size-xs); margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.works-project-board__assign select { width: 100%; }
+.works-task-progress { accent-color: var(--color-brand-600); height: 8px; width: 100%; }
+.works-task-board__card .works-subtask-list > div { grid-template-columns: auto minmax(0, 1fr); }
+.works-task-board__card .works-subtask-list > div > div { grid-column: 1 / -1; justify-content: flex-end; }
+.works-task-board__card .works-subtask-create, .works-task-board__card .works-task-document-form { grid-template-columns: minmax(0, 1fr); }
+.works-project-board__costs { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.works-project-board__cost-card { align-content: start; }
+.works-project-board__cost-card > strong { color: var(--color-text-strong); }
+@media(max-width:767px) {
+  .works-project-board__header { align-items: stretch; flex-direction: column; }
+  .works-project-board__picker { max-width: none; }
+  .works-project-board__costs { grid-template-columns: minmax(0, 1fr); }
+}

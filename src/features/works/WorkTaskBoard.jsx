@@ -6,9 +6,11 @@ import {formatDate, formatMoney} from "../../utils/formatters.js";
 import useBusinessFormat from "../../hooks/useBusinessFormat";
 
 // Tablero de tareas del Proyecto abierto (PROJECTS_V3 ETAPA 2, SPEC 019 §5).
+// `renderCardExtras(task)` (opcional) agrega contenido propio dentro de cada
+// tarjeta (lo usa WorkProjectBoard para subtareas, documentación y costos).
 // Presentacional/controlado: recibe exclusivamente `tasks` ya acotadas al
-// Proyecto actual (el mismo arreglo visibleTasks que ya renderiza la lista
-// de TaskSection en WorksPage.jsx) y las callbacks ya existentes
+// Proyecto actual (el arreglo visibleTasks que arma WorkProjectBoard) y las
+// callbacks ya existentes
 // (onRequestTaskState -> cambiarEstadoTareaTrabajo, onRemoveLegacy ->
 // eliminarTareaTrabajo). No define ninguna mutación propia, no hace ninguna
 // consulta remota y no recibe ningún identificador de negocio ni de
@@ -20,7 +22,7 @@ function responsableLabel(task) {
   return task.responsableUid ? getWorkMemberIdentity(task.responsableSnapshot || {}) : "Sin responsable";
 }
 
-function TaskCard({canManage, canOperate, costs, currency, onRemoveLegacy, onRequestTaskState, processing, task, terminal}) {
+function TaskCard({canManage, canOperate, costs, currency, extras, onRemoveLegacy, onRequestTaskState, processing, task, terminal}) {
   const { locale: businessLocale } = useBusinessFormat();
   const progress = getTaskProgress(task);
   const taskCost = getWorkCostSummary({...costs, taskId: task.id});
@@ -39,6 +41,7 @@ function TaskCard({canManage, canOperate, costs, currency, onRemoveLegacy, onReq
       </dl>
       {task.estado === "en_espera" && task.motivoEspera && <p className="works-wait-reason">En espera: {task.motivoEspera}</p>}
       {task.modeloTareaVersion < 2 && <span className="works-task-board__legacy">Tarea legacy</span>}
+      {extras}
       {showStateControl && (
         <div className="works-task-board__actions">
           <label className="sr-only" htmlFor={`board-task-state-${task.id}`}>Cambiar estado de {task.titulo}</label>
@@ -63,7 +66,7 @@ function TaskCard({canManage, canOperate, costs, currency, onRemoveLegacy, onReq
   );
 }
 
-export default function WorkTaskBoard({canManage, canOperate, costs, currency, emptyCopy, onRemoveLegacy, onRequestTaskState, processing, tasks, terminal}) {
+export default function WorkTaskBoard({canManage, canOperate, costs, currency, emptyCopy, onRemoveLegacy, onRequestTaskState, processing, renderCardExtras, tasks, terminal}) {
   const list = Array.isArray(tasks) ? tasks : [];
   if (!list.length) return <p className="works-empty-copy">{emptyCopy}</p>;
 
@@ -81,6 +84,7 @@ export default function WorkTaskBoard({canManage, canOperate, costs, currency, e
                   canOperate={canOperate}
                   costs={costs}
                   currency={currency}
+                  extras={renderCardExtras ? renderCardExtras(task) : null}
                   key={task.id}
                   onRemoveLegacy={onRemoveLegacy}
                   onRequestTaskState={onRequestTaskState}

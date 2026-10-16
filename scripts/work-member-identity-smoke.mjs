@@ -51,7 +51,10 @@ assert.equal(getWorkHistoricalPersonIdentity({nombre: "Nombre no informado", cor
 // 7. Ningún selector de /trabajos muestra member.nombre directo.
 import {readFileSync} from "node:fs";
 const page = readFileSync(new URL("../src/pages/WorksPage.jsx", import.meta.url), "utf8");
+// Desde la etapa B del tablero, los selectores de tarea viven en WorkProjectBoard.
+const board = readFileSync(new URL("../src/features/works/WorkProjectBoard.jsx", import.meta.url), "utf8");
 assert.doesNotMatch(page, /member\.nombre/, "los selectores de miembros usan getWorkMemberIdentity");
-assert.ok((page.match(/getWorkMemberIdentity\(member\)/g) || []).length >= 7);
+assert.doesNotMatch(board, /member\.nombre/, "los selectores del tablero usan getWorkMemberIdentity");
+assert.ok(((page + board).match(/getWorkMemberIdentity\(member\)/g) || []).length >= 7);
 
 console.log("WORK_MEMBER_IDENTITY_SMOKE_OK");

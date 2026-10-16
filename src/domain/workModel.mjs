@@ -612,6 +612,28 @@ function rounded(value) {
   return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 }
 
+// Alcance de costos por tarea en el tablero del proyecto. Un costo pertenece a
+// una tarea por su `tareaId`; sin él pertenece al proyecto ("General"); con un
+// `tareaId` que ya no existe queda "Sin tarea asignada". Sin alcance (undefined)
+// no se filtra nada. Solo organiza registros: no calcula importes.
+export const WORK_COST_SCOPE_ORPHAN = "__sin_tarea_asignada__";
+
+export function filterWorkCostsByTaskScope(records = [], scope, tasks = []) {
+  const list = Array.isArray(records) ? records : [];
+  if (scope === undefined) return list;
+  const taskIds = new Set((Array.isArray(tasks) ? tasks : []).map((task) => String(task?.id || "")));
+  if (scope === WORK_COST_SCOPE_ORPHAN) return list.filter((entry) => entry?.tareaId && !taskIds.has(String(entry.tareaId)));
+  return list.filter((entry) => String(entry?.tareaId || "") === String(scope || ""));
+}
+
+// Proyecto que el tablero muestra por defecto: el abierto (no completado ni
+// cancelado) más reciente; `works` ya viene ordenado del más reciente al más
+// antiguo. Si todos están cerrados, el primero.
+export function getDefaultBoardWorkId(works = []) {
+  const list = Array.isArray(works) ? works : [];
+  return (list.find((work) => !["completado", "cancelado"].includes(work?.estado)) || list[0])?.id || "";
+}
+
 export function getWorkAccumulatedCost(work = {}) {
   const materialExpense = Number(work.materialesSalidasTotal || 0) > 0 ? Number(work.gastosMaterialMontoTotal || 0) : 0;
   return Math.max(0, rounded(Number(work.materialesCostoTotal || 0) + Number(work.horasHombreCostoTotal || 0) + Number(work.gastosMontoTotal || 0) - materialExpense));

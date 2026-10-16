@@ -129,13 +129,28 @@ try {
   assert.doesNotMatch(boardSource, /cambiarEstadoTareaTrabajo\(|eliminarTareaTrabajo\(|from ["'].*workService/, "el tablero no debe importar ni llamar directamente las mutaciones: sólo recibe callbacks ya resueltos por el padre");
   console.log("OK caso 8: el cambio de estado se reenvía intacto a la misma función que ya usa la lista, sin reimplementarla");
 
+  // SPEC 028 etapa B: el tablero de tareas lo monta WorkProjectBoard (tablero por proyecto) y ya no
+  // TaskSection. El select de estado sigue reenviando a una única función, requestTaskState, y la página
+  // la resuelve con la misma Function y el mismo requestId de antes.
   const worksPageSource = await readFile(new URL("../src/pages/WorksPage.jsx", import.meta.url), "utf8");
+  const projectBoardSource = await readFile(new URL("../src/features/works/WorkProjectBoard.jsx", import.meta.url), "utf8");
+  assert.match(
+    projectBoardSource,
+    /<WorkTaskBoard[\s\S]{0,700}onRequestTaskState=\{requestTaskState\}/,
+    "WorkProjectBoard debe cablear WorkTaskBoard a requestTaskState"
+  );
+  assert.match(
+    projectBoardSource,
+    /const requestTaskState = \(task, estado\) => \{\s*if \(estado === "en_espera"\) \{[^}]*\}\s*actions\.changeTaskState\(task, estado\);/,
+    "requestTaskState pide motivo para en_espera y para el resto llama a actions.changeTaskState sin transformar el estado"
+  );
   assert.match(
     worksPageSource,
-    /<WorkTaskBoard[\s\S]{0,400}onRequestTaskState=\{requestTaskState\}/,
-    "WorksPage debe cablear el tablero a requestTaskState, la misma función que ya usa TaskSection en su vista de lista"
+    /changeTaskState: \(task, estado, motivoEspera = ""\) => runBoardAction\(`task-state-\$\{task\.id\}`, \(\) => cambiarEstadoTareaTrabajo\(businessId, boardWorkId, task\.id, estado, \{motivoEspera, requestId: createWorkTaskRequestId\(`task-\$\{estado\}`\)\}\)\)/,
+    "la página resuelve changeTaskState con cambiarEstadoTareaTrabajo y el mismo requestId de siempre"
   );
-  console.log("OK: WorksPage conecta el tablero a requestTaskState (misma función, sin duplicarla)");
+  assert.doesNotMatch(projectBoardSource, /from ["'].*(workService|firebase)|httpsCallable|getDocs/, "WorkProjectBoard sigue siendo presentacional: no importa servicios ni Firebase");
+  console.log("OK: WorkProjectBoard conecta el tablero a requestTaskState y la página lo resuelve con la misma Function y requestId");
 
   // --- Casos 9/10: permisos — sólo lectura no puede mutar, autorizado sí ---
   const readOnlyTask = task({id: "ro1", estado: "pendiente", responsableUid: "otro-uid"});
@@ -166,9 +181,15 @@ try {
   assert.doesNotMatch(legacyCompleted, /Eliminar/, "una tarea v1 ya completada tampoco se puede eliminar, igual que en la lista");
   console.log("OK: tarea v1 completada pierde la acción Eliminar, igual que en la vista de lista");
 
-  // --- Caso 13: un error de mutación no se maneja de forma nueva en el tablero ---
-  assert.doesNotMatch(boardSource, /catch|try\s*\{|setError|useState/i, "el tablero no debe introducir manejo de error ni estado propio: el error de onRequestTaskState debe propagarse tal cual al mismo mecanismo ya usado por la lista (runDetailAction/setError en WorksPage)");
-  console.log("OK caso 13: el tablero no intercepta errores; cualquier fallo de la mutación sigue el mismo camino que ya usa la lista");
+  // --- Caso 13 (reescrito, SPEC 028 etapa B): ni las columnas ni el contenedor interceptan errores ---
+  // WorkTaskBoard (columnas y tarjetas base) sigue sin estado ni manejo de errores. El estado de borradores
+  // (subtarea, documentación, tarea nueva, diálogos) vive en WorkProjectBoard, que tampoco captura errores:
+  // cada acción devuelve la promesa de runBoardAction (WorksPage), el mismo camino de error que usaba la lista.
+  assert.doesNotMatch(boardSource, /catch|try\s*\{|setError|useState/i, "WorkTaskBoard sigue sin estado propio ni manejo de errores");
+  const projectBoardForErrors = await readFile(new URL("../src/features/works/WorkProjectBoard.jsx", import.meta.url), "utf8");
+  assert.doesNotMatch(projectBoardForErrors, /catch|try\s*\{|setError/i, "WorkProjectBoard no captura errores de mutación: se propagan a runBoardAction/setError en WorksPage");
+  assert.match(projectBoardForErrors, /useState/, "el estado de borradores vive en WorkProjectBoard, no en WorkTaskBoard");
+  console.log("OK caso 13: ni WorkTaskBoard ni WorkProjectBoard interceptan errores; el fallo sigue el camino de runBoardAction");
 
   // --- Caso 14: sin drag-and-drop ---
   assert.doesNotMatch(boardSource, /draggable|onDrag|onDrop|dnd-kit|react-beautiful-dnd|react-dnd/i);
@@ -197,11 +218,16 @@ try {
   await vite.close();
 }
 
-// --- Caso 16: el tablero de Proyectos preexistente sigue existiendo, sin cambios ---
+// --- Caso 16 (SPEC 028 etapa B): el tablero de /trabajos ya NO muestra tarjetas de Proyectos ---
+// Antes se fijaba que WorkBoard (una tarjeta por Proyecto) siguiera definido y montado. Ahora la vista
+// Tablero elige un Proyecto y muestra solo sus tareas (WorkProjectBoard); WorkBoard se retiró a propósito.
 const pageSource = await readFile(new URL("../src/pages/WorksPage.jsx", import.meta.url), "utf8");
-assert.match(pageSource, /function WorkBoard\(/, "el tablero de Proyectos (tarjetas por Proyecto) debe seguir definido");
-assert.match(pageSource, /<WorkBoard works=\{visibleWorks\} onOpen=\{openDetail\} \/>/, "el uso del tablero de Proyectos en el listado superior no debe alterarse");
-console.log("OK caso 16: el tablero de Proyectos existente (nivel superior) sigue presente y sin cambios de comportamiento");
+assert.doesNotMatch(pageSource, /function WorkBoard\(|<WorkBoard /, "el tablero de tarjetas por Proyecto se retiró");
+assert.match(pageSource, /<WorkProjectBoard actions=\{boardActions\}/, "la vista Tablero monta el tablero por proyecto");
+assert.match(pageSource, /searchParams\.get\("vista"\) === "tablero"/, "la vista se lee de la URL (?vista=tablero)");
+assert.match(pageSource, /searchParams\.get\("proyecto"\)/, "el proyecto del tablero se lee de la URL (?proyecto=<id>)");
+assert.match(pageSource, /getDefaultBoardWorkId\(works\)/, "sin ?proyecto se elige el abierto más reciente");
+console.log("OK caso 16: el tablero de tarjetas por Proyecto se retiró y la vista Tablero monta el tablero por proyecto");
 
 // --- Confirmación cruzada: los helpers RBAC de tareas siguen siendo los mismos usados por la lista ---
 assert.equal(canOperateWorkTask({responsableUid: "u1"}, {canManage: false, role: "TECNICO", currentUserUid: "u1"}), true);

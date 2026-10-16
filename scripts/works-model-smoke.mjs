@@ -524,12 +524,13 @@ console.log("OK frontend: búsqueda, payload restringido y eventos sin UID crudo
 
 const rules = fs.readFileSync("firestore.rules", "utf8");
 const page = fs.readFileSync("src/pages/WorksPage.jsx", "utf8");
+const board = fs.readFileSync("src/features/works/WorkProjectBoard.jsx", "utf8");
 const styles = fs.readFileSync("src/features/works/works.css", "utf8");
 const backend = fs.readFileSync("functions/workPersistence.js", "utf8");
 assert.match(rules, /match \/trabajos\/\{trabajoId\}/); assert.match(rules, /match \/historial\/\{eventoId\}[\s\S]*allow create, update, delete: if false/); assert.match(rules, /match \/documentacion\/\{documentacionId\}/);
 assert.match(backend, /workCounters/); assert.match(backend, /workCreateRequests/); assert.match(backend, /workTaskRequests/); assert.match(backend, /workCostRequests/); assert.match(backend, /requireBusinessAccess/);
 assert.match(backend, /runTransaction[\s\S]*transaction\.get\(counterRef\)[\s\S]*transaction\.set\(counterRef/);
-assert.match(page, /ResponsiveDialog/); assert.doesNotMatch(page, /window\.confirm|actorUid/); assert.match(page, /works-board/); assert.match(page, /Historial del trabajo/); assert.match(page, /TaskSection/); assert.match(page, /FinancialSection/); assert.match(page, /No tienes tareas asignadas/);
+assert.match(page, /ResponsiveDialog/); assert.doesNotMatch(page, /window\.confirm|actorUid/); assert.match(page, /<WorkProjectBoard/); assert.doesNotMatch(page, /function WorkBoard\(|<WorkBoard |TaskSection/, "el tablero ya no muestra tarjetas de proyectos ni la sección de tareas de la ficha"); assert.match(page, /Historial del trabajo/); assert.match(page, /FinancialSection/); assert.match(board, /No tienes tareas asignadas/);
 assert.match(page, /\+ Nuevo cliente/); assert.match(page, /openCreateClient/); assert.match(page, /No hay otros miembros activos en tu negocio/); assert.doesNotMatch(page, /hasAdditionalMembers|editingWork \|\| hasAdditionalMembers/); assert.match(page, /<legend>Equipo</); assert.match(page, /participanteUids: draft\.participanteUids\.includes\(member\.uid\)|draft\.participanteUids\.includes\(member\.uid\)/);
 assert.match(page, /Responsable principal/); assert.match(page, /Equipo adicional/); assert.match(page, /Sin integrantes/); assert.doesNotMatch(page, /<Field[^>]+label="Número"/);
 assert.match(page, /member\.uid === currentUserUid && member\.estado === "activo"/); assert.match(page, /responsableUid: currentMember\?\.uid \|\| ""/);
@@ -540,12 +541,12 @@ assert.match(page, /label="Descripción" optional/); assert.match(page, /label="
 assert.match(page, /Escribe un nombre breve para identificar el proyecto/); assert.match(page, /Describe el requerimiento o lo informado por el cliente/); assert.match(page, /El número TRB y el estado Pendiente se asignarán automáticamente\./);
 assert.doesNotMatch(page, /Nueva cotización/); assert.doesNotMatch(page, /fecha de ingreso se asignarán automáticamente/);
 assert.match(styles, /works-form-automatic-note/); assert.match(styles, /@media\(min-width:768px\)[\s\S]*works-form-dialog \.responsive-dialog__body/);
-assert.match(page, /function DetailDisclosure[\s\S]*<details className="works-detail-disclosure"/); assert.match(page, /className="works-costs-focus"/); assert.match(page, /title="Notas del proyecto"/); assert.match(page, /title="Historial del trabajo"/);
-assert.match(page, /id="datos"[\s\S]*id="comercial"[\s\S]*<CommercialFile[\s\S]*<WorkAdditionalsSection[\s\S]*id="operacion"[\s\S]*<TaskSection[\s\S]*<h3>Costos<\/h3>[\s\S]*<MaterialsSection[\s\S]*<FinancialSection[\s\S]*id="balance"[\s\S]*<WorkBalanceSection[\s\S]*<DailyCostSummary[\s\S]*<SaleMaterialsGroup[\s\S]*id="notas"[\s\S]*title="Notas del proyecto"[\s\S]*title="Historial del trabajo"/);
+assert.match(page, /function DetailDisclosure[\s\S]*<details className="works-detail-disclosure"/); assert.doesNotMatch(page, /className="works-costs-focus"|id="operacion"/, "la ficha ya no trae la pestaña Operación: opera el tablero"); assert.match(page, /title="Notas del proyecto"/); assert.match(page, /title="Historial del trabajo"/);
+assert.match(page, /id="datos"[\s\S]*id="comercial"[\s\S]*<CommercialFile[\s\S]*<WorkAdditionalsSection[\s\S]*id="balance"[\s\S]*<WorkBalanceSection[\s\S]*<DailyCostSummary[\s\S]*<SaleMaterialsGroup[\s\S]*id="notas"[\s\S]*title="Notas del proyecto"[\s\S]*title="Historial del trabajo"/);
 assert.match(page, /Aún no hay venta confirmada para calcular resultado y margen\./); assert.match(page, /Aún no se han registrado consumos adicionales\./); assert.match(page, /Aún no se han registrado gastos\./); assert.match(page, /Aún no se han registrado horas hombre\./);
-assert.match(page, /Materiales incluidos en la venta/); assert.match(page, /Los consumos adicionales del proyecto se registran en Operación/); assert.match(page, /Costo estimado de esta salida/);
-assert.match(page, /Costo asignado a esta tarea/); assert.match(page, /Último avance/); assert.match(page, /Sin actividad reciente/); assert.match(page, /Completar igualmente/); assert.match(page, /Motivo de espera/);
-assert.match(page, /TaskCostSelect/); assert.match(page, /Costos por día/); assert.match(page, /Nueva subtarea/); assert.match(page, /subtask\.completada/);
+assert.match(page, /Materiales incluidos en la venta/); assert.match(page, /Los consumos adicionales del proyecto se registran en el tablero/); assert.match(page, /Costo estimado de esta salida/);
+assert.match(page, /Sin actividad reciente/); assert.match(page, /Completar igualmente/); assert.match(page, /Motivo de espera/);
+assert.match(page, /TaskCostSelect/); assert.match(page, /Costos por día/); assert.match(board, /Nueva subtarea/); assert.match(board, /subtask\.completada/);
 assert.match(page, /const completed = selectedWork\?\.estado === "completado"/);
 assert.match(page, /const operationalReadOnly = isWorkOperationalReadOnly\(selectedWork\)/);
 assert.match(page, /readOnly=\{operationalReadOnly\}/);
@@ -564,8 +565,8 @@ assert.match(page, /El costo histórico de/);
 assert.match(backend, /agregarSubtareaTrabajoHandler/); assert.match(backend, /actualizarSubtareaTrabajoHandler/); assert.match(backend, /eliminarSubtareaTrabajoHandler/); assert.match(backend, /tareaId: taskId/);
 assert.match(styles, /works-detail-disclosure\[open\]/); assert.match(styles, /works-commercial-list[\s\S]*grid-template-columns/);
 // Ficha por pestañas: cabecera siempre visible, componente compartido <Tabs>, formulario con "Más detalles" cerrado.
-assert.match(page, /import \{TabPanel, Tabs\} from "\.\.\/components\/ui\/Tabs"/); assert.match(page, /import MoreActionsMenu from "\.\.\/components\/ui\/MoreActionsMenu"/);
-assert.match(page, /const WORK_DETAIL_TABS = Object\.freeze\(\[\s*\{id: "datos", label: "Datos"\},\s*\{id: "comercial", label: "Comercial"\},\s*\{id: "operacion", label: "Operación"\},\s*\{id: "balance", label: "Balance"\},\s*\{id: "notas", label: "Notas e historial"\},\s*\]\)/);
+assert.match(page, /import \{TabPanel, Tabs\} from "\.\.\/components\/ui\/Tabs"/); assert.match(page, /Trabajar en el tablero/); assert.match(page, /import MoreActionsMenu from "\.\.\/components\/ui\/MoreActionsMenu"/);
+assert.match(page, /const WORK_DETAIL_TABS = Object\.freeze\(\[\s*\{id: "datos", label: "Datos"\},\s*\{id: "comercial", label: "Comercial"\},\s*\{id: "balance", label: "Balance"\},\s*\{id: "notas", label: "Notas e historial"\},\s*\]\)/);
 assert.match(page, /const \[detailTab, setDetailTab\] = useState\("datos"\)/); assert.match(page, /setDetailTab\("datos"\);\s*loadDetail\(requestedWork\.id\)/); assert.match(page, /const openDetail = \(work\) => \{[^}]*setDetailTab\("datos"\)/);
 assert.ok(page.indexOf('<div className="works-detail-header">') < page.indexOf("<WorkSummary work={selectedWork}") && page.indexOf("<WorkSummary work={selectedWork}") < page.indexOf("<Tabs className="), "la cabecera (estado, acciones y franja) va antes y fuera de las pestañas");
 assert.match(page, /<details className="works-more-details" open=\{moreDetailsOpen\}/); assert.match(page, /useState\(false\);\s*const \[detailTab/);
@@ -605,7 +606,7 @@ console.log("OK escáner de salida de material: disponible, no disponible y cant
   const listBranch = main.indexOf("{loadError ? <LoadFailure message={loadError} onRetry={load} /> : <>");
   assert.ok(listBranch > 0, "la lista tiene una rama de error de carga");
   const beforeListBranch = main.slice(0, listBranch);
-  assert.doesNotMatch(beforeListBranch, /<WorkList|<WorkBoard|<WorksEmptyState/);
+  assert.doesNotMatch(beforeListBranch, /<WorkList|<WorkProjectBoard|<WorksEmptyState/);
   const afterListBranch = main.slice(listBranch);
   assert.match(afterListBranch, /<WorkList[\s\S]*<\/>\}\s*<\/section>/);
   assert.match(main, /\{canManage && !loadError && <div className="erp-module-intro">/);
@@ -614,15 +615,19 @@ console.log("OK escáner de salida de material: disponible, no disponible y cant
   assert.match(main, /catch \(failure\) \{ setDetailError\(/);
   const detailBranch = main.indexOf("{detailError ? <LoadFailure message={detailError} onRetry={() => loadDetail(selectedWork.id)} /> : <>");
   assert.ok(detailBranch > 0, "la ficha tiene una rama de error de carga");
-  assert.doesNotMatch(main.slice(0, detailBranch), /<TaskSection|<MaterialsSection|<FinancialSection|Notas del proyecto|Historial del trabajo/);
+  assert.doesNotMatch(main.slice(0, detailBranch), /<CommercialFile|<WorkAdditionalsSection|<DailyCostSummary|Notas del proyecto|Historial del trabajo/);
   const detailRest = main.slice(detailBranch);
-  for (const section of ["<TaskSection", "<MaterialsSection", "<FinancialSection", "<WorkAdditionalsSection", 'title="Notas del proyecto"', 'title="Historial del trabajo"']) {
+  for (const section of ["<CommercialFile", "<DailyCostSummary", "<SaleMaterialsGroup", "<WorkAdditionalsSection", 'title="Notas del proyecto"', 'title="Historial del trabajo"']) {
     assert.ok(detailRest.includes(section), `${section} solo se renderiza sin error de carga`);
   }
   // Los textos de vacío de la ficha viven dentro de esas secciones, nunca fuera de la rama sin error.
   assert.doesNotMatch(main.slice(0, detailBranch), /Aún no hay notas|Aún no hay tareas/);
   // Tablero: "no hay Proyectos" frente a "los filtros no coinciden", con el mismo vacío de la Lista.
-  assert.match(main, /view === "board" \? \(visibleWorks\.length \? <WorkBoard works=\{visibleWorks\} onOpen=\{openDetail\} \/> : <WorksEmptyState hasAnyWork=\{works\.length > 0\}/);
+  assert.match(main, /view === "board" \? \(works\.length \? <WorkProjectBoard [\s\S]*\/> : <WorksEmptyState hasAnyWork=\{false\}/);
+  // Tablero del proyecto: cargando, error, datos (en ese orden) y error propio separado del de acciones.
+  assert.match(main, /const \[boardError, setBoardError\] = useState\(""\)/);
+  assert.match(board, /loading \? <LoadingState variant="section" label="Cargando tablero\.\.\." \/> : error \? <LoadFailure message=\{error\} onRetry=\{onRetry\} \/> : \(/);
+  assert.doesNotMatch(board.slice(0, board.indexOf("error ? <LoadFailure")), /<WorkTaskBoard|<CostCard/);
   const emptyState = page.slice(page.indexOf("function WorksEmptyState"), page.indexOf("function WorkList"));
   assert.match(emptyState, /No hay trabajos coincidentes/);
   assert.match(emptyState, /Aún no hay trabajos/);
