@@ -1,103 +1,72 @@
 import React from "react";
-import {Trash2} from "lucide-react";
-import AppIcon from "../../components/ui/AppIcon";
-import {WORK_TASK_STATUSES, getTaskProgress, getWorkCostSummary, getWorkMemberIdentity, getWorkTaskStatusOptions} from "../../domain/workModel.mjs";
-import {formatDate, formatMoney} from "../../utils/formatters.js";
+import StatusBadge from "../../components/ui/StatusBadge";
+import {getTaskProgress, getWorkCostSummary, getWorkMemberIdentity, getWorkPersonShort, groupWorkTasksByBoardColumn} from "../../domain/workModel.mjs";
+import {formatMoney} from "../../utils/formatters.js";
 import useBusinessFormat from "../../hooks/useBusinessFormat";
 
-// Tablero de tareas del Proyecto abierto (PROJECTS_V3 ETAPA 2, SPEC 019 §5).
-// `renderCardExtras(task)` (opcional) agrega contenido propio dentro de cada
-// tarjeta (lo usa WorkProjectBoard para subtareas, documentación y costos).
+// Tablero de tareas del Proyecto abierto (SPEC 019 §5, compactado en SPEC 028
+// etapa B2). Tres columnas (Por hacer, En curso, Hecho) sobre los cuatro estados
+// de tarea de siempre: las tareas "en espera" van al final de "En curso" con su
+// etiqueta y motivo. La tarjeta es solo un resumen (título, responsable,
+// subtareas, costo asignado y espera); al hacer clic llama a `onOpenTask(task)`
+// y el detalle y las acciones viven en WorkTaskPanel.
 // Presentacional/controlado: recibe exclusivamente `tasks` ya acotadas al
-// Proyecto actual (el arreglo visibleTasks que arma WorkProjectBoard) y las
-// callbacks ya existentes
-// (onRequestTaskState -> cambiarEstadoTareaTrabajo, onRemoveLegacy ->
-// eliminarTareaTrabajo). No define ninguna mutación propia, no hace ninguna
-// consulta remota y no recibe ningún identificador de negocio ni de
-// Proyecto: por construcción no puede leer ni mutar tareas de otro
-// Proyecto. Sin drag-and-drop: el cambio de estado reutiliza el mismo
-// <select> ya usado por la vista de lista.
+// Proyecto actual (el arreglo visibleTasks que arma WorkProjectBoard). No define
+// ninguna mutación propia, no hace ninguna consulta remota y no recibe ningún
+// identificador de negocio ni de Proyecto: por construcción no puede leer ni
+// mutar tareas de otro Proyecto. Sin drag-and-drop.
 
 function responsableLabel(task) {
-  return task.responsableUid ? getWorkMemberIdentity(task.responsableSnapshot || {}) : "Sin responsable";
+  return task.responsableUid ? getWorkMemberIdentity(task.responsableSnapshot || {}) : "";
 }
 
-function TaskCard({canManage, canOperate, costs, currency, extras, onRemoveLegacy, onRequestTaskState, processing, task, terminal}) {
-  const { locale: businessLocale } = useBusinessFormat();
+function TaskCard({costs, currency, onOpenTask, task}) {
+  const {locale: businessLocale} = useBusinessFormat();
   const progress = getTaskProgress(task);
   const taskCost = getWorkCostSummary({...costs, taskId: task.id});
-  const operable = canOperate(task);
-  const showStateControl = !terminal && operable && (!task.completada || canManage);
-  const showDelete = canManage && task.modeloTareaVersion < 2 && !task.completada;
+  const identity = responsableLabel(task);
+  const person = identity ? getWorkPersonShort(identity) : null;
+  const waiting = task.estado === "en_espera";
 
   return (
-    <article className="works-task-board__card">
-      <strong>{task.titulo}</strong>
-      <dl>
-        <div><dt>Responsable</dt><dd>{responsableLabel(task)}</dd></div>
-        {progress.total > 0 && <div><dt>Subtareas</dt><dd>{progress.completed}/{progress.total} · {progress.percent}%</dd></div>}
-        <div><dt>Costo asignado</dt><dd>{formatMoney(taskCost.total, currency, businessLocale)}</dd></div>
-        <div><dt>Creada</dt><dd>{formatDate(task.creadoEn)}</dd></div>
-      </dl>
-      {task.estado === "en_espera" && task.motivoEspera && <p className="works-wait-reason">En espera: {task.motivoEspera}</p>}
-      {task.modeloTareaVersion < 2 && <span className="works-task-board__legacy">Tarea legacy</span>}
-      {extras}
-      {showStateControl && (
-        <div className="works-task-board__actions">
-          <label className="sr-only" htmlFor={`board-task-state-${task.id}`}>Cambiar estado de {task.titulo}</label>
-          <select
-            id={`board-task-state-${task.id}`}
-            className="erp-control"
-            value={task.estado}
-            disabled={Boolean(processing)}
-            onChange={(event) => onRequestTaskState(task, event.target.value)}
-          >
-            {getWorkTaskStatusOptions(task, {canManage}).map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}
-          </select>
-          {showDelete && (
-            <button type="button" aria-label={`Eliminar ${task.titulo}`} disabled={Boolean(processing)} onClick={() => onRemoveLegacy(task)}>
-              <AppIcon icon={Trash2} size={15} />
-            </button>
-          )}
-        </div>
+    <button type="button" className="works-task-board__card" aria-haspopup="dialog" onClick={() => onOpenTask(task)}>
+      <span className="works-task-card__title">{task.titulo}</span>
+      <span className="works-task-card__person">
+        {person
+          ? <><span className="works-task-card__avatar" aria-hidden="true">{person.initials}</span><span className="works-task-card__name">{person.shortName}</span></>
+          : <span className="works-task-card__none">Sin responsable</span>}
+      </span>
+      {progress.total > 0 && (
+        <span className="works-task-card__progress">
+          <span>Subtareas {progress.completed}/{progress.total}</span>
+          <progress className="works-task-progress works-task-progress--thin" max="100" value={progress.percent} aria-label={`Avance de ${task.titulo}`} />
+        </span>
       )}
-      {!operable && <span className="works-task-board__readonly">Sólo lectura</span>}
-    </article>
+      <span className="works-task-card__cost"><span>Costo asignado</span><span>{formatMoney(taskCost.total, currency, businessLocale)}</span></span>
+      {waiting && (
+        <span className="works-task-card__wait">
+          <StatusBadge variant="warning">En espera</StatusBadge>
+          {task.motivoEspera && <span className="works-task-card__wait-reason">{task.motivoEspera}</span>}
+        </span>
+      )}
+    </button>
   );
 }
 
-export default function WorkTaskBoard({canManage, canOperate, costs, currency, emptyCopy, onRemoveLegacy, onRequestTaskState, processing, renderCardExtras, tasks, terminal}) {
+export default function WorkTaskBoard({costs, currency, emptyCopy, onOpenTask, tasks}) {
   const list = Array.isArray(tasks) ? tasks : [];
   if (!list.length) return <p className="works-empty-copy">{emptyCopy}</p>;
 
   return (
     <div className="works-task-board">
-      {WORK_TASK_STATUSES.map((column) => {
-        const columnTasks = list.filter((task) => task.estado === column.value);
-        return (
-          <section className="works-task-board__column" key={column.value}>
-            <header><h4>{column.label}</h4><span>{columnTasks.length}</span></header>
-            <div className="works-task-board__list">
-              {columnTasks.map((task) => (
-                <TaskCard
-                  canManage={canManage}
-                  canOperate={canOperate}
-                  costs={costs}
-                  currency={currency}
-                  extras={renderCardExtras ? renderCardExtras(task) : null}
-                  key={task.id}
-                  onRemoveLegacy={onRemoveLegacy}
-                  onRequestTaskState={onRequestTaskState}
-                  processing={processing}
-                  task={task}
-                  terminal={terminal}
-                />
-              ))}
-              {!columnTasks.length && <p className="works-task-board__column-empty">Sin tareas en este estado.</p>}
-            </div>
-          </section>
-        );
-      })}
+      {groupWorkTasksByBoardColumn(list).map((column) => (
+        <section className="works-task-board__column" key={column.id} aria-label={column.label}>
+          <header><h4>{column.label}</h4><span>{column.tasks.length}</span></header>
+          {column.tasks.length > 0
+            ? <div className="works-task-board__list">{column.tasks.map((task) => <TaskCard costs={costs} currency={currency} key={task.id} onOpenTask={onOpenTask} task={task} />)}</div>
+            : <p className="works-task-board__column-empty">Sin tareas</p>}
+        </section>
+      ))}
     </div>
   );
 }

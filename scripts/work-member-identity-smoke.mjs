@@ -53,8 +53,11 @@ import {readFileSync} from "node:fs";
 const page = readFileSync(new URL("../src/pages/WorksPage.jsx", import.meta.url), "utf8");
 // Desde la etapa B del tablero, los selectores de tarea viven en WorkProjectBoard.
 const board = readFileSync(new URL("../src/features/works/WorkProjectBoard.jsx", import.meta.url), "utf8");
+// Con el tablero compacto (etapa B2) los selectores viven en el panel de la tarea y en el formulario de "Nueva tarea".
+const taskPanel = readFileSync(new URL("../src/features/works/WorkTaskPanel.jsx", import.meta.url), "utf8");
+const taskCreate = readFileSync(new URL("../src/features/works/WorkTaskCreateDialog.jsx", import.meta.url), "utf8");
 assert.doesNotMatch(page, /member\.nombre/, "los selectores de miembros usan getWorkMemberIdentity");
-assert.doesNotMatch(board, /member\.nombre/, "los selectores del tablero usan getWorkMemberIdentity");
-assert.ok(((page + board).match(/getWorkMemberIdentity\(member\)/g) || []).length >= 7);
+for (const source of [board, taskPanel, taskCreate]) assert.doesNotMatch(source, /member\.nombre/, "los selectores del tablero usan getWorkMemberIdentity");
+assert.ok(((page + board + taskPanel + taskCreate).match(/getWorkMemberIdentity\(member\)/g) || []).length >= 7);
 
 console.log("WORK_MEMBER_IDENTITY_SMOKE_OK");

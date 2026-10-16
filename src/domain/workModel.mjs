@@ -140,8 +140,14 @@ export function canManageWorks(role) {
   return ["OWNER", "ADMIN"].includes(String(role || "").toUpperCase());
 }
 
+export const CLOSED_WORK_STATUSES = Object.freeze(["completado", "cancelado"]);
+
+export function isWorkClosed(work = {}) {
+  return CLOSED_WORK_STATUSES.includes(work?.estado);
+}
+
 export function isWorkOperationalReadOnly(work = {}) {
-  return ["completado", "cancelado"].includes(work?.estado);
+  return isWorkClosed(work);
 }
 
 // Textos de relleno que el backend (businessMemberships.js) y el adaptador
@@ -571,6 +577,8 @@ export function getWorkDraftErrors(raw = {}) {
 
 export function matchesWorkFilters(work, filters = {}) {
   if (filters.estado && filters.estado !== "todos" && work.estado !== filters.estado) return false;
+  // Lista: por defecto solo proyectos activos. Si se pide un estado cerrado de forma explícita, se respeta.
+  if (filters.incluirCerrados === false && isWorkClosed(work) && !CLOSED_WORK_STATUSES.includes(filters.estado)) return false;
   if (filters.prioridad && filters.prioridad !== "todas" && work.prioridad !== filters.prioridad) return false;
   if (filters.responsableUid && filters.responsableUid !== "todos" && work.responsableUid !== filters.responsableUid) return false;
   const query = normalizeWorkSearch(filters.query);
@@ -607,6 +615,88 @@ export function getTaskProgress(task = {}) {
   const completed = subtasks.filter((entry) => entry.completada).length;
   return {total: subtasks.length, completed, percent: Math.round((completed / subtasks.length) * 10000) / 100};
 }
+
+// Columnas del tablero por proyecto (SPEC 028 etapa B2): tres columnas sobre los
+// cuatro estados de tarea de siempre. "En espera" no es columna: sus tareas van
+// al final de "En curso" con su etiqueta y motivo. No cambia el modelo.
+export const WORK_BOARD_COLUMNS = Object.freeze([
+  {id: "por_hacer", label: "Por hacer", states: Object.freeze(["pendiente"])},
+  {id: "en_curso", label: "En curso", states: Object.freeze(["en_progreso", "en_espera"])},
+  {id: "hecho", label: "Hecho", states: Object.freeze(["completada"])},
+]);
+
+export function groupWorkTasksByBoardColumn(tasks = []) {
+  const list = Array.isArray(tasks) ? tasks : [];
+  return WORK_BOARD_COLUMNS.map((column) => ({...column, tasks: column.states.flatMap((state) => list.filter((task) => task?.estado === state))}));
+}
+
+// Iniciales y nombre corto para la tarjeta. Recibe la identidad ya resuelta
+// (nombre real o, si no hay, correo): "Camila Torres Morales" -> CT / "Camila T.";
+// "ana@dominio.cl" -> AN / "ana".
+export function getWorkPersonShort(identity) {
+  const text = String(identity || "").trim();
+  if (!text) return {initials: "", shortName: ""};
+  if (text.includes("@")) {
+    const local = text.split("@")[0] || text;
+    return {initials: local.slice(0, 2).toLocaleUpperCase("es-CL"), shortName: local};
+  }
+  const parts = text.split(/\s+/);
+  const initials = `${parts[0][0] || ""}${parts[1]?.[0] || parts[0][1] || ""}`.toLocaleUpperCase("es-CL");
+  return {initials, shortName: parts.length > 1 ? `${parts[0]} ${parts[1][0].toLocaleUpperCase("es-CL")}.` : parts[0]};
+}
+
+// Fecha de cierre de un proyecto cerrado. Completado guarda `fechaCompletado`;
+// Cancelado no guarda una fecha propia, así que se usa la última actualización
+// (un proyecto cerrado es de solo lectura, nada más la mueve).
+export function getWorkClosedAt(work = {}) {
+  if (!isWorkClosed(work)) return null;
+  return (work.estado === "completado" ? work.fechaCompletado : "") || work.actualizadoEn || work.creadoEn || null;
+}
+
+// Proyectos completados y cancelados, el cierre más reciente primero.
+export function getClosedWorks(works = []) {
+  return (Array.isArray(works) ? works : []).filter(isWorkClosed)
+    .map((work) => ({work, closedAt: getWorkClosedAt(work) || ""}))
+    .sort((left, right) => right.closedAt.localeCompare(left.closedAt))
+    .map(({work}) => work);
+}
+
+function chileDayKey(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en", {timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit"}).formatToParts(date).map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function inclusiveDays(fromKey, toKey) {
+  if (!fromKey || !toKey) return null;
+  const days = Math.round((Date.parse(`${toKey}T00:00:00Z`) - Date.parse(`${fromKey}T00:00:00Z`)) / 86400000) + 1;
+  return Number.isFinite(days) && days >= 1 ? days : null;
+}
+
+// Duración planificada contra real, en días corridos (el día de inicio cuenta).
+// Inicio = inicio planificado, o la fecha de creación si no hay. Plan: hasta el
+// término planificado. Real: hasta la fecha de cierre. Sin dato, null.
+export function getWorkDurationSummary(work = {}) {
+  const start = chileDayKey(work.fechaInicio) || chileDayKey(work.creadoEn);
+  const planned = inclusiveDays(start, chileDayKey(work.fechaPrevista));
+  const actual = inclusiveDays(start, chileDayKey(getWorkClosedAt(work)));
+  return {plannedDays: planned, actualDays: actual, deltaDays: planned != null && actual != null ? actual - planned : null};
+}
+
+// Resultado de un proyecto cerrado a partir de su balance (obtenerBalanceTrabajo).
+// "gano" / "perdio" / "equilibrio", o "no_disponible" sin balance completo (sin
+// Venta confirmada o monedas incompatibles): nunca se inventa un resultado.
+export function getWorkClosedResultKind(balance) {
+  if (!balance || balance.estado !== "COMPLETO" || balance.resultado == null || !Number.isFinite(Number(balance.resultado))) return "no_disponible";
+  return balance.resultado > 0 ? "gano" : balance.resultado < 0 ? "perdio" : "equilibrio";
+}
+
+// Cuántos cierres recientes cargan su balance en la vista Cerrados.
+export const WORK_CLOSED_BALANCE_LIMIT = 20;
 
 function rounded(value) {
   return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;

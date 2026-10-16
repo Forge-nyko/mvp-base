@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {Columns3, LayoutList, Pencil, Plus, RefreshCw, Search} from "lucide-react";
+import {Archive, Columns3, LayoutList, Pencil, Plus, RefreshCw, Search} from "lucide-react";
 import {useLocation, useNavigate, useSearchParams} from "react-router-dom";
 import AppIcon from "../components/ui/AppIcon";
 import BarcodeInput from "../components/barcode/BarcodeInput";
@@ -12,10 +12,11 @@ import {SkeletonCards, SkeletonRegion, SkeletonTable} from "../components/ui/Ske
 import StatusBadge from "../components/ui/StatusBadge";
 import {TabPanel, Tabs} from "../components/ui/Tabs";
 import WorkAdditionalsSection from "../features/works/WorkAdditionalsSection.jsx";
+import WorkClosedProjects from "../features/works/WorkClosedProjects.jsx";
 import WorkExpenseEvidence from "../features/works/WorkExpenseEvidence.jsx";
 import WorkQuoteSelector from "../features/works/WorkQuoteSelector.jsx";
 import WorkProjectBoard from "../features/works/WorkProjectBoard.jsx";
-import {WORK_EXPENSE_CATEGORIES, WORK_PRIORITIES, WORK_STATUSES, buildQuickWorkCreationPayload, buildWorkDailyCostSummary, canManageWorks, canOperateWorkTask, canViewWorkProfitability, filterWorkCostsByTaskScope, getDefaultBoardWorkId, getEligibleWorkQuoteOptions, getInventoryCurrentCost, getWorkAccumulatedCost, getWorkCostSummary, getWorkDraftErrors, getWorkHistoricalPersonIdentity, getWorkMemberIdentity, getWorkMemberOptionLabel, getWorkOperationalIndicators, getWorkPriorityLabel, getWorkSaleMaterials, getWorkStatusLabel, getWorkTaskProgress, humanizeWorkEvent, isWorkOperationalReadOnly, matchesWorkFilters, resolveWorkMaterialScan, WORK_COST_SCOPE_ORPHAN} from "../domain/workModel.mjs";
+import {WORK_CLOSED_BALANCE_LIMIT, WORK_EXPENSE_CATEGORIES, WORK_PRIORITIES, WORK_STATUSES, buildQuickWorkCreationPayload, buildWorkDailyCostSummary, canManageWorks, canOperateWorkTask, canViewWorkProfitability, filterWorkCostsByTaskScope, getClosedWorks, getDefaultBoardWorkId, getEligibleWorkQuoteOptions, getInventoryCurrentCost, getWorkAccumulatedCost, getWorkCostSummary, getWorkDraftErrors, getWorkHistoricalPersonIdentity, getWorkMemberIdentity, getWorkMemberOptionLabel, getWorkOperationalIndicators, getWorkPriorityLabel, getWorkSaleMaterials, getWorkStatusLabel, getWorkTaskProgress, humanizeWorkEvent, isWorkClosed, isWorkOperationalReadOnly, matchesWorkFilters, resolveWorkMaterialScan, WORK_COST_SCOPE_ORPHAN} from "../domain/workModel.mjs";
 import {canManageSales} from "../domain/saleModel.mjs";
 import {listarMiembrosNegocio} from "../services/businessMemberService.js";
 import {listarClientes} from "../services/clientService.js";
@@ -75,12 +76,19 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
   // La vista (Lista/Tablero) y el proyecto del tablero viven en la URL
   // (?vista=tablero&proyecto=<id>), así se pueden enlazar y sobreviven a recargar.
   const [searchParams, setSearchParams] = useSearchParams();
-  const view = searchParams.get("vista") === "tablero" ? "board" : "list";
+  const view = searchParams.get("vista") === "tablero" ? "board" : searchParams.get("vista") === "cerrados" ? "closed" : "list";
   const requestedBoardWorkId = searchParams.get("proyecto") || "";
   const updateSearch = (change) => setSearchParams((current) => { const next = new URLSearchParams(current); change(next); return next; }, {replace: true});
-  const setView = (next) => updateSearch((params) => { if (next === "board") params.set("vista", "tablero"); else { params.delete("vista"); params.delete("proyecto"); } });
+  const setView = (next) => updateSearch((params) => { if (next === "board") params.set("vista", "tablero"); else if (next === "closed") { params.set("vista", "cerrados"); params.delete("proyecto"); } else { params.delete("vista"); params.delete("proyecto"); } });
   const selectBoardWork = (workId) => updateSearch((params) => { params.set("vista", "tablero"); params.set("proyecto", workId); });
   const [filters, setFilters] = useState({query: "", estado: "todos", prioridad: "todas", responsableUid: "todos"});
+  // Lista: por defecto solo proyectos activos; los cerrados se ven con esta opción o en la vista Cerrados.
+  const [showClosed, setShowClosed] = useState(false);
+  // Vista Cerrados: balances de los cierres más recientes, con su propio estado de carga y error.
+  const [closedBalances, setClosedBalances] = useState({});
+  const [closedBalancesLoading, setClosedBalancesLoading] = useState(false);
+  const [closedBalancesError, setClosedBalancesError] = useState("");
+  const closedBalancesRequestRef = useRef(0);
   const [formOpen, setFormOpen] = useState(false);
   const [editingWork, setEditingWork] = useState(null);
   const [draft, setDraft] = useState({...EMPTY_WORK});
@@ -177,7 +185,7 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
     if (view === "board" && !loading && !loadError && boardWorkId) loadBoardDetail(boardWorkId);
   }, [boardWorkId, loadBoardDetail, loadError, loading, view]);
 
-  const openDetail = (work) => { setSelectedWork(work); setNoteText(""); setDetailTab("datos"); loadDetail(work.id); };
+  const openDetail = (work, tab = "datos") => { setSelectedWork(work); setNoteText(""); setDetailTab(tab); loadDetail(work.id); };
   const refreshWork = async (workId) => {
     const [list, inventoryList] = await Promise.all([listarTrabajos(businessId, {role, currentUserUid}), getInventoryItems(businessId)]); setWorks(list); setInventoryProducts(inventoryList.filter((item) => item.estado === "activo" && item.tipoItem === "producto")); setCatalogItems(inventoryList.filter((item) => item.estado === "activo"));
     const current = list.find((work) => work.id === workId);
@@ -189,7 +197,28 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
   };
   const openWorkBoard = (work) => { setSelectedWork(null); selectBoardWork(work.id); };
 
-  const visibleWorks = useMemo(() => works.filter((work) => matchesWorkFilters(work, filters)), [filters, works]);
+  const visibleWorks = useMemo(() => works.filter((work) => matchesWorkFilters(work, {...filters, incluirCerrados: showClosed})), [filters, showClosed, works]);
+  const hiddenClosedCount = showClosed ? 0 : works.filter(isWorkClosed).length;
+  const canSeeProfitability = canViewWorkProfitability(role);
+  // Los 20 cierres más recientes cargan su balance en paralelo; un fallo de uno no tumba a los demás.
+  const closedBalanceIds = useMemo(() => getClosedWorks(works).slice(0, WORK_CLOSED_BALANCE_LIMIT).map((work) => work.id), [works]);
+  const closedBalanceKey = closedBalanceIds.join("|");
+  const loadClosedBalances = useCallback(async (ids) => {
+    if (!ids.length) return;
+    const requestNumber = ++closedBalancesRequestRef.current;
+    setClosedBalancesLoading(true); setClosedBalancesError("");
+    const results = await Promise.allSettled(ids.map((id) => obtenerBalanceTrabajo(businessId, id)));
+    if (requestNumber !== closedBalancesRequestRef.current) return;
+    const loaded = {};
+    results.forEach((result, index) => { if (result.status === "fulfilled") loaded[ids[index]] = result.value; });
+    const failed = results.length - Object.keys(loaded).length;
+    setClosedBalances((current) => ({...current, ...loaded}));
+    setClosedBalancesError(failed ? `No se pudo cargar el balance de ${failed} proyecto${failed === 1 ? "" : "s"}.` : "");
+    setClosedBalancesLoading(false);
+  }, [businessId]);
+  useEffect(() => {
+    if (view === "closed" && canSeeProfitability && !loading && !loadError && closedBalanceKey) loadClosedBalances(closedBalanceKey.split("|"));
+  }, [canSeeProfitability, closedBalanceKey, loadClosedBalances, loadError, loading, view]);
   const quoteOptions = useMemo(() => {
     const eligible = getEligibleWorkQuoteOptions(quotes, sales, {workId: editingWork?.id});
     if (!draft.cotizacionId || eligible.some(({quote}) => quote.id === draft.cotizacionId)) return eligible;
@@ -273,11 +302,11 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
     addDocumentation: (task, texto) => runBoardAction(`task-document-${task.id}`, () => documentarTareaTrabajo(businessId, boardWorkId, task.id, texto, createWorkTaskRequestId("task-document"))),
     removeLegacy: (task) => runBoardAction(`task-delete-${task.id}`, () => eliminarTareaTrabajo(businessId, boardWorkId, task.id, createWorkTaskRequestId("task-delete"))),
   };
-  // Formularios de costos de siempre, acotados a una tarea ("" = General).
-  const renderBoardCosts = (scope) => <div className="works-resources">
-    <MaterialsSection key={`materials-${boardWorkId}-${scope}`} businessId={businessId} canManage={canManage} currency={boardCurrency} currentUserUid={currentUserUid} loading={boardLoading} movements={boardDetail.materiales} processing={processing} products={inventoryProducts} readOnly={boardReadOnly} role={role} runAction={runBoardAction} saleMaterials={boardSaleMaterials} taskId={scope} tasks={boardDetail.tareas} workId={boardWorkId} />
-    <FinancialSection key={`costs-${boardWorkId}-${scope}`} businessId={businessId} canManage={canManage} currency={boardCurrency} currentUserUid={currentUserUid} expenses={boardDetail.gastos} labor={boardDetail.horasHombre} loading={boardLoading} members={members} processing={processing} readOnly={boardReadOnly} role={role} runAction={runBoardAction} taskId={scope} tasks={boardDetail.tareas} workId={boardWorkId} />
-  </div>;
+  // Formularios de costos de siempre, acotados a una tarea ("" = General), uno por pestaña
+  // del diálogo de costos: Gastos, Horas hombre y Materiales.
+  const renderBoardCosts = (scope, section) => section === "materiales"
+    ? <MaterialsSection key={`materials-${boardWorkId}-${scope}`} businessId={businessId} canManage={canManage} currency={boardCurrency} currentUserUid={currentUserUid} loading={boardLoading} movements={boardDetail.materiales} processing={processing} products={inventoryProducts} readOnly={boardReadOnly} role={role} runAction={runBoardAction} saleMaterials={boardSaleMaterials} taskId={scope} tasks={boardDetail.tareas} workId={boardWorkId} />
+    : <FinancialSection key={`costs-${section}-${boardWorkId}-${scope}`} businessId={businessId} canManage={canManage} currency={boardCurrency} currentUserUid={currentUserUid} expenses={boardDetail.gastos} labor={boardDetail.horasHombre} loading={boardLoading} members={members} part={section === "horas" ? "labor" : "expenses"} processing={processing} readOnly={boardReadOnly} role={role} runAction={runBoardAction} taskId={scope} tasks={boardDetail.tareas} workId={boardWorkId} />;
   const requestStateChange = (next) => {
     if (next === selectedWork?.estado) return;
     if (next === "cancelado") { setCancelWork(selectedWork); return; }
@@ -293,9 +322,9 @@ export default function WorksPage({businessId, currencyCode, currentUserUid, rol
     {error && <div className="works-message works-message--error" role="alert">{error}</div>}
     <section className="erp-panel works-panel" aria-label="Trabajos registrados">
       {loadError ? <LoadFailure message={loadError} onRetry={load} /> : <>
-      <div className="works-toolbar"><div className="works-view-switch" role="group" aria-label="Vista"><button type="button" className={view === "list" ? "is-active" : ""} onClick={() => setView("list")}><AppIcon icon={LayoutList} size={17} />Lista</button><button type="button" className={view === "board" ? "is-active" : ""} onClick={() => setView("board")}><AppIcon icon={Columns3} size={17} />Tablero</button></div>{view === "list" && <span>{visibleWorks.length} trabajo{visibleWorks.length === 1 ? "" : "s"}</span>}</div>
-      {view === "list" && <div className="erp-filters works-filters"><label className="erp-field works-search"><span className="erp-field__label">Buscar por número, título o cliente</span><span className="works-search-control"><AppIcon icon={Search} size={18} /><input className="erp-control" value={filters.query} onChange={(event) => setFilters((current) => ({...current, query: event.target.value}))} /></span></label><Filter label="Estado" value={filters.estado} onChange={(value) => setFilters((current) => ({...current, estado: value}))}><option value="todos">Todos</option>{WORK_STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Filter><Filter label="Prioridad" value={filters.prioridad} onChange={(value) => setFilters((current) => ({...current, prioridad: value}))}><option value="todas">Todas</option>{WORK_PRIORITIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Filter><Filter label="Responsable principal" value={filters.responsableUid} onChange={(value) => setFilters((current) => ({...current, responsableUid: value}))}><option value="todos">Todos</option>{members.map((member) => <option key={member.uid} value={member.uid}>{getWorkMemberIdentity(member)}</option>)}</Filter></div>}
-      {loading ? (view === "board" ? <LoadingState variant="section" label="Cargando trabajos..." /> : <SkeletonRegion label="Cargando trabajos..."><SkeletonTable className="erp-desktop-only" columns={7} twoLine /><SkeletonCards className="erp-card-list erp-mobile-only" /></SkeletonRegion>) : view === "board" ? (works.length ? <WorkProjectBoard actions={boardActions} canManage={canManage} canOperate={(task) => canOperateWorkTask(task, {canManage, role, currentUserUid})} costs={{expenses: boardDetail.gastos, labor: boardDetail.horasHombre, materials: boardDetail.materiales}} currency={boardCurrency} currentUserUid={currentUserUid} detail={boardDetail} error={boardError} loading={boardLoading} members={members} onOpenFicha={() => boardWork && openDetail(boardWork)} onRetry={() => loadBoardDetail(boardWorkId)} onSelectWork={selectBoardWork} processing={processing} projectCost={getWorkAccumulatedCost(boardWork || {})} renderCosts={renderBoardCosts} terminal={boardReadOnly} work={boardWork} workId={boardWorkId} works={works} /> : <WorksEmptyState hasAnyWork={false} canManage={canManage} onCreate={openNew} />) : <WorkList works={visibleWorks} hasAnyWork={works.length > 0} canManage={canManage} onCreate={openNew} onEdit={openEdit} onOpen={openDetail} />}
+      <div className="works-toolbar"><div className="works-view-switch" role="group" aria-label="Vista"><button type="button" className={view === "list" ? "is-active" : ""} onClick={() => setView("list")}><AppIcon icon={LayoutList} size={17} />Lista</button><button type="button" className={view === "board" ? "is-active" : ""} onClick={() => setView("board")}><AppIcon icon={Columns3} size={17} />Tablero</button><button type="button" className={view === "closed" ? "is-active" : ""} onClick={() => setView("closed")}><AppIcon icon={Archive} size={17} />Cerrados</button></div>{view === "list" && <span>{visibleWorks.length} trabajo{visibleWorks.length === 1 ? "" : "s"}</span>}</div>
+      {view === "list" && <div className="erp-filters works-filters"><label className="erp-field works-search"><span className="erp-field__label">Buscar por número, título o cliente</span><span className="works-search-control"><AppIcon icon={Search} size={18} /><input className="erp-control" value={filters.query} onChange={(event) => setFilters((current) => ({...current, query: event.target.value}))} /></span></label><Filter label="Estado" value={filters.estado} onChange={(value) => setFilters((current) => ({...current, estado: value}))}><option value="todos">Todos</option>{WORK_STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Filter><Filter label="Prioridad" value={filters.prioridad} onChange={(value) => setFilters((current) => ({...current, prioridad: value}))}><option value="todas">Todas</option>{WORK_PRIORITIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Filter><Filter label="Responsable principal" value={filters.responsableUid} onChange={(value) => setFilters((current) => ({...current, responsableUid: value}))}><option value="todos">Todos</option>{members.map((member) => <option key={member.uid} value={member.uid}>{getWorkMemberIdentity(member)}</option>)}</Filter><label className="ui-checkbox works-filters__closed"><input className="ui-checkbox__input" type="checkbox" checked={showClosed} onChange={(event) => setShowClosed(event.target.checked)} /><span className="ui-checkbox__label">Mostrar también cerrados</span></label></div>}
+      {loading ? (view === "board" ? <LoadingState variant="section" label="Cargando trabajos..." /> : <SkeletonRegion label="Cargando trabajos..."><SkeletonTable className="erp-desktop-only" columns={7} twoLine /><SkeletonCards className="erp-card-list erp-mobile-only" /></SkeletonRegion>) : view === "board" ? (works.length ? <WorkProjectBoard actions={boardActions} canManage={canManage} canOperate={(task) => canOperateWorkTask(task, {canManage, role, currentUserUid})} costs={{expenses: boardDetail.gastos, labor: boardDetail.horasHombre, materials: boardDetail.materiales}} currency={boardCurrency} currentUserUid={currentUserUid} detail={boardDetail} error={boardError} loading={boardLoading} members={members} onOpenFicha={() => boardWork && openDetail(boardWork)} onRetry={() => loadBoardDetail(boardWorkId)} onSelectWork={selectBoardWork} processing={processing} projectCost={getWorkAccumulatedCost(boardWork || {})} renderCosts={renderBoardCosts} terminal={boardReadOnly} work={boardWork} workId={boardWorkId} works={works} /> : <WorksEmptyState hasAnyWork={false} canManage={canManage} onCreate={openNew} />) : view === "closed" ? <WorkClosedProjects balances={closedBalances} balancesError={closedBalancesError} balancesLoading={closedBalancesLoading} canViewProfitability={canSeeProfitability} onOpenWork={(work) => openDetail(work, canSeeProfitability ? "balance" : "datos")} onRetryBalances={() => loadClosedBalances(closedBalanceIds.filter((id) => !closedBalances[id]))} works={works} /> : <WorkList works={visibleWorks} hasAnyWork={works.length > 0} hiddenClosedCount={hiddenClosedCount} filtersActive={filters.query.trim() !== "" || filters.estado !== "todos" || filters.prioridad !== "todas" || filters.responsableUid !== "todos"} canManage={canManage} onCreate={openNew} onEdit={openEdit} onOpen={openDetail} />}
       </>}
     </section>
 
@@ -428,10 +457,12 @@ function chileToday() {
   return `${value.year}-${value.month}-${value.day}`;
 }
 
+// `part` ("expenses" | "labor") muestra solo esa mitad (una pestaña del diálogo de costos); sin él
+// muestra Gastos y Horas hombre juntas, como siempre.
 // `taskId` (opcional) acota la sección a una tarea ("" = costos generales del proyecto,
 // WORK_COST_SCOPE_ORPHAN = costos de tareas que ya no existen, solo lectura): lista solo
 // esos registros y registra con la tarea ya asociada. Sin `taskId` se comporta como siempre.
-function FinancialSection({businessId, canManage, currency, currentUserUid, expenses, labor, loading, members, processing, readOnly, role, runAction, taskId, tasks, workId}) {
+function FinancialSection({businessId, canManage, currency, currentUserUid, expenses, labor, loading, members, part, processing, readOnly, role, runAction, taskId, tasks, workId}) {
   const { locale: businessLocale } = useBusinessFormat();
   const scoped = taskId !== undefined;
   const orphanScope = taskId === WORK_COST_SCOPE_ORPHAN;
@@ -490,12 +521,12 @@ function FinancialSection({businessId, canManage, currency, currentUserUid, expe
       .catch(() => setEvidenceError("No se pudo abrir el documento. Intenta nuevamente."));
   };
 
-  return <section className="works-detail-section works-financial-file">
-    <div className="works-section-heading"><div><h3>Costos reales</h3><span>Moneda {currency}</span></div></div>
+  return <section className={part ? "works-detail-section works-financial-file works-financial-file--tab" : "works-detail-section works-financial-file"}>
+    {!part && <div className="works-section-heading"><div><h3>Costos reales</h3><span>Moneda {currency}</span></div></div>}
     {evidenceError && <div className="works-message works-message--error" role="alert">{evidenceError}</div>}
-    <p className="works-financial-note">{readOnly ? "Los costos históricos permanecen visibles. Reabre el proyecto para registrar o corregir operaciones." : "Los registros no se editan ni eliminan: para corregir, anula el original y crea el reemplazo."}</p>
-    <div className="works-financial-columns">
-      <section><header><div><h4>Gastos</h4><strong>{formatMoney(expenseTotal, currency, businessLocale)}</strong></div><small>Directos e indirectos, sin balance final.</small></header>
+    <p className="works-financial-note">{readOnly ? "Costos históricos visibles: reabre el proyecto para registrar o corregir." : "Los registros no se editan: para corregir, anula el original y crea el reemplazo."}</p>
+    <div className={part ? "works-financial-columns works-financial-columns--single" : "works-financial-columns"}>
+      {(!part || part === "expenses") && <section><header><div><h4>Gastos</h4><strong>{formatMoney(expenseTotal, currency, businessLocale)}</strong></div><small>Directos e indirectos.</small></header>
         {activeExpenses.length > 0 && <dl className="works-cost-subtotals"><div><dt><strong>Costos directos</strong></dt><dd>{formatMoney(directExpenseTotal, currency, businessLocale)}</dd></div><div><dt><strong>Costos indirectos</strong></dt><dd>{formatMoney(indirectExpenseTotal, currency, businessLocale)}</dd></div>{WORK_EXPENSE_CATEGORIES.map((category) => <div key={category.value}><dt>{category.label}</dt><dd>{formatMoney(activeExpenses.filter((entry) => entry.categoria === category.value).reduce((sum, entry) => sum + entry.monto, 0), currency, businessLocale)}</dd></div>)}</dl>}
         {canRegister && !readOnly && <form className="works-cost-form" onSubmit={saveExpense}>
           <input className="erp-control" maxLength="240" required value={expenseDraft.concepto} onChange={(event) => setExpenseDraft((current) => ({...current, concepto: event.target.value}))} placeholder="Concepto del gasto" />
@@ -508,8 +539,8 @@ function FinancialSection({businessId, canManage, currency, currentUserUid, expe
           <Button type="submit" disabled={Boolean(processing)}>Registrar gasto</Button>
         </form>}
         {loading ? <LoadingState variant="section" label="Cargando gastos..." /> : <div className="works-cost-list">{visibleExpenses.map((entry) => { const key = `expense-${entry.id}`; return <article key={entry.id} className={entry.estado === "anulado" ? "is-annulled" : ""}><div><strong>{entry.concepto}</strong><span>{formatMoney(entry.monto, entry.moneda || currency, businessLocale)} · {WORK_EXPENSE_CATEGORIES.find((item) => item.value === entry.categoria)?.label || entry.categoria} · {entry.clasificacionCosto === "INDIRECTO" ? "Indirecto" : "Directo"}</span><small>{dateLabel(entry.fecha)} · {entry.responsableDelGastoSnapshot?.nombre || entry.responsableDelGastoSnapshot?.correo || entry.registradoPorSnapshot?.nombre || entry.registradoPorSnapshot?.correo || "Equipo"} · {taskLabel(tasks, entry.tareaId)}</small>{entry.observacion && <p>{entry.observacion}</p>}{entry.estado === "anulado" && <small>Anulado: {entry.motivoAnulacion}</small>}<WorkExpenseEvidence canAttach={canAttachEvidence(entry)} entries={entry.evidencia || []} onOpen={openEvidence} onUpload={(file) => uploadEvidence(entry.id, file)} processing={processing === `evidence-${entry.id}`} /></div>{canManage && !readOnly && entry.estado !== "anulado" && <form className="works-annul-form" onSubmit={(event) => annul(event, "expense", entry.id)}><input className="erp-control" maxLength="1000" required value={annulReasons[key] || ""} onChange={(event) => setAnnulReasons((current) => ({...current, [key]: event.target.value}))} placeholder="Motivo de anulación" /><Button type="submit" variant="ghost-danger" disabled={Boolean(processing)}>Anular</Button></form>}</article>;})}{!visibleExpenses.length && <p className="works-empty-copy">Aún no se han registrado gastos.</p>}</div>}
-      </section>
-      <section><header><div><h4>Horas hombre</h4><strong>{laborHours} HH · {formatMoney(laborTotal, currency, businessLocale)}</strong></div><small>El total se calcula en backend.</small></header>
+      </section>}
+      {(!part || part === "labor") && <section><header><div><h4>Horas hombre</h4><strong>{laborHours} HH · {formatMoney(laborTotal, currency, businessLocale)}</strong></div><small>El total lo calcula el servidor.</small></header>
         {canRegister && !readOnly && <form className="works-cost-form" onSubmit={saveLabor}>
           <input className="erp-control" maxLength="240" required value={laborDraft.concepto} onChange={(event) => setLaborDraft((current) => ({...current, concepto: event.target.value}))} placeholder="Concepto o actividad" />
           {canManage && <select className="erp-control" required value={laborDraft.tecnicoUid} onChange={(event) => setLaborDraft((current) => ({...current, tecnicoUid: event.target.value}))}><option value="">Selecciona técnico</option>{members.map((member) => <option key={member.uid} value={member.uid}>{getWorkMemberIdentity(member)}</option>)}</select>}
@@ -520,7 +551,7 @@ function FinancialSection({businessId, canManage, currency, currentUserUid, expe
           <Button type="submit" disabled={Boolean(processing)}>Registrar HH</Button>
         </form>}
         {loading ? <LoadingState variant="section" label="Cargando HH..." /> : <div className="works-cost-list">{visibleLabor.map((entry) => { const key = `labor-${entry.id}`; return <article key={entry.id} className={entry.estado === "anulado" ? "is-annulled" : ""}><div><strong>{entry.concepto}</strong><span>{entry.horas} HH × {formatMoney(entry.costoHora, entry.moneda || currency, businessLocale)} = {formatMoney(entry.total, entry.moneda || currency, businessLocale)}</span><small>{dateLabel(entry.fecha)} · {entry.tecnicoSnapshot?.nombre || entry.tecnicoSnapshot?.correo || "Técnico"} · {taskLabel(tasks, entry.tareaId)}</small>{entry.estado === "anulado" && <small>Anulado: {entry.motivoAnulacion}</small>}</div>{canManage && !readOnly && entry.estado !== "anulado" && <form className="works-annul-form" onSubmit={(event) => annul(event, "labor", entry.id)}><input className="erp-control" maxLength="1000" required value={annulReasons[key] || ""} onChange={(event) => setAnnulReasons((current) => ({...current, [key]: event.target.value}))} placeholder="Motivo de anulación" /><Button type="submit" variant="ghost-danger" disabled={Boolean(processing)}>Anular</Button></form>}</article>;})}{!visibleLabor.length && <p className="works-empty-copy">Aún no se han registrado horas hombre.</p>}</div>}
-      </section>
+      </section>}
     </div>
   </section>;
 }
@@ -572,11 +603,10 @@ function MaterialsSection({businessId, canManage, currency, currentUserUid, load
   };
   const updateReturn = (exitId, field, value) => setReturnDrafts((current) => ({...current, [exitId]: {...(current[exitId] || {cantidad: "", fecha: chileToday()}), [field]: value}}));
 
-  return <section className="works-detail-section works-financial-file">
+  return <section className="works-detail-section works-financial-file works-financial-file--tab">
     <div className="works-section-heading"><div><h3>Materiales utilizados</h3><span>Consumo neto valorizado</span></div><strong>{formatMoney(Math.max(0, valuedTotal), currency, businessLocale)}</strong></div>
     <section className="works-material-group">
-      <header><div><h4>Consumos adicionales</h4><p>{readOnly ? "Salidas y devoluciones registradas durante la ejecución del proyecto." : "Estas salidas sí generan un movimiento nuevo de inventario."}</p></div><strong>{formatMoney(Math.max(0, additionalValuedTotal), currency, businessLocale)}</strong></header>
-      <p className="works-financial-note">Cada salida congela su costo. Las devoluciones conservan el movimiento de origen y restituyen stock con el mismo costo.</p>
+      <header><div><h4>Consumos adicionales</h4><p>{readOnly ? "Salidas y devoluciones registradas durante el proyecto." : "Cada salida mueve inventario y congela su costo; la devolución restituye stock al mismo costo."}</p></div><strong>{formatMoney(Math.max(0, additionalValuedTotal), currency, businessLocale)}</strong></header>
     {canConsume && !readOnly && <form className="works-cost-form works-material-form" onSubmit={saveExit}>
       <div className="works-material-product"><select className="erp-control" required value={draft.itemId} onChange={(event) => setDraft((current) => ({...current, itemId: event.target.value}))}>
         <option value="">Selecciona producto</option>
@@ -663,14 +693,18 @@ function LoadFailure({message, onRetry}) {
 
 // Vacío compartido por la Lista y el Tablero: "no hay Proyectos" frente a
 // "los filtros no coinciden".
-function WorksEmptyState({canManage, hasAnyWork, onCreate}) {
+function WorksEmptyState({canManage, filtersActive = true, hasAnyWork, hiddenClosedCount = 0, onCreate}) {
+  // Todos los proyectos están cerrados y la Lista solo muestra los activos: no es un error de filtros.
+  const onlyClosed = hasAnyWork && hiddenClosedCount > 0 && !filtersActive;
   return (
     <div className="erp-empty-state ui-empty-state">
-      <EmptyStateIllustration variant={hasAnyWork ? "no-results" : "empty-list"} />
-      <h3>{hasAnyWork ? "No hay trabajos coincidentes" : "Aún no hay trabajos"}</h3>
+      <EmptyStateIllustration variant={hasAnyWork && !onlyClosed ? "no-results" : "empty-list"} />
+      <h3>{onlyClosed ? "No hay proyectos activos" : hasAnyWork ? "No hay trabajos coincidentes" : "Aún no hay trabajos"}</h3>
       <p>
-        {hasAnyWork
-          ? "Prueba con otra búsqueda, estado, prioridad o responsable."
+        {onlyClosed
+          ? "Todos tus proyectos están cerrados. Marca «Mostrar también cerrados» o abre la vista Cerrados."
+          : hasAnyWork
+          ? `Prueba con otra búsqueda, estado, prioridad o responsable.${hiddenClosedCount > 0 ? " Los proyectos cerrados están ocultos." : ""}`
           : canManage
             ? "Crea el primer trabajo para organizar tareas, costos y avance del proyecto."
             : "Los perfiles autorizados pueden crear el primer trabajo."}
@@ -684,8 +718,8 @@ function WorksEmptyState({canManage, hasAnyWork, onCreate}) {
   );
 }
 
-function WorkList({canManage, hasAnyWork, onCreate, onEdit, onOpen, works}) {
-  if (!works.length) return <WorksEmptyState canManage={canManage} hasAnyWork={hasAnyWork} onCreate={onCreate} />;
+function WorkList({canManage, filtersActive, hasAnyWork, hiddenClosedCount, onCreate, onEdit, onOpen, works}) {
+  if (!works.length) return <WorksEmptyState canManage={canManage} filtersActive={filtersActive} hasAnyWork={hasAnyWork} hiddenClosedCount={hiddenClosedCount} onCreate={onCreate} />;
   return <><div className="erp-table-region erp-desktop-only"><table className="erp-table works-table"><thead><tr><th>Trabajo</th><th>Cliente</th><th>Responsable principal</th><th>Prioridad</th><th>Término planificado</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{works.map((work) => <tr key={work.id}><td><button className="works-link" type="button" onClick={() => onOpen(work)}><strong>{work.numero}</strong><span>{work.titulo}</span></button></td><td>{work.clienteSnapshot?.nombreRazonSocial || "Sin cliente"}</td><td>{workPersonIdentity(work.responsableSnapshot, work.responsableUid)}</td><td><Priority value={work.prioridad} /></td><td>{dateLabel(work.fechaPrevista)}</td><td><Status value={work.estado} /></td><td><div className="works-row-actions"><button type="button" onClick={() => onOpen(work)}>Ver</button>{canManage && !isWorkOperationalReadOnly(work) && <button type="button" onClick={() => onEdit(work)}>Editar</button>}</div></td></tr>)}</tbody></table></div><div className="erp-card-list erp-mobile-only">{works.map((work) => <article key={work.id} className="erp-record-card"><header className="erp-record-card__header"><div><span className="works-number">{work.numero}</span><h3 className="erp-record-card__title">{work.titulo}</h3></div><Status value={work.estado} /></header><dl className="erp-meta-grid"><div className="erp-meta"><dt className="erp-meta__label">Cliente</dt><dd className="erp-meta__value">{work.clienteSnapshot?.nombreRazonSocial || "Sin cliente"}</dd></div><div className="erp-meta"><dt className="erp-meta__label">Responsable principal</dt><dd className="erp-meta__value">{workPersonIdentity(work.responsableSnapshot, work.responsableUid)}</dd></div><div className="erp-meta"><dt className="erp-meta__label">Prioridad</dt><dd className="erp-meta__value"><Priority value={work.prioridad} /></dd></div><div className="erp-meta"><dt className="erp-meta__label">Término planificado</dt><dd className="erp-meta__value">{dateLabel(work.fechaPrevista)}</dd></div></dl><div className="works-card-actions"><Button type="button" variant="secondary" onClick={() => onOpen(work)}>Ver ficha</Button>{canManage && !isWorkOperationalReadOnly(work) && <Button type="button" variant="secondary" onClick={() => onEdit(work)}>Editar</Button>}</div></article>)}</div></>;
 }
 
