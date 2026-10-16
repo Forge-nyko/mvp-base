@@ -58,6 +58,13 @@
 - No permitir eliminación física de registros referenciados.
 - Las reglas Firestore no sustituyen validaciones autoritativas en Functions.
 
+# Módulos verticales
+
+- Un módulo vertical (por ejemplo Taller o Clínica Veterinaria) se integra al Core solo con cambios localizados, declarados en la descripción del PR con su motivo.
+- Permitido: rutas en `App.jsx` y menú, el módulo en `rbac`, reglas para sus propias colecciones (lectura por módulo, escritura `if false`) y sus propias Functions en archivos nuevos, exportadas en `index.js`.
+- No autorizado: modificar Functions centrales existentes y descontar stock hasta que exista la forma única de consumo de inventario.
+- Ante un conflicto en archivos de Core al integrar la baseline, se conserva la versión de Core.
+
 # Flujo de trabajo
 
 Antes de modificar:
