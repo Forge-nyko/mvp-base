@@ -97,9 +97,17 @@ async function expectCallableCode(expectedCode, operation) {
   );
 }
 
+// Rubros que dejaron de ser seleccionables pero siguen en el catálogo.
+const RETIRED_CATEGORIES = Object.freeze([
+  ["AUTOMOTRIZ_MOVILIDAD", "Automotriz y movilidad"],
+  ["CONSTRUCCION_OBRAS", "Construcción y obras especializadas"],
+  ["SOFTWARE_SOLUCIONES_DIGITALES", "Software y soluciones digitales"],
+  ["SERVICIOS_DIGITALES_CREATIVOS", "Servicios digitales y creativos"],
+]);
+
 const validPayload = Object.freeze({
   nombreComercial: "Mauricio SPA",
-  rubroCodigo: "SOFTWARE_SOLUCIONES_DIGITALES",
+  rubroCodigo: "TECNOLOGIA_INFORMATICA",
   regionCodigo: "01",
 });
 
@@ -168,6 +176,21 @@ async function main() {
         requestId: "business_unknown_category_001",
       })
     );
+    for (const [retiredCode] of RETIRED_CATEGORIES) {
+      await assert.rejects(
+        () =>
+          ownerCall("createFirstBusiness", {
+            nombreComercial: validPayload.nombreComercial,
+            rubroCodigo: retiredCode,
+            regionCodigo: validPayload.regionCodigo,
+            requestId: `business_retired_${retiredCode.toLowerCase()}_001`,
+          }),
+        (error) =>
+          String(error?.code || "").includes("invalid-argument") &&
+          String(error?.message || "").includes("Selecciona un rubro válido."),
+        retiredCode
+      );
+    }
     await expectCallableCode("invalid-argument", () =>
       ownerCall("createFirstBusiness", {
         nombreComercial: validPayload.nombreComercial,
@@ -552,19 +575,44 @@ async function main() {
       businessId,
       profile: {
         nombreComercial: validPayload.nombreComercial,
-        rubroCodigo: "AUTOMOTRIZ_MOVILIDAD",
+        rubroCodigo: "INGENIERIA_CONSULTORIA",
         regionEstado: "Exterior",
         validezCotizacionDias: 15,
       },
     });
-    assert.equal(upgradedHistoricalBusiness.data.profile.rubroCodigo, "AUTOMOTRIZ_MOVILIDAD");
-    assert.equal(upgradedHistoricalBusiness.data.profile.rubroNombre, "Automotriz y movilidad");
+    assert.equal(upgradedHistoricalBusiness.data.profile.rubroCodigo, "INGENIERIA_CONSULTORIA");
+    assert.equal(upgradedHistoricalBusiness.data.profile.rubroNombre, "Ingeniería y consultoría técnica");
     const [upgradedBusiness, upgradedProfile] = await Promise.all([
       adminDb.collection("negocios").doc(businessId).get(),
       adminDb.doc(`negocios/${businessId}/empresa/perfil`).get(),
     ]);
-    assert.equal(upgradedBusiness.data()?.rubroCodigo, "AUTOMOTRIZ_MOVILIDAD");
-    assert.equal(upgradedProfile.data()?.rubroCodigo, "AUTOMOTRIZ_MOVILIDAD");
+    assert.equal(upgradedBusiness.data()?.rubroCodigo, "INGENIERIA_CONSULTORIA");
+    assert.equal(upgradedProfile.data()?.rubroCodigo, "INGENIERIA_CONSULTORIA");
+
+    // Un negocio que ya tenía un rubro hoy no seleccionable lo conserva al actualizar su perfil.
+    for (const [retiredCode, retiredName] of RETIRED_CATEGORIES) {
+      await Promise.all([
+        adminDb.collection("negocios").doc(businessId).update({
+          rubroCodigo: retiredCode,
+          rubroNombre: retiredName,
+        }),
+        adminDb.doc(`negocios/${businessId}/empresa/perfil`).update({
+          rubroCodigo: retiredCode,
+          rubroNombre: retiredName,
+        }),
+      ]);
+      const preserved = await ownerCall("updateBusinessProfile", {
+        businessId,
+        profile: {
+          nombreComercial: validPayload.nombreComercial,
+          rubroCodigo: retiredCode,
+          regionEstado: "Exterior",
+          validezCotizacionDias: 15,
+        },
+      });
+      assert.equal(preserved.data.profile.rubroCodigo, retiredCode);
+      assert.equal(preserved.data.profile.rubroNombre, retiredName);
+    }
 
     const secondRequest = await ownerCall("createFirstBusiness", {
       ...validPayload,

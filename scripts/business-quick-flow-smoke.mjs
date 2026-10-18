@@ -95,7 +95,7 @@ assert.deepEqual(
 assert.deepEqual(
   normalizeQuickBusinessPayload({
     nombreComercial: "  Mauricio   SPA ",
-    rubroCodigo: "SOFTWARE_SOLUCIONES_DIGITALES",
+    rubroCodigo: "TECNOLOGIA_INFORMATICA",
     rubroOtro: "",
     regionCodigo: "01",
     comunaCodigo: "",
@@ -106,7 +106,7 @@ assert.deepEqual(
   }),
   {
     nombreComercial: "Mauricio SPA",
-    rubroCodigo: "SOFTWARE_SOLUCIONES_DIGITALES",
+    rubroCodigo: "TECNOLOGIA_INFORMATICA",
     regionCodigo: "01",
   }
 );
