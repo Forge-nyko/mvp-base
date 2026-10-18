@@ -351,6 +351,23 @@ async function main() {
     assert.equal(activeSession.data.activeBusiness.ownerEmailVerified, false);
     assert.equal(activeSession.data.activeBusiness.paisCodigo, "BO");
     assert.equal(activeSession.data.activeBusiness.monedaCodigo, "BOB");
+    // Campo ausente = lista vacia, en activeBusiness y en businesses[].
+    assert.deepEqual(activeSession.data.activeBusiness.modulosHabilitados, []);
+    assert.ok(activeSession.data.businesses.length > 0);
+    for (const sessionBusiness of activeSession.data.businesses) {
+      assert.deepEqual(sessionBusiness.modulosHabilitados, []);
+    }
+    // El registro de verticales nace vacio en el Core: un id escrito en el
+    // documento que no esta en el registro no llega a la sesion. La lista con
+    // ids validos se prueba en vertical-modules-smoke con un registro inyectado.
+    await adminDb.doc(`negocios/${businessId}`).update({
+      modulosHabilitados: ["modulo-desconocido"],
+    });
+    const unknownModuleSession = await ownerCall("getBusinessSession");
+    assert.deepEqual(unknownModuleSession.data.activeBusiness.modulosHabilitados, []);
+    await adminDb.doc(`negocios/${businessId}`).update({
+      modulosHabilitados: AdminFieldValue.delete(),
+    });
     const adminSession = await businessAdminCall("getBusinessSession");
     assert.equal(adminSession.data.activeBusiness.role, "ADMIN");
     assert.equal(adminSession.data.activeBusiness.ownerEmailVerified, false);

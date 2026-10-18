@@ -124,6 +124,7 @@ const {
 const {
   cambiarEstadoEmpresaPlataformaHandler,
   cambiarEstadoUsuarioPlataformaHandler,
+  cambiarModulosEmpresaPlataformaHandler,
   eliminarEmpresaPermanentePlataformaHandler,
   listarEmpresasPlataformaHandler,
   listarUsuariosPlataformaHandler,
@@ -132,6 +133,7 @@ const {
   obtenerResumenPlataformaHandler,
   obtenerUsuarioPlataformaHandler,
 } = require("./platformAdmin");
+const {VERTICAL_MODULES} = require("./verticalModules");
 const {
   actualizarMembresiaNegocioHandler,
   asociarUsuarioExistenteHandler,
@@ -3917,6 +3919,7 @@ const platformAdminDependencies = {
   FieldPath,
   FieldValue,
   HttpsError,
+  verticalModules: VERTICAL_MODULES,
 };
 const businessMembershipDependencies = {
   db,
@@ -4102,6 +4105,11 @@ exports.cambiarEstadoEmpresaPlataforma = onCall(
 exports.cambiarEstadoUsuarioPlataforma = onCall(
   {maxInstances: 10, memory: "256MiB", region: DEFAULT_FUNCTION_REGION, timeoutSeconds: 30},
   async (request) => cambiarEstadoUsuarioPlataformaHandler(request, platformAdminDependencies)
+);
+
+exports.cambiarModulosEmpresaPlataforma = onCall(
+  {maxInstances: 10, memory: "256MiB", region: DEFAULT_FUNCTION_REGION, timeoutSeconds: 30},
+  async (request) => cambiarModulosEmpresaPlataformaHandler(request, platformAdminDependencies)
 );
 
 exports.eliminarEmpresaPermanentePlataforma = onCall(

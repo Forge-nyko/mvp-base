@@ -490,6 +490,35 @@ async function main() {
         impuestoPredeterminadoTasa: 1,
       })
     );
+    await expectDenied("OWNER habilita modulos verticales por SDK", () =>
+      updateDoc(doc(ownerClient.db, `negocios/${businessId}`), {
+        modulosHabilitados: ["taller"],
+      })
+    );
+    await expectDenied("usuario ajeno habilita modulos verticales por SDK", () =>
+      updateDoc(doc(otherClient.db, `negocios/${businessId}`), {
+        modulosHabilitados: ["taller"],
+      })
+    );
+    const modulesRequestPath =
+      `negocios/${businessId}/platformModulesRequests/modules-rules-request`;
+    await adminDb.doc(modulesRequestPath).set({
+      negocioId: businessId,
+      modulosResultantes: [],
+      creadoPorUid: ownerUid,
+    });
+    await expectDenied("OWNER lee solicitud de modulos de plataforma", () =>
+      getDoc(doc(ownerClient.db, modulesRequestPath))
+    );
+    await expectDenied("OWNER escribe solicitud de modulos de plataforma", () =>
+      setDoc(doc(ownerClient.db, modulesRequestPath), {
+        negocioId: businessId,
+        modulosResultantes: ["taller"],
+      })
+    );
+    await expectDenied("OWNER borra solicitud de modulos de plataforma", () =>
+      deleteDoc(doc(ownerClient.db, modulesRequestPath))
+    );
 
     const businessInventoryPath =
       `negocios/${businessId}/inventario/item-stock-hardening`;

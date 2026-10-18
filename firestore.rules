@@ -52,6 +52,16 @@ service cloud.firestore {
           == "VERIFICADA";
     }
 
+    // Módulos verticales: la lista la escribe solo el backend de plataforma
+    // (negocios/{id} no admite escrituras desde el SDK cliente). Campo ausente
+    // equivale a lista vacía. Aún sin uso: se combinará con
+    // hasBusinessModuleAccess en las colecciones de cada vertical.
+    function isBusinessModuleEnabled(businessId, moduleId) {
+      let businessPath = /databases/$(database)/documents/negocios/$(businessId);
+      return exists(businessPath)
+        && get(businessPath).data.get("modulosHabilitados", []).hasAny([moduleId]);
+    }
+
     function canOperateBusiness(businessId) {
       return canAccessBusiness(businessId) && isVerifiedBusiness(businessId);
     }
@@ -1177,6 +1187,10 @@ service cloud.firestore {
       }
 
       match /platformBusinessStatusRequests/{requestId} {
+        allow read, create, update, delete: if false;
+      }
+
+      match /platformModulesRequests/{requestId} {
         allow read, create, update, delete: if false;
       }
 

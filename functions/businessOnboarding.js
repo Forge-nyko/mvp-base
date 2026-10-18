@@ -21,6 +21,8 @@ const {
 const { legalAcceptanceState } = require("./legalAcceptance");
 
 const {BUSINESS_ROLES} = require("./rbac");
+const {assertBusinessModuleEnabled} = require("./moduleAccess");
+const {normalizeEnabledModules} = require("./verticalModules");
 const ACTIVE_STATUS = "activo";
 const DELETED_STATUS = "eliminada";
 const PILOT_OWNER_BUSINESS_LIMIT = null;
@@ -470,6 +472,7 @@ function businessResponse(snapshot, membershipData = null) {
     profileId: membershipData?.profileId || "",
     profileName: membershipData?.profileName || "",
     modules: membershipData?.modules || [],
+    modulosHabilitados: normalizeEnabledModules(data.modulosHabilitados),
   };
 }
 
@@ -570,7 +573,12 @@ function sortBusinessEntries(left, right) {
 async function requireBusinessAccess(
   request,
   { db, HttpsError },
-  { roles = BUSINESS_ROLES, requiresVerifiedBusiness = false, moduleId = "" } = {}
+  {
+    roles = BUSINESS_ROLES,
+    requiresVerifiedBusiness = false,
+    moduleId = "",
+    requiredVerticalModule = "",
+  } = {}
 ) {
   const uid = requireAuthenticatedUid(request, HttpsError);
   const businessId = safeText(request?.data?.businessId, 160);
@@ -620,6 +628,13 @@ async function requireBusinessAccess(
     throw new HttpsError(
       "failed-precondition",
       "El negocio seleccionado ya no está disponible."
+    );
+  }
+  if (requiredVerticalModule) {
+    assertBusinessModuleEnabled(
+      businessSnapshot,
+      requiredVerticalModule,
+      HttpsError
     );
   }
   const taxSettings = requiresVerifiedBusiness

@@ -85,3 +85,22 @@ assert.equal(
 );
 
 console.log("Platform admin smoke: OK");
+
+// Interruptor de modulos por negocio: la Function de plataforma sigue el patron
+// de las demas acciones (superadmin, requestId idempotente, transaccion, evento)
+// y recibe el registro por dependencias.
+const [platformIndexSource, platformRulesSource] = await Promise.all([
+  readFile(new URL("../functions/index.js", import.meta.url), "utf8"),
+  readFile(new URL("../firestore.rules", import.meta.url), "utf8"),
+]);
+assert.match(functionsSource, /async function cambiarModulosEmpresaPlataformaHandler\(request, dependencies\) \{[\s\S]*?dependencies\.verticalModules \|\| VERTICAL_MODULES[\s\S]*?requirePlatformSuperadmin[\s\S]*?platformModulesRequests[\s\S]*?db\.runTransaction[\s\S]*?tipo: MODULES_EVENT_TYPE/);
+assert.match(functionsSource, /MODULES_EVENT_TYPE = "modulos_actualizados"/);
+assert.match(functionsSource, /modulosAnteriores: previous,[\s\S]*?modulosResultantes: desired,[\s\S]*?motivo: reason,[\s\S]*?creadoPorUid: actor\.uid/);
+assert.match(functionsSource, /Indica el motivo del cambio de modulos/);
+assert.match(functionsSource, /modulosDisponibles: registry\.map/);
+assert.match(functionsSource, /modulosHabilitados: normalizeEnabledModules\(business\.modulosHabilitados, registry\)/);
+assert.match(platformIndexSource, /exports\.cambiarModulosEmpresaPlataforma = onCall\([\s\S]*?cambiarModulosEmpresaPlataformaHandler\(request, platformAdminDependencies\)/);
+assert.match(platformIndexSource, /const platformAdminDependencies = \{[\s\S]*?verticalModules: VERTICAL_MODULES,[\s\S]*?\};/);
+assert.match(platformRulesSource, /match \/platformModulesRequests\/\{requestId\} \{\s*allow read, create, update, delete: if false;/);
+assert.match(platformRulesSource, /function isBusinessModuleEnabled\(businessId, moduleId\)[\s\S]*?get\("modulosHabilitados", \[\]\)\.hasAny\(\[moduleId\]\)/);
+console.log("OK platform-admin: cambiarModulosEmpresaPlataforma, registro por dependencias y reglas");
