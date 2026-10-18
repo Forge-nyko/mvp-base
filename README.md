@@ -1,9 +1,10 @@
 # ValoraCloud
 
-ValoraCloud es un MVP de tesis orientado a la valorización de productos y
-servicios TI y a la generación de cotizaciones para Bagner. Centraliza
-inventario, referencias manuales de mercado, precios sugeridos, cotizaciones,
-PDF, envío por correo y tareas de revisión de referencias.
+ValoraCloud es un sistema de gestión para negocios: inventario,
+cotizaciones, ventas, compras, proyectos y reportes, con referencias de
+precios de mercado y funciones de apoyo con inteligencia artificial para
+valorizar productos y servicios. Se desarrolla para uso real en un negocio
+piloto.
 
 No es un sistema de facturación electrónica ni genera documentos tributarios.
 La asistencia con IA propone estructura y normalización, pero no define precios
