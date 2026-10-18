@@ -6,6 +6,7 @@ import BrandLogo from "../../components/BrandLogo";
 import Button from "../../components/ui/Button";
 import SkipLink from "../../components/ui/SkipLink";
 import { TabPanel, Tabs } from "../../components/ui/Tabs";
+import { GOOGLE_LOGIN_ENABLED } from "../../config/featureFlags.mjs";
 import {
   ACCESS_HINT,
   buildLoginLink,
@@ -122,7 +123,9 @@ function Login() {
   }, [location.search]);
 
   // Errores del regreso de Google cuando el popup se resolvió por redirección.
+  // Apagado (GOOGLE_LOGIN_ENABLED = false): no se consulta nada.
   useEffect(() => {
+    if (!GOOGLE_LOGIN_ENABLED) return;
     completeGoogleRedirect().catch((err) => {
       console.error("Error al volver de Google:", err?.code, err?.message);
       setError(getAuthErrorMessage(err?.code));
@@ -223,7 +226,7 @@ function Login() {
   // pantalla de aceptación del guard (SPEC 024, etapa 5) la pide en su primer
   // ingreso, antes del onboarding y de la pantalla de espera.
   const handleGoogle = async () => {
-    if (isGoogleLoading || isSubmitting) return;
+    if (!GOOGLE_LOGIN_ENABLED || isGoogleLoading || isSubmitting) return;
 
     setError("");
     setSuccess("");
@@ -336,7 +339,7 @@ function Login() {
 
       {!isResetView && (
         <>
-          {inAppBrowser.isInAppBrowser ? (
+          {GOOGLE_LOGIN_ENABLED && inAppBrowser.isInAppBrowser ? (
             <div className="auth-inapp">
               <p className="auth-inapp__text">
                 Para ingresar con Google, abre esta página en Chrome o Safari.
@@ -357,26 +360,40 @@ function Login() {
               </span>
             </div>
           ) : (
-            <Button
-              type="button"
-              variant="secondary"
-              className="auth-google"
-              loading={isGoogleLoading}
-              disabled={isSubmitting}
-              onClick={handleGoogle}
-            >
-              <span className="auth-google__label">
-                <img
-                  className="auth-google__logo"
-                  src={googleLogo}
-                  alt=""
-                  aria-hidden="true"
-                  width="20"
-                  height="20"
-                />
-                Continuar con Google
-              </span>
-            </Button>
+            <div className="auth-google-group">
+              <Button
+                type="button"
+                variant="secondary"
+                className={
+                  GOOGLE_LOGIN_ENABLED
+                    ? "auth-google"
+                    : "auth-google auth-google--disabled"
+                }
+                loading={isGoogleLoading}
+                disabled={!GOOGLE_LOGIN_ENABLED || isSubmitting}
+                aria-describedby={
+                  GOOGLE_LOGIN_ENABLED ? undefined : "auth-google-note"
+                }
+                onClick={handleGoogle}
+              >
+                <span className="auth-google__label">
+                  <img
+                    className="auth-google__logo"
+                    src={googleLogo}
+                    alt=""
+                    aria-hidden="true"
+                    width="20"
+                    height="20"
+                  />
+                  Continuar con Google
+                </span>
+              </Button>
+              {!GOOGLE_LOGIN_ENABLED && (
+                <p id="auth-google-note" className="auth-google__note">
+                  Ingreso con Google no conectado por ahora.
+                </p>
+              )}
+            </div>
           )}
           <div className="auth-divider">o</div>
         </>

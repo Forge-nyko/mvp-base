@@ -1,3 +1,4 @@
+import {GOOGLE_LOGIN_ENABLED, resolveGoogleLoginEnabled} from "../src/config/featureFlags.mjs";
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
 import {detectInAppBrowser} from "../src/domain/inAppBrowser.mjs";
@@ -155,7 +156,7 @@ assert.match(authServiceSource, /assertClientWriteAllowed\("crear cuentas"\)/);
 assert.doesNotMatch(authServiceSource, /reject/);
 assert.match(loginSource, /Continuar con Google/);
 assert.match(loginSource, /import googleLogo from "\.\.\/\.\.\/assets\/google-g\.svg";/);
-assert.match(loginSource, /className="auth-google"/);
+assert.match(loginSource, /className=\{\s*GOOGLE_LOGIN_ENABLED\s*\? "auth-google"\s*: "auth-google auth-google--disabled"\s*\}/);
 for (const code of [
   "auth/popup-closed-by-user",
   "auth/popup-blocked",
@@ -164,7 +165,7 @@ for (const code of [
   assert.match(loginSource, new RegExp(`case "${code}":\\s*return "`), `mensaje en español para ${code}`);
 }
 assert.match(loginSource, /auth\/cancelled-popup-request/);
-assert.match(loginSource, /completeGoogleRedirect\(\)/);
+assert.match(loginSource, /if \(!GOOGLE_LOGIN_ENABLED\) return;\s*completeGoogleRedirect\(\)/, "sin el interruptor no se consulta el regreso de Google");
 assert.doesNotMatch(loginSource, /firebaseEnvironment\.isReadOnly/);
 assert.equal(loginSource.match(/type="checkbox"/g).length, 1, "Google no agrega otra casilla");
 for (const fill of ["#EA4335", "#4285F4", "#FBBC05", "#34A853"]) {
@@ -273,7 +274,7 @@ assert.match(loginSource, /import \{ detectInAppBrowser \} from "\.\.\/\.\.\/dom
 assert.match(loginSource, /detectInAppBrowser\(\s*typeof navigator === "undefined" \? "" : navigator\.userAgent\s*\)/);
 assert.match(
   loginSource,
-  /\{inAppBrowser\.isInAppBrowser \? \(\s*<div className="auth-inapp">[\s\S]*?\) : \(\s*<Button[\s\S]*?className="auth-google"/,
+  /\{GOOGLE_LOGIN_ENABLED && inAppBrowser\.isInAppBrowser \? \(\s*<div className="auth-inapp">[\s\S]*?\) : \(\s*<div className="auth-google-group">\s*<Button[\s\S]*?className=\{/,
   "en un navegador integrado no se renderiza el botón de Google"
 );
 assert.ok(loginSource.includes("Para ingresar con Google, abre esta página en Chrome o Safari."));
@@ -284,5 +285,56 @@ assert.ok(
   "el ingreso con correo sigue disponible"
 );
 console.log("OK Login: en navegador integrado reemplaza el botón de Google por Copiar enlace y conserva el correo");
+
+// --- Interruptor del ingreso con Google (apagado por defecto) ---------------
+assert.equal(resolveGoogleLoginEnabled(undefined), false);
+assert.equal(resolveGoogleLoginEnabled({}), false);
+for (const off of ["false", "TRUE", "1", "", " true", true, 1, null]) {
+  assert.equal(resolveGoogleLoginEnabled({VITE_GOOGLE_LOGIN_ENABLED: off}), false, `valor ${JSON.stringify(off)}`);
+}
+assert.equal(resolveGoogleLoginEnabled({VITE_GOOGLE_LOGIN_ENABLED: "true"}), true);
+assert.equal(GOOGLE_LOGIN_ENABLED, false, "sin la variable el interruptor vale false");
+
+const featureFlagsSource = await read("src/config/featureFlags.mjs");
+assert.match(featureFlagsSource, /env\?\.VITE_GOOGLE_LOGIN_ENABLED === "true"/);
+assert.match(featureFlagsSource, /export const GOOGLE_LOGIN_ENABLED = resolveGoogleLoginEnabled\(import\.meta\.env\);/);
+for (const envFile of [".env.emulator", ".env.existing", ".env.local", ".env.production"]) {
+  const content = await read(envFile).catch(() => "");
+  assert.doesNotMatch(content, /VITE_GOOGLE_LOGIN_ENABLED/, `${envFile} no define el interruptor`);
+}
+
+// Apagado: botón deshabilitado con su nota ligada por aria-describedby.
+assert.match(loginSource, /import \{ GOOGLE_LOGIN_ENABLED \} from "\.\.\/\.\.\/config\/featureFlags\.mjs";/);
+assert.match(loginSource, /disabled=\{!GOOGLE_LOGIN_ENABLED \|\| isSubmitting\}/);
+assert.match(loginSource, /aria-describedby=\{\s*GOOGLE_LOGIN_ENABLED \? undefined : "auth-google-note"\s*\}/);
+assert.match(
+  loginSource,
+  /\{!GOOGLE_LOGIN_ENABLED && \(\s*<p id="auth-google-note" className="auth-google__note">\s*Ingreso con Google no conectado por ahora\.\s*<\/p>\s*\)\}/
+);
+assert.match(loginCss, /\.auth-google--disabled \.auth-google__logo \{\s*filter: grayscale\(1\);/, "logo en gris");
+assert.doesNotMatch(loginCss, /\.auth-google--disabled[^{]*\{[^}]*(?:#|rgb|hsl)/);
+// El separador y el formulario no cambian.
+assert.ok(loginSource.includes('<div className="auth-divider">o</div>'));
+assert.ok(loginSource.slice(loginSource.indexOf('<div className="auth-divider">')).includes("<form"));
+// Apagado, nadie llama a loginWithGoogle ni a completeGoogleRedirect.
+const handleGoogleBody = loginSource.slice(
+  loginSource.indexOf("const handleGoogle = async () => {"),
+  loginSource.indexOf("const handlePasswordReset")
+);
+assert.match(handleGoogleBody, /if \(!GOOGLE_LOGIN_ENABLED \|\| isGoogleLoading \|\| isSubmitting\) return;/);
+assert.ok(handleGoogleBody.indexOf("GOOGLE_LOGIN_ENABLED") < handleGoogleBody.indexOf("await loginWithGoogle()"));
+assert.equal(loginSource.match(/loginWithGoogle\(\)/g).length, 1, "loginWithGoogle solo se llama desde handleGoogle");
+assert.equal(loginSource.match(/completeGoogleRedirect\(\)/g).length, 1);
+assert.equal(loginSource.match(/onClick=\{handleGoogle\}/g).length, 1);
+
+// Encendido: la rama sigue intacta (navegador integrado, logo, errores, servicio).
+assert.ok(loginSource.includes("GOOGLE_LOGIN_ENABLED && inAppBrowser.isInAppBrowser"));
+assert.ok(loginSource.includes("Continuar con Google"));
+assert.match(loginSource, /loading=\{isGoogleLoading\}/);
+assert.match(loginSource, /case "auth\/popup-closed-by-user":/);
+assert.match(loginSource, /case "auth\/account-exists-with-different-credential":/);
+assert.match(authServiceSource, /export async function loginWithGoogle\(\)/);
+assert.match(authServiceSource, /export function completeGoogleRedirect\(\)/);
+console.log("OK Interruptor: Google apagado por defecto (botón deshabilitado con su nota) y rama encendida intacta");
 
 console.log("OK login-access: todas las aserciones pasaron");

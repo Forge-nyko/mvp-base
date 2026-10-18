@@ -1,6 +1,6 @@
 # SPEC 029: Ingreso con Google, selector de acceso y pantalla de espera
 
-Estado: **v1 implementada en el frontend (2026-10-18)**, sin commit. No toca Functions, reglas ni cálculos. Complementa la SPEC 024 (aceptación de términos); no sustituye ninguno de sus puntos.
+Estado: **v1 implementada en el frontend (2026-10-18)**. **El ingreso con Google está DESACTIVADO por decisión de Mauricio (ver sección 3 bis).** No toca Functions, reglas ni cálculos. Complementa la SPEC 024 (aceptación de términos); no sustituye ninguno de sus puntos.
 
 ## 1. Objetivo
 
@@ -45,6 +45,21 @@ Vuelve a consultar la sesión sola con la recarga que ya existe en `App` (`refre
 - Se usa únicamente para (a) elegir pestaña y textos en el ingreso y (b) decidir entre la pantalla de espera y el onboarding cuando la cuenta no pertenece a ninguna empresa. Una cuenta con empresa ignora la pista.
 - Quien se equivoca de pestaña no pierde nada: puede cambiarla o usar "Quiero crear mi propia empresa".
 
+## 3 bis. Decisión: ingreso con Google desactivado por ahora
+
+Mauricio decidió dejar el ingreso con Google apagado: el sistema se traspasará a Bagner y su backend puede cambiar. El código **se conserva** para poder reactivarlo (`loginWithGoogle`, `completeGoogleRedirect`, `inAppBrowser.mjs`, los mensajes de error y los estilos).
+
+- **Interruptor:** `GOOGLE_LOGIN_ENABLED` en `src/config/featureFlags.mjs`. Vale `true` solo si `import.meta.env.VITE_GOOGLE_LOGIN_ENABLED === "true"`; sin la variable vale `false`. La variable no está en ningún archivo `.env`.
+- **Apagado:** el botón "Continuar con Google" se ve deshabilitado (atributo `disabled`, logo en gris) con el texto "Ingreso con Google no conectado por ahora.", ligado con `aria-describedby`. El separador "o" y el formulario de correo no cambian. No se llama a `loginWithGoogle` ni a `completeGoogleRedirect`, y tampoco se muestra el aviso de navegador integrado (no hay botón que reemplazar).
+- **Encendido:** todo se comporta como se describe en la sección 2.3, incluida la detección de navegadores integrados.
+
+### Cómo reactivarlo
+1. Definir `VITE_GOOGLE_LOGIN_ENABLED=true` en el entorno de compilación (por ejemplo en `.env.production` o en el `.env` de la compilación) y volver a compilar. Es una variable de compilación: no se lee en tiempo de ejecución.
+2. Habilitar el proveedor Google en Firebase Authentication del proyecto vigente.
+3. Autorizar el dominio de producción en Firebase Authentication (dominios autorizados).
+4. Configurar y publicar la pantalla de consentimiento OAuth en Google Cloud (estado "En producción"; en modo de prueba solo ingresan los usuarios de prueba).
+5. Probar el ingreso en un navegador real (popup y, si se quiere, redirección; ver la sección 6) y con una cuenta nueva de Google, para confirmar que el guard de aceptación legal la captura.
+
 ## 4. Fuera de alcance
 
 - **Código de acceso de empresa.** El campo está deshabilitado: no existe el backend (generación, canje y vencimiento de códigos). Requiere su propia SPEC y Functions.
@@ -53,11 +68,13 @@ Vuelve a consultar la sesión sola con la recarga que ya existe en `App` (`refre
 
 ## 5. Pruebas
 
-`npm run test:login-access` (`scripts/login-access-smoke.mjs`): regla pura de la pista; la elección no llega a Firebase ni al backend; `reduced-motion` cubre todo lo animado y `login.css` no tiene literales; panel decorativo en `aria-hidden`; Google (popup, redirección, guard `assertClientWriteAllowed`, mensajes en español, sin casilla propia, guard de aceptación antes de la espera); pantalla de espera (campo deshabilitado, "Próximamente", salidas, tope de consultas, un solo `role="status"`).
+`npm run test:login-access` (`scripts/login-access-smoke.mjs`; incluye el interruptor apagado por defecto, el botón deshabilitado con su nota y la rama encendida intacta): regla pura de la pista; la elección no llega a Firebase ni al backend; `reduced-motion` cubre todo lo animado y `login.css` no tiene literales; panel decorativo en `aria-hidden`; Google (popup, redirección, guard `assertClientWriteAllowed`, mensajes en español, sin casilla propia, guard de aceptación antes de la espera); pantalla de espera (campo deshabilitado, "Próximamente", salidas, tope de consultas, un solo `role="status"`).
 
 Se ejecutan además `test:legal-documents`, `test:firebase-environment`, `test:business-quick-flow`, `test:design`, `test:contrast`, `build` y `git diff --check`.
 
 ## 6. Pendiente de configuración (fuera del repositorio)
+
+Solo aplica al reactivar el ingreso con Google (sección 3 bis).
 
 - Habilitar el proveedor Google en Firebase Authentication y confirmar que el dominio de producción esté en los dominios autorizados.
 - `authDomain` es `*.firebaseapp.com` y la app se sirve desde otro dominio: el **popup** funciona, pero la **redirección** puede fallar en navegadores que parten el almacenamiento entre sitios. Por eso es solo el plan B. Revisar en un navegador real antes de depender de ella.
