@@ -145,6 +145,10 @@ const PAIRS = [
 
   // Brand (paso 2/3): excepción "se mantiene igual" y su uso seguro.
   {fg: "--color-text-inverse", bg: "--color-brand-600", kind: "text", note: "texto inverso / brand-600 (fondo de botón/badge, paso 2)"},
+  // Marca (BrandMark): visto ámbar y C en brand-400 sobre el recuadro oscuro (surface-subtle).
+  {fg: "--color-logo-accent", bg: "--color-surface-subtle", kind: "nontext", note: "logo-accent / subtle (visto de la marca)"},
+  {fg: "--color-logo-accent", bg: "--color-surface-panel", kind: "nontext", note: "logo-accent / panel (visto de la marca)"},
+  {fg: "--color-brand-400", bg: "--color-surface-subtle", kind: "nontext", note: "brand-400 / subtle (C de la marca)"},
   {fg: "--color-brand-400", bg: "--color-surface-canvas", kind: "text", note: "brand-400 / canvas (texto/ícono, paso 3+)"},
   {fg: "--color-brand-400", bg: "--color-surface-panel", kind: "text", note: "brand-400 / panel (texto/ícono, paso 3+)"},
   {fg: "--color-brand-400", bg: "--color-surface-subtle", kind: "text", note: "brand-400 / subtle (texto/ícono, paso 3+)"},

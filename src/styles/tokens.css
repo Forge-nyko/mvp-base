@@ -31,6 +31,10 @@
   --color-accent-500: #e8a44f;
   --color-accent-700: #b97a2e;
 
+  /* Visto de la marca (BrandMark). Ámbar sobre fondo claro; en modo oscuro se
+     aclara para mantener contraste sobre las superficies oscuras. */
+  --color-logo-accent: #c27a00;
+
   /* Surfaces — fondo cálido tipo "papel", no gris frío de spreadsheet */
   --color-surface-canvas: #f7f5f1;
   --color-surface-panel: #ffffff;
@@ -293,6 +297,13 @@
   --motion-shimmer-duration: 1.4s;
   --motion-reveal-delay: 250ms;
   --motion-reveal-duration: 150ms;
+
+  /* Ilustración animada del ingreso (AuthStage): deriva de las luces,
+     flotación de las etiquetas, ciclo del gráfico y giro del engranaje. */
+  --motion-stage-drift-duration: 14s;
+  --motion-stage-float-duration: 6s;
+  --motion-stage-chart-duration: 6s;
+  --motion-stage-gear-duration: 18s;
 }
 
 /* Modo oscuro (etapa 5, paso 2 de 10): fundación. Pares de contraste
@@ -363,6 +374,8 @@
     --color-border-subtle: #1d3a4d;
     --color-border-default: #2a4e63;
     --color-border-control: #47708a;
+
+    --color-logo-accent: #ffd24d;
 
     --color-success-50: #0f2b20;
     --color-success-200: #348a5f;

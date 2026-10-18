@@ -27,6 +27,9 @@ import QuoteHistoryPage from "../pages/QuoteHistoryPage";
 import PublicQuoteProposalPage from "../pages/PublicQuoteProposalPage";
 import LegalDocumentPage from "../features/legal/LegalDocumentPage";
 import LegalAcceptancePage from "../features/legal/LegalAcceptancePage";
+import BusinessWaitingPage from "../features/auth/BusinessWaitingPage";
+import { ACCESS_HINT } from "../domain/accessHint.mjs";
+import { clearAccessHint, useAccessHint } from "../hooks/useAccessHint";
 import NewPurchaseOrderPage from "../pages/NewPurchaseOrderPage";
 import PurchaseOrdersPage from "../pages/PurchaseOrdersPage";
 import NewPurchasePage from "../pages/NewPurchasePage";
@@ -128,6 +131,9 @@ function AppRoutes({
   platformAccess,
 }) {
   const location = useLocation();
+  // Pista de interfaz del ingreso (SPEC 029): solo elige entre la pantalla de
+  // espera y el onboarding; no concede acceso ni se envía al backend.
+  const accessHint = useAccessHint();
   const initialActivationRoute = resolveInitialActivationRoute({
     activeBusinessId: businessSession?.activeBusiness?.id || "",
     destination: initialActivationDestination,
@@ -240,6 +246,15 @@ function AppRoutes({
   if (businessSession?.needsOnboarding) {
     if (platformAccess?.isSuperadmin && location.pathname === "/login") {
       return <Navigate to="/admin/dashboard" replace />;
+    }
+    if (accessHint === ACCESS_HINT.COLABORADOR) {
+      return (
+        <BusinessWaitingPage
+          usuario={usuario}
+          onRefresh={onBusinessCreated}
+          onCreateOwnBusiness={clearAccessHint}
+        />
+      );
     }
     return (
       <Routes>

@@ -1,9 +1,13 @@
 import {
+  GoogleAuthProvider,
   createUserWithEmailAndPassword,
+  getRedirectResult,
   onAuthStateChanged,
   sendEmailVerification as firebaseSendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
+  signInWithPopup,
+  signInWithRedirect,
   signOut,
 } from "firebase/auth";
 import { assertClientWriteAllowed } from "../config/firebaseEnvironment.mjs";
@@ -70,6 +74,44 @@ export async function registerWithEmail(
     if (pendingRegistrationSetup === setup) pendingRegistrationSetup = null;
     finishSetup();
   }
+}
+
+// Si el navegador no deja abrir el popup se pasa a redirección.
+const GOOGLE_REDIRECT_FALLBACK_CODES = new Set([
+  "auth/popup-blocked",
+  "auth/operation-not-supported-in-this-environment",
+]);
+
+// Ingreso con Google (SPEC 029). El primer ingreso de una persona nueva crea
+// su cuenta de Auth, por eso lleva el mismo guard que el registro. No registra
+// la aceptación legal: de eso se encarga el guard de aceptación de la app
+// (SPEC 024, etapa 5) en cuanto carga la sesión.
+export async function loginWithGoogle() {
+  assertClientWriteAllowed("crear cuentas");
+
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+
+  try {
+    return await signInWithPopup(auth, provider);
+  } catch (error) {
+    if (!GOOGLE_REDIRECT_FALLBACK_CODES.has(error?.code)) throw error;
+  }
+
+  // La página se recarga al volver de Google; completeGoogleRedirect recoge
+  // los errores de ese regreso.
+  await signInWithRedirect(auth, provider);
+  return null;
+}
+
+// Se consulta una sola vez por carga de página: el resultado del regreso de
+// Google se consume al leerlo y no debe reaparecer en ingresos posteriores.
+let googleRedirectChecked = false;
+
+export function completeGoogleRedirect() {
+  if (googleRedirectChecked) return Promise.resolve(null);
+  googleRedirectChecked = true;
+  return getRedirectResult(auth);
 }
 
 export async function resetPassword(email) {

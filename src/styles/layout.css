@@ -75,6 +75,34 @@
   margin: 0;
 }
 
+.brand-mark {
+  color: var(--color-brand-600);
+  display: block;
+  flex: 0 0 auto;
+}
+
+.brand-logo__name-main {
+  font-weight: var(--font-weight-bold);
+}
+
+.brand-logo__name-accent {
+  color: var(--color-brand-600);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Modo oscuro: brand-600 no alcanza como texto ni como trazo sobre
+   superficies oscuras (mismo criterio que .ui-tab) y el recuadro del ícono
+   deja de ser el brand-50 claro para que el visto ámbar se lea. */
+:where(:root[data-theme="dark"]) .brand-mark,
+:where(:root[data-theme="dark"]) .brand-logo__name-accent {
+  color: var(--color-brand-400);
+}
+
+:where(:root[data-theme="dark"]) .brand-logo__icon {
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border-default);
+}
+
 .brand-logo__subtitle {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
