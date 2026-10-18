@@ -219,6 +219,12 @@ async function asociarUsuarioExistenteHandler(
       "La cuenta de usuario está deshabilitada."
     );
   }
+  if (authUser.emailVerified !== true) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Esa persona debe verificar su correo antes de unirse al equipo."
+    );
+  }
 
   const targetUid = validateUid(authUser.uid, HttpsError);
   if (targetUid === context.uid) {

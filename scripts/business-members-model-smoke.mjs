@@ -61,7 +61,7 @@ const rbacSource = fs.readFileSync("src/domain/rbac.mjs", "utf8");
 const navigationSource = fs.readFileSync("src/app/navigation.js", "utf8");
 assert.match(backendSource, /getUserByEmail/);
 assert.match(backendSource, /authUser\.disabled/);
-assert.doesNotMatch(backendSource, /emailVerified/);
+assert.match(backendSource, /authUser\.emailVerified !== true/);
 assert.match(backendSource, /roles: \["OWNER", "ADMIN"\]/);
 assert.match(backendSource, /target\.rol === "OWNER"/);
 assert.match(backendSource, /transaction\.create\(targetRef/);

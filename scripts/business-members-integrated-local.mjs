@@ -116,6 +116,7 @@ const adminDb = getAdminFirestore(adminApp);
 const adminAuth = getAdminAuth(adminApp);
 
 try {
+  await adminAuth.updateUser(target.uid, {emailVerified: true});
   const mainBusiness = await call(owner, "createFirstBusiness")({
     nombreComercial: "Negocio miembros",
     rubroCodigo: "INGENIERIA_CONSULTORIA",
@@ -289,6 +290,45 @@ try {
     (await adminDb.doc(`membresias/${businessId}__${disabledUser.uid}`).get()).exists,
     false
   );
+  const verifiedEmail = `verified-${RUN_ID}@example.test`;
+  const verifiedUser = await adminAuth.createUser({
+    email: verifiedEmail,
+    password: `Verified-${RUN_ID}-Pass!`,
+    emailVerified: true,
+  });
+  const verifiedAdded = await call(owner, "asociarUsuarioExistente")({
+    businessId,
+    correo: verifiedEmail,
+    rol: "TECNICO",
+  });
+  assert.equal(verifiedAdded.data.miembro.uid, verifiedUser.uid);
+  assert.equal(
+    (await adminDb.doc(`membresias/${businessId}__${verifiedUser.uid}`).get()).exists,
+    true
+  );
+  console.log("OK asociación: cuenta con correo verificado se agrega");
+
+  const unverifiedEmail = `unverified-${RUN_ID}@example.test`;
+  const unverifiedUser = await adminAuth.createUser({
+    email: unverifiedEmail,
+    password: `Unverified-${RUN_ID}-Pass!`,
+    emailVerified: false,
+  });
+  await assert.rejects(
+    () => call(owner, "asociarUsuarioExistente")({
+      businessId,
+      correo: unverifiedEmail,
+      rol: "TECNICO",
+    }),
+    (error) => String(error?.code || "").includes("failed-precondition") &&
+      error.message === "Esa persona debe verificar su correo antes de unirse al equipo."
+  );
+  assert.equal(
+    (await adminDb.doc(`membresias/${businessId}__${unverifiedUser.uid}`).get()).exists,
+    false
+  );
+  console.log("OK rechazo: cuenta sin correo verificado no se agrega");
+
   await expectCallableError(
     "asociación activa duplicada",
     () => call(owner, "asociarUsuarioExistente")({businessId, correo: target.email}),
