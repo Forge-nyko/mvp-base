@@ -339,8 +339,7 @@ posteriormente desde el Core de ValoraCloud.
 La especificación técnica principal se encuentra actualmente en:
 
 ```text
-docs/specs/017-clinica-veterinaria-mvp.md
+docs/specs/027-clinica-veterinaria-mvp.md
 ```
 
-El número `017` es temporal y será ajustado por el mantenedor cuando el módulo
-sea incorporado definitivamente al Core.
+El número oficial de esta especificación es `027`.
