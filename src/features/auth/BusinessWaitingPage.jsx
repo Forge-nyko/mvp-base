@@ -2,9 +2,10 @@ import React from "react";
 import { Check, Copy, LogOut } from "lucide-react";
 import BrandLogo from "../../components/BrandLogo";
 import Button from "../../components/ui/Button";
+import InvitationsInbox from "../../components/InvitationsInbox";
 import LoadingState from "../../components/ui/LoadingState";
 import SkipLink from "../../components/ui/SkipLink";
-import StatusBadge from "../../components/ui/StatusBadge";
+import useMyInvitations from "../../hooks/useMyInvitations";
 import {
   logout,
   refreshCurrentUser,
@@ -33,9 +34,11 @@ const VERIFICATION_MESSAGES = {
 };
 
 // Pantalla de espera para una cuenta sin empresa que entró como colaborador
-// (pista de interfaz, SPEC 029). No consulta nada por su cuenta: usa `onRefresh`
-// (la recarga de getBusinessSession de la app) y, cuando la persona ya tiene
-// una empresa, la app deja de mostrar esta pantalla.
+// (pista de interfaz, SPEC 029). La sesión se consulta con `onRefresh` (la
+// recarga de getBusinessSession de la app) y, cuando la persona ya tiene una
+// empresa, la app deja de mostrar esta pantalla. Las invitaciones pendientes
+// (SPEC 032) vienen de listarMisInvitaciones y se vuelven a pedir en cada
+// consulta periódica; aceptar una recarga la sesión con `onRefresh`.
 function BusinessWaitingPage({ usuario, onRefresh, onCreateOwnBusiness }) {
   const email = usuario?.email || "";
   const [copyState, setCopyState] = React.useState("idle");
@@ -49,7 +52,10 @@ function BusinessWaitingPage({ usuario, onRefresh, onCreateOwnBusiness }) {
   const [resending, setResending] = React.useState(false);
   const [checkingVerification, setCheckingVerification] = React.useState(false);
   const [cooldownLeft, setCooldownLeft] = React.useState(0);
+  const invitationsState = useMyInvitations({ onAccepted: () => onRefresh() });
+  const reloadInvitations = invitationsState.reload;
   const emailVerifiedRef = React.useRef(usuario?.emailVerified === true);
+  const wasVerifiedRef = React.useRef(usuario?.emailVerified === true);
   const checkingRef = React.useRef(false);
   const lastCheckRef = React.useRef(0);
   const checksRef = React.useRef(0);
@@ -80,13 +86,21 @@ function BusinessWaitingPage({ usuario, onRefresh, onCreateOwnBusiness }) {
           // Si no se puede recargar, igual se consulta la sesión.
         }
       }
+      await reloadInvitations({ silent: true });
       await onRefresh();
     } catch {
       // Sin conexión o error momentáneo: se sigue esperando.
     } finally {
       checkingRef.current = false;
     }
-  }, [onRefresh, reloadVerification]);
+  }, [onRefresh, reloadInvitations, reloadVerification]);
+
+  // Al verificar el correo se piden de nuevo las invitaciones (antes la
+  // respuesta fue "verifica tu correo").
+  React.useEffect(() => {
+    if (emailVerified && !wasVerifiedRef.current) reloadInvitations({ silent: true });
+    wasVerifiedRef.current = emailVerified;
+  }, [emailVerified, reloadInvitations]);
 
   React.useEffect(() => {
     if (cooldownLeft <= 0) return undefined;
@@ -178,7 +192,10 @@ function BusinessWaitingPage({ usuario, onRefresh, onCreateOwnBusiness }) {
     }
   };
 
-  const needsVerification = Boolean(email) && !emailVerified;
+  // Con el correo sin verificar (según Auth o según el backend) se muestra el
+  // aviso de verificación en lugar de la lista de invitaciones.
+  const needsVerification =
+    (Boolean(email) && !emailVerified) || invitationsState.requiresVerification;
 
   const copyMessage =
     copyState === "copied"
@@ -240,8 +257,8 @@ function BusinessWaitingPage({ usuario, onRefresh, onCreateOwnBusiness }) {
                   Esperando a tu empresa
                 </h1>
                 <p className="auth-card__subtitle">
-                  Pide a tu empresa que te agregue con este correo. Cuando lo
-                  haga, entrarás automáticamente.
+                  Pide a tu empresa que te invite con este correo. Cuando lo
+                  haga, verás la invitación aquí.
                 </p>
               </div>
 
@@ -274,30 +291,31 @@ function BusinessWaitingPage({ usuario, onRefresh, onCreateOwnBusiness }) {
               ) : (
                 <LoadingState
                   variant="inline"
-                  label="Esperando que tu empresa te agregue..."
+                  label="Esperando una invitación de tu empresa..."
                   className="auth-wait__status"
                 />
               )}
 
-              <div className="auth-field">
-                <label className="auth-field__label" htmlFor="auth-wait-code">
-                  ¿Tu empresa te dio un código de acceso?
-                </label>
-                <div className="auth-wait__code-row">
-                  <input
-                    id="auth-wait-code"
-                    className="auth-input"
-                    type="text"
-                    name="access-code"
-                    autoComplete="off"
-                    disabled
-                    aria-describedby="auth-wait-code-badge"
+              {!needsVerification && (
+                <section className="auth-wait__invitations" aria-labelledby="auth-wait-invitations-title">
+                  <h2 id="auth-wait-invitations-title" className="auth-field__label">
+                    Invitaciones
+                  </h2>
+                  <InvitationsInbox
+                    busyId={invitationsState.busyId}
+                    feedback={invitationsState.feedback}
+                    invitations={invitationsState.invitations}
+                    onAccept={(invitation) => invitationsState.respond(invitation, "aceptar")}
+                    onClearFeedback={invitationsState.clearFeedback}
+                    onReject={(invitation, reason) =>
+                      invitationsState.respond(invitation, "rechazar", reason)
+                    }
+                    onRetry={reloadInvitations}
+                    requiresVerification={false}
+                    status={invitationsState.status}
                   />
-                  <StatusBadge id="auth-wait-code-badge" variant="neutral">
-                    Próximamente
-                  </StatusBadge>
-                </div>
-              </div>
+                </section>
+              )}
 
               <div className="auth-wait__actions">
                 <Button

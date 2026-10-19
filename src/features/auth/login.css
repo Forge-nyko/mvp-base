@@ -420,8 +420,7 @@
   gap: var(--space-2);
 }
 
-.auth-wait__email-row,
-.auth-wait__code-row {
+.auth-wait__email-row {
   align-items: center;
   display: flex;
   gap: var(--space-3);
@@ -459,11 +458,9 @@
   margin: 0;
 }
 
-.auth-wait__code-row .auth-input {
-  cursor: not-allowed;
-  flex: 1 1 auto;
-  min-width: 0;
-  opacity: 0.7;
+.auth-wait__invitations {
+  display: grid;
+  gap: var(--space-2);
 }
 
 .auth-wait__actions {

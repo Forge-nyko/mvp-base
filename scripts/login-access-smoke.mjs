@@ -204,20 +204,24 @@ assert.match(waitingSource, /\{copyState === "copied" \? "Copiado" : "Copiar"\}/
 assert.match(waitingSource, /Quiero crear mi propia empresa/);
 assert.match(waitingSource, /onClick=\{onCreateOwnBusiness\}/);
 assert.match(waitingSource, /icon=\{LogOut\}\s*onClick=\{logout\}/);
-assert.match(waitingSource, /<input[^>]*\bdisabled\b[^>]*\/>/, "el campo de código está deshabilitado");
-assert.match(waitingSource, /¿Tu empresa te dio un código de acceso\?/);
-assert.match(waitingSource, /Próximamente/);
-assert.doesNotMatch(waitingSource, /onChange|setCode|value=\{code/, "el campo de código no hace nada");
+// SPEC 032: las invitaciones reemplazan al campo de código de acceso.
+assert.doesNotMatch(waitingSource, /<input\b|código de acceso|access-code|Próximamente/i, "ya no hay campo de código");
+assert.match(waitingSource, /<InvitationsInbox\b/, "la espera lista las invitaciones pendientes");
 assert.equal(waitingSource.match(/role="status"/g), null, "role=status solo viene de LoadingState");
 assert.equal(waitingSource.match(/<LoadingState\b/g).length, 1);
 assert.match(waitingSource, /<SkipLink\b/);
 assert.match(waitingSource, /<BrandLogo\b/);
-console.log("OK Espera: correo con Copiar, estado, código deshabilitado, salidas y consulta con tope");
+console.log("OK Espera: correo con Copiar, estado, invitaciones (sin campo de código), salidas y consulta con tope");
 
 // --- Aviso de correo sin verificar ----------------------------------------
 assert.match(waitingSource, /import \{\s*logout,\s*refreshCurrentUser,\s*sendVerificationEmail,\s*\} from "\.\.\/\.\.\/services\/authService";/);
 assert.match(waitingSource, /export const WAITING_VERIFICATION_COOLDOWN_SECONDS = 60;/);
-assert.match(waitingSource, /const needsVerification = Boolean\(email\) && !emailVerified;/);
+assert.match(
+  waitingSource,
+  /const needsVerification =\s*\(Boolean\(email\) && !emailVerified\) \|\| invitationsState\.requiresVerification;/,
+  "el aviso de verificación también sale cuando el backend pide verificar"
+);
+assert.match(waitingSource, /\{!needsVerification && \(\s*<section className="auth-wait__invitations"/, "con el correo sin verificar el aviso reemplaza a la lista");
 assert.match(waitingSource, /useState\(\s*usuario\?\.emailVerified === true\s*\)/, "las cuentas ya verificadas (Google) parten sin aviso");
 assert.match(waitingSource, /\{needsVerification && \(\s*<div className="auth-wait__notice">/);
 assert.ok(
@@ -235,7 +239,7 @@ assert.match(waitingSource, /const verified = await reloadVerification\(\);\s*if
 assert.match(waitingSource, /const user = await refreshCurrentUser\(\);/);
 const checkSessionBody = waitingSource.slice(
   waitingSource.indexOf("const checkSession = "),
-  waitingSource.indexOf("[onRefresh, reloadVerification]")
+  waitingSource.indexOf("[onRefresh, reloadInvitations, reloadVerification]")
 );
 assert.ok(
   checkSessionBody.indexOf("await reloadVerification()") > -1 &&

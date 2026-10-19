@@ -318,6 +318,13 @@ function AppLayout({
     setMobileNavigationOpen(false);
   };
 
+  // Tras aceptar una invitación la sesión se recarga y se entra a la empresa.
+  const handleInvitationAccepted = (result, invitation) =>
+    handleBusinessChanged({
+      id: result?.businessId || invitation.negocioId,
+      nombreComercial: invitation.negocioNombre,
+    });
+
   const handleBusinessCreated = async (business) => {
     const session = await onBusinessCreated();
     const nextBusiness = session?.activeBusiness || business;
@@ -395,7 +402,11 @@ function AppLayout({
           </div>
 
           <div className="topbar-actions">
-            <NotificationBell businessId={negocioActivo?.id} role={negocioActivo?.role} />
+            <NotificationBell
+              businessId={negocioActivo?.id}
+              role={negocioActivo?.role}
+              onInvitationAccepted={handleInvitationAccepted}
+            />
             <ThemeToggleButton />
 
             <div className="topbar-user topbar-user--desktop">

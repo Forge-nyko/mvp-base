@@ -1310,6 +1310,24 @@
   padding: var(--space-3) var(--space-4);
 }
 
+.onboarding-invitations {
+  align-items: center;
+  background: var(--color-info-50);
+  border: 1px solid var(--color-info-200);
+  border-radius: var(--radius-md);
+  color: var(--color-info-700);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--font-size-sm);
+  gap: var(--space-3);
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+}
+
+.onboarding-invitations p {
+  margin: 0;
+}
+
 .onboarding-submit {
   margin-top: var(--space-1);
   min-height: 46px;
@@ -3032,4 +3050,69 @@
 
 .ui-contact-link--whatsapp:hover {
   background: var(--color-surface-hover);
+}
+
+/* Invitaciones de equipo recibidas (InvitationsInbox, RejectInvitationDialog) */
+
+.ui-invitations {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.ui-invitation-list {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ui-invitation {
+  background: var(--color-info-50);
+  border: 1px solid var(--color-info-200);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.ui-invitation__body {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ui-invitation__body strong {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.ui-invitation__body small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.ui-invitation__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.ui-invitation-reject {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.ui-invitation-reject__count {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-align: right;
+}
+
+.ui-invitation-reject__error {
+  color: var(--color-danger-700);
+  font-size: var(--font-size-sm);
+  margin: 0;
 }

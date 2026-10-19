@@ -58,19 +58,12 @@ assert.match(
   /useNotifications\(canSeeNotifications \? businessId : ""\)/,
   "NotificationBell: pasa businessId vacío al hook si el rol no es OWNER"
 );
-assert.match(
-  bellSource,
-  /if \(!canSeeNotifications\) return null;/,
-  "NotificationBell: no renderiza el trigger si el rol no es OWNER"
-);
-// El guard de "return null" debe estar ANTES del uso de notificationsState
-// (que es lo que se pasa a la vista) para que el trigger nunca se arme
-// con datos de una suscripción que no debió pedirse.
-assert.ok(
-  bellSource.indexOf("if (!canSeeNotifications) return null;") <
-    bellSource.indexOf("<NotificationBellView"),
-  "NotificationBell: el guard corta antes de usar el resultado del hook"
-);
+// SPEC 032: la campana la ven todos los roles (las invitaciones llegan por la
+// Function listarMisInvitaciones). Para quien no es OWNER solo se oculta la
+// sección de avisos y no se pide la suscripción.
+assert.doesNotMatch(bellSource, /if \(!canSeeNotifications\) return null;/, "NotificationBell: ya no se oculta para quien no es OWNER");
+assert.match(bellSource, /showNotifications=\{canSeeNotifications\}/, "NotificationBell: la sección de avisos depende del rol");
+assert.match(bellSource, /useMyInvitations\(/, "NotificationBell: las invitaciones salen del hook de la Function");
 const guardIndex = hookSource.indexOf("if (!businessId) return undefined;");
 const subscribeIndex = hookSource.indexOf("subscribeToNotifications(");
 assert.ok(guardIndex >= 0 && subscribeIndex > guardIndex,

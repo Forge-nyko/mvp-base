@@ -1,6 +1,6 @@
 # SPEC 032: Invitaciones de equipo
 
-Estado: **v1**. Decisiones por defecto de Mauricio el 2026-10-18 (sección 9, cambiables).
+Estado: **v1. Backend implementado (`functions/teamInvitations.js`) e interfaz implementada en el frontend (2026-10-19)**, pendientes la revisión en el navegador y el despliegue (sección 12). Decisiones por defecto de Mauricio el 2026-10-18 (sección 9, cambiables).
 
 ## 1. Objetivo
 
@@ -88,3 +88,16 @@ La invitación guarda el correo de la persona invitada, que no necesariamente es
 ## 11. Fuera de alcance
 
 Enlace de invitación, bloqueo de empresas, purga automática, y correos de invitación (el aviso es solo dentro de ValoraCloud).
+
+## 12. Implementación de la interfaz (2026-10-19)
+
+No toca Functions ni reglas.
+
+- **Servicio:** `src/services/teamInvitationService.js` llama a las cinco Functions con `requestId` (`createRequestId`). Si `listarMisInvitaciones` o `responderInvitacion` responden "verifica tu correo" pero Auth ya tiene el correo verificado, renueva el token (`user.reload()` no lo hace) y reintenta una vez. De `businessMemberService.js` se eliminó la función que llamaba a `asociarUsuarioExistente`; ya nada en `src/` la usa.
+- **Modelo y estado:** `src/domain/teamInvitationModel.mjs` (puro) y `src/hooks/useMyInvitations.js` (cargar, aceptar y rechazar; `reload({ silent: true })` para las consultas periódicas).
+- **Componentes compartidos:** `InvitationsInbox` (lista con estados de carga, error, correo sin verificar, vacío y datos) y `RejectInvitationDialog` (motivo opcional de hasta 500 caracteres). Estilos `ui-invitation*` en `components.css`.
+- **Empleados:** botón y diálogo "Invitar usuario" con el texto neutro "Si esa persona usa ValoraCloud, recibirá la invitación."; los errores del servidor se muestran tal cual. Sección "Invitaciones" (`TeamInvitationsPanel`) con pendientes (vencimiento y Revocar), rechazadas (motivo y fecha) y vencidas (Volver a invitar), cargada aparte de la tabla de miembros. Sin nombre, la tabla usa el correo con `getWorkMemberIdentity`, el mismo criterio de Proyectos y trabajos.
+- **Centro de notificaciones:** las invitaciones no vienen de la suscripción de Firestore (que sigue solo para OWNER) sino de `listarMisInvitaciones`, así que la campana ahora se muestra a todos los roles. La sección "Invitaciones" tiene sus propios estados y cuenta en el badge; la sección "Avisos" solo existe para OWNER. Al aceptar se recarga la sesión y se entra a la empresa (`handleBusinessChanged`); si la respuesta trae `mensaje` (acceso previo), se muestra.
+- **Cuentas sin empresa:** la pantalla de espera reemplaza el campo de código por la lista (ver SPEC 029, sección 2.4); el onboarding muestra "Tienes N invitaciones pendientes" con "Ver invitaciones".
+- **Pruebas:** `npm run test:team-invitations-ui` (nuevo). Se ajustaron `test:login-access` (campo de código, aviso de verificación y ancla de la consulta periódica) y `test:notification-bell` (la campana ya no se oculta a quien no es OWNER).
+- **Pendiente conocido, fuera de esta tarea:** el error "Missing or insufficient permissions" de la suscripción de notificaciones. Hipótesis: la regla exige `resource.data.negocioId == businessId` y la consulta (`orderBy("creadoEn")`) no filtra por `negocioId`, así que Firestore no puede garantizar que cumple la regla. No se corrigió aquí.

@@ -268,6 +268,7 @@ function AppRoutes({
             <OnboardingPage
               usuario={usuario}
               onBusinessCreated={onFirstBusinessCreated}
+              onInvitationAccepted={onBusinessCreated}
             />
           }
         />

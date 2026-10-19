@@ -2,6 +2,8 @@
 
 Estado: **v1 implementada en el frontend (2026-10-18)**. **El ingreso con Google está DESACTIVADO por decisión de Mauricio (ver sección 3 bis).** No toca Functions, reglas ni cálculos. Complementa la SPEC 024 (aceptación de términos); no sustituye ninguno de sus puntos.
 
+**Actualización (2026-10-19, SPEC 032):** el campo "código de acceso" de la pantalla de espera desaparece y la lista de invitaciones pendientes ocupa su lugar (sección 2.4). El resto de la SPEC sigue vigente.
+
 ## 1. Objetivo
 
 Renovar la pantalla de ingreso (`Login.jsx`) y dar un camino claro a quien entra como colaborador de una empresa que todavía no lo ha agregado.
@@ -35,9 +37,9 @@ El logo es el oficial de Google, como archivo (`src/assets/google-g.svg`): sus c
 **Aceptación legal de una persona nueva de Google.** No pasa por la casilla del registro. Al autenticarse, `App` carga `getBusinessSession`; para una cuenta sin `usuarios/{uid}` la respuesta trae `legalAcceptance` con `isCurrent: false` (tanto en la rama de onboarding como en la de negocio activo). El guard de la SPEC 024 (etapa 5) lo detecta antes de `unavailable`, de `needsOnboarding` y de la pantalla de espera, y muestra la pantalla de aceptación, que permite cerrar sesión y reintentar si falla. No hay parpadeo: mientras la sesión carga se ve `LoadingScreen`. No hay `registerWithEmail` de por medio, así que tampoco hay carrera con `waitForRegistrationSetup`.
 
 ### 2.4 Pantalla de espera
-`src/features/auth/BusinessWaitingPage.jsx`. Se muestra cuando `getBusinessSession` devuelve `needsOnboarding` y la pista es "colaborador" (rama `needsOnboarding` de `AppRoutes`, después del guard de aceptación). Contiene: correo del usuario con botón Copiar, estado ("Esperando que tu empresa te agregue..."), campo "¿Tu empresa te dio un código de acceso?" **deshabilitado** con la etiqueta "Próximamente", "Cerrar sesión" y "Quiero crear mi propia empresa" (borra la pista y lleva al onboarding normal).
+`src/features/auth/BusinessWaitingPage.jsx`. Se muestra cuando `getBusinessSession` devuelve `needsOnboarding` y la pista es "colaborador" (rama `needsOnboarding` de `AppRoutes`, después del guard de aceptación). Contiene: correo del usuario con botón Copiar, estado ("Esperando una invitación de tu empresa..."), la sección **Invitaciones** con las invitaciones pendientes de la cuenta y sus acciones Aceptar y Rechazar (SPEC 032, sección 7), "Cerrar sesión" y "Quiero crear mi propia empresa" (borra la pista y lleva al onboarding normal). Si el correo no está verificado (según Auth o según `requiereVerificacion` de `listarMisInvitaciones`) se muestra el aviso de verificación en lugar de la lista. El campo "código de acceso" ya no existe.
 
-Vuelve a consultar la sesión sola con la recarga que ya existe en `App` (`refreshBusinessSession`; `getBusinessSession` no cambió): cada 30 s con tope de 20 consultas (10 min), y al recuperar el foco o la visibilidad de la pestaña con un mínimo de 5 s entre consultas. Pasado el tope solo queda la consulta por foco y el texto lo indica. Un error de consulta no saca de la espera. Cuando la persona ya tiene empresa, `needsOnboarding` pasa a `false` y la app entra.
+Vuelve a consultar la sesión sola con la recarga que ya existe en `App` (`refreshBusinessSession`; `getBusinessSession` no cambió) y, en cada consulta, también `listarMisInvitaciones`: cada 30 s con tope de 20 consultas (10 min), y al recuperar el foco o la visibilidad de la pestaña con un mínimo de 5 s entre consultas. Pasado el tope solo queda la consulta por foco y el texto lo indica. Un error de consulta no saca de la espera. Cuando la persona ya tiene empresa, `needsOnboarding` pasa a `false` y la app entra.
 
 ## 3. Decisión: "colaborador" es solo una pista de interfaz
 
@@ -62,13 +64,13 @@ Mauricio decidió dejar el ingreso con Google apagado: el sistema se traspasará
 
 ## 4. Fuera de alcance
 
-- **Código de acceso de empresa.** El campo está deshabilitado: no existe el backend (generación, canje y vencimiento de códigos). Requiere su propia SPEC y Functions.
+- **Código de acceso de empresa.** Descartado: lo reemplazan las invitaciones de la SPEC 032.
 - Vincular una cuenta de Google con una de correo y contraseña ya existente (`account-exists-with-different-credential` solo informa).
 - Aviso de correo no verificado para cuentas de correo y contraseña: sin cambios.
 
 ## 5. Pruebas
 
-`npm run test:login-access` (`scripts/login-access-smoke.mjs`; incluye el interruptor apagado por defecto, el botón deshabilitado con su nota y la rama encendida intacta): regla pura de la pista; la elección no llega a Firebase ni al backend; `reduced-motion` cubre todo lo animado y `login.css` no tiene literales; panel decorativo en `aria-hidden`; Google (popup, redirección, guard `assertClientWriteAllowed`, mensajes en español, sin casilla propia, guard de aceptación antes de la espera); pantalla de espera (campo deshabilitado, "Próximamente", salidas, tope de consultas, un solo `role="status"`).
+`npm run test:login-access` (`scripts/login-access-smoke.mjs`; incluye el interruptor apagado por defecto, el botón deshabilitado con su nota y la rama encendida intacta): regla pura de la pista; la elección no llega a Firebase ni al backend; `reduced-motion` cubre todo lo animado y `login.css` no tiene literales; panel decorativo en `aria-hidden`; Google (popup, redirección, guard `assertClientWriteAllowed`, mensajes en español, sin casilla propia, guard de aceptación antes de la espera); pantalla de espera (sin campo de código, lista de invitaciones, salidas, tope de consultas, un solo `role="status"`). Las aserciones de las invitaciones están en `npm run test:team-invitations-ui`.
 
 Se ejecutan además `test:legal-documents`, `test:firebase-environment`, `test:business-quick-flow`, `test:design`, `test:contrast`, `build` y `git diff --check`.
 
