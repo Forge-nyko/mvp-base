@@ -136,9 +136,15 @@ const {
 const {VERTICAL_MODULES} = require("./verticalModules");
 const {
   actualizarMembresiaNegocioHandler,
-  asociarUsuarioExistenteHandler,
   listarMiembrosNegocioHandler,
 } = require("./businessMemberships");
+const {
+  invitarMiembroNegocioHandler,
+  listarInvitacionesNegocioHandler,
+  listarMisInvitacionesHandler,
+  responderInvitacionHandler,
+  revocarInvitacionNegocioHandler,
+} = require("./teamInvitations");
 const {
   actualizarPerfilEmpleadoHandler,
   crearPerfilEmpleadoHandler,
@@ -3928,6 +3934,10 @@ const businessMembershipDependencies = {
   FieldValue,
   requireBusinessAccess: requireOperationalBusinessAccess,
 };
+const teamInvitationDependencies = {
+  ...businessMembershipDependencies,
+  Timestamp,
+};
 
 exports.getBusinessSession = onCall(
   {
@@ -4131,7 +4141,7 @@ exports.listarMiembrosNegocio = onCall(
     listarMiembrosNegocioHandler(request, businessMembershipDependencies)
 );
 
-exports.asociarUsuarioExistente = onCall(
+exports.invitarMiembroNegocio = onCall(
   {
     maxInstances: 10,
     memory: "256MiB",
@@ -4139,7 +4149,51 @@ exports.asociarUsuarioExistente = onCall(
     timeoutSeconds: 30,
   },
   async (request) =>
-    asociarUsuarioExistenteHandler(request, businessMembershipDependencies)
+    invitarMiembroNegocioHandler(request, teamInvitationDependencies)
+);
+
+exports.listarInvitacionesNegocio = onCall(
+  {
+    maxInstances: 10,
+    memory: "256MiB",
+    region: DEFAULT_FUNCTION_REGION,
+    timeoutSeconds: 30,
+  },
+  async (request) =>
+    listarInvitacionesNegocioHandler(request, teamInvitationDependencies)
+);
+
+exports.revocarInvitacionNegocio = onCall(
+  {
+    maxInstances: 10,
+    memory: "256MiB",
+    region: DEFAULT_FUNCTION_REGION,
+    timeoutSeconds: 30,
+  },
+  async (request) =>
+    revocarInvitacionNegocioHandler(request, teamInvitationDependencies)
+);
+
+exports.listarMisInvitaciones = onCall(
+  {
+    maxInstances: 10,
+    memory: "256MiB",
+    region: DEFAULT_FUNCTION_REGION,
+    timeoutSeconds: 30,
+  },
+  async (request) =>
+    listarMisInvitacionesHandler(request, teamInvitationDependencies)
+);
+
+exports.responderInvitacion = onCall(
+  {
+    maxInstances: 10,
+    memory: "256MiB",
+    region: DEFAULT_FUNCTION_REGION,
+    timeoutSeconds: 30,
+  },
+  async (request) =>
+    responderInvitacionHandler(request, teamInvitationDependencies)
 );
 
 exports.actualizarMembresiaNegocio = onCall(

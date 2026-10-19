@@ -520,6 +520,38 @@ async function main() {
       deleteDoc(doc(ownerClient.db, modulesRequestPath))
     );
 
+    // SPEC 032: invitaciones de equipo, solo accesibles desde Functions.
+    const invitationPaths = [
+      `invitacionesEquipo/${businessId}__${"a".repeat(64)}`,
+      `invitacionRequests/${businessId}__rules-invitation-request`,
+      `invitacionLimites/${businessId}__20261018`,
+    ];
+    for (const invitationPath of invitationPaths) {
+      await adminDb.doc(invitationPath).set({
+        negocioId: businessId,
+        emailNormalizado: "invitada@example.test",
+        estado: "pendiente",
+        creadoPorUid: ownerUid,
+      });
+      for (const [label, client] of [["OWNER", ownerClient], ["otro usuario", otherClient]]) {
+        await expectDenied(`${label} lee ${invitationPath.split("/")[0]}`, () =>
+          getDoc(doc(client.db, invitationPath))
+        );
+        await expectDenied(`${label} crea ${invitationPath.split("/")[0]}`, () =>
+          setDoc(doc(client.db, `${invitationPath}-sdk`), {negocioId: businessId, estado: "aceptada"})
+        );
+        await expectDenied(`${label} edita ${invitationPath.split("/")[0]}`, () =>
+          updateDoc(doc(client.db, invitationPath), {estado: "aceptada"})
+        );
+        await expectDenied(`${label} borra ${invitationPath.split("/")[0]}`, () =>
+          deleteDoc(doc(client.db, invitationPath))
+        );
+      }
+      await expectDenied(`OWNER lista ${invitationPath.split("/")[0]}`, () =>
+        getDocs(collection(ownerClient.db, invitationPath.split("/")[0]))
+      );
+    }
+
     const businessInventoryPath =
       `negocios/${businessId}/inventario/item-stock-hardening`;
     await adminDb.doc(businessInventoryPath).set({

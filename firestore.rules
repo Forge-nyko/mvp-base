@@ -1327,6 +1327,20 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // SPEC 032: invitaciones de equipo. Todo pasa por Functions; la persona
+    // invitada lee las suyas con listarMisInvitaciones, no con el SDK.
+    match /invitacionesEquipo/{invitationId} {
+      allow read, write: if false;
+    }
+
+    match /invitacionRequests/{requestId} {
+      allow read, write: if false;
+    }
+
+    match /invitacionLimites/{limitId} {
+      allow read, write: if false;
+    }
+
     match /quotePublicTokens/{tokenHash} {
       allow read, write: if false;
     }
