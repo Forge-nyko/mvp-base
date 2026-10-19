@@ -90,7 +90,8 @@ function VeterinaryManager({
       (error) => {
         console.error(
           "Error al cargar inventario para Clínica Veterinaria:",
-          error
+          error?.code,
+          error?.message
         );
 
         setInventoryItems([]);
@@ -142,7 +143,8 @@ function VeterinaryManager({
     ) => {
       console.error(
         `Error al cargar ${label} de Clínica Veterinaria:`,
-        error
+        error?.code,
+        error?.message
       );
 
       const errorCode =

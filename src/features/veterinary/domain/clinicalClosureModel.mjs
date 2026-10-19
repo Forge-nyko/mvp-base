@@ -1,3 +1,5 @@
+import { isValidVeterinaryQuantity } from "./quantityValidation.mjs";
+
 export const VETERINARY_CLINICAL_OUTCOMES =
   Object.freeze([
     "alta",
@@ -411,10 +413,7 @@ export function getVeterinarySaleHandoffFieldErrors(
       }
 
 
-      if (
-        item.cantidad === null ||
-        item.cantidad <= 0
-      ) {
+      if (!isValidVeterinaryQuantity(item.cantidad)) {
         lineErrors.push(
           `lineas[${index}]: la cantidad debe ser mayor que cero.`
         );

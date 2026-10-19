@@ -1,3 +1,5 @@
+import { isValidVeterinaryQuantity } from "./quantityValidation.mjs";
+
 export const VETERINARY_PHARMACY_STOCK_STATUSES =
   Object.freeze([
     "disponible",
@@ -303,12 +305,7 @@ export function buildVeterinaryInventoryReference(
   const cantidad =
     Number(quantity);
 
-  if (
-    !Number.isFinite(
-      cantidad
-    ) ||
-    cantidad <= 0
-  ) {
+  if (!isValidVeterinaryQuantity(cantidad)) {
     throw new Error(
       "La cantidad debe ser mayor que cero."
     );

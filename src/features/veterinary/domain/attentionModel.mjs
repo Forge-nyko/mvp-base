@@ -1,3 +1,5 @@
+import { isValidVeterinaryQuantity } from "./quantityValidation.mjs";
+
 export const VETERINARY_ATTENTION_ITEM_TYPES =
   Object.freeze([
     "servicio",
@@ -127,10 +129,7 @@ function getReferenceItemErrors(
       }
 
 
-      if (
-        item.cantidad === null ||
-        item.cantidad <= 0
-      ) {
+      if (!isValidVeterinaryQuantity(item.cantidad)) {
         errors.push(
           `${fieldName}[${index}]: la cantidad debe ser mayor que cero.`
         );

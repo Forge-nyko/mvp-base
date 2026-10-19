@@ -100,7 +100,7 @@
   padding: 1rem;
   text-align: center;
   border: 1px dashed currentColor;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-md);
   opacity: 0.65;
 }
 
@@ -115,7 +115,7 @@
   align-items: center;
   gap: 1rem;
   padding: 0.8rem 0;
-  border-bottom: 1px solid rgba(127, 127, 127, 0.2);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .veterinary-patient-list-item:last-child {
@@ -137,7 +137,7 @@
   grid-template-columns: 140px minmax(0, 1fr);
   gap: 1rem;
   padding: 1rem 0;
-  border-bottom: 1px solid rgba(127, 127, 127, 0.2);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .veterinary-patient-history-item:last-child {
@@ -174,7 +174,7 @@
 }
 
 .veterinary-patient-message--error {
-  border-color: rgba(190, 40, 40, 0.3);
+  border-color: var(--color-danger-200);
 }
 
 @media (max-width: 900px) {
