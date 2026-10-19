@@ -88,7 +88,7 @@ function VeterinaryRoutes({
         path="*"
         element={
           <Navigate
-            to="/veterinaria"
+            to="/clinica-veterinaria"
             replace
           />
         }
