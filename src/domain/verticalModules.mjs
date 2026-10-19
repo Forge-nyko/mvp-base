@@ -14,3 +14,14 @@ export function normalizeEnabledModules(list, registry = VERTICAL_MODULES) {
     .filter((id) => typeof id === "string" && isKnownVerticalModule(id, registry))
     .sort();
 }
+
+// --- Solo frontend: sin copia en functions/verticalModules.js ---
+
+// Módulos verticales habilitados para el negocio activo. Acepta la sesión
+// ({activeBusiness}) o el negocio activo directo; cualquier otra forma (un rol
+// como string, null) no habilita nada. Se lee al cargar la sesión: no hay
+// refresco en vivo.
+export function getEnabledVerticalModules(session, registry = VERTICAL_MODULES) {
+  const business = session?.activeBusiness ?? session;
+  return normalizeEnabledModules(business?.modulosHabilitados, registry);
+}

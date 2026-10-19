@@ -104,3 +104,19 @@ assert.match(platformIndexSource, /const platformAdminDependencies = \{[\s\S]*?v
 assert.match(platformRulesSource, /match \/platformModulesRequests\/\{requestId\} \{\s*allow read, create, update, delete: if false;/);
 assert.match(platformRulesSource, /function isBusinessModuleEnabled\(businessId, moduleId\)[\s\S]*?get\("modulosHabilitados", \[\]\)\.hasAny\(\[moduleId\]\)/);
 console.log("OK platform-admin: cambiarModulosEmpresaPlataforma, registro por dependencias y reglas");
+
+// Interruptor de modulos: seccion "Modulos" de la consola y su servicio.
+const modulesPanelSource = await readFile(new URL("../src/platform/PlatformModulesPanel.jsx", import.meta.url), "utf8");
+assert.match(serviceSource, /export const setPlatformBusinessModules = \(\{businessId, modulos, motivo, requestId\}\) =>\s*call\("cambiarModulosEmpresaPlataforma", \{businessId, modulos, motivo, requestId\}\)/);
+assert.match(pagesSource, /<PlatformModulesPanel[\s\S]*?registry=\{modulosDisponibles\}[\s\S]*?enabled=\{enabledModules\}/);
+assert.match(pagesSource, /run\("update_modules", \(requestId\) => setPlatformBusinessModules\(\{businessId, modulos, motivo, requestId\}\)\)/);
+assert.match(pagesSource, /modulos_actualizados: "Módulos actualizados"/);
+assert.match(pagesSource, /event\.tipo === MODULES_EVENT_TYPE \? moduleEventSummary\(event, modulosDisponibles\)/);
+assert.match(modulesPanelSource, /<h2 id="platform-modules-title">Módulos<\/h2>/);
+assert.match(modulesPanelSource, /No hay módulos verticales disponibles todavía\./);
+assert.match(modulesPanelSource, /registry\.map\(\(item\) => \([\s\S]*?type="checkbox"/);
+assert.match(modulesPanelSource, /Motivo del cambio/);
+assert.match(modulesPanelSource, /Guardar módulos/);
+assert.match(modulesPanelSource, /disabled=\{deleted \|\| working \|\| !dirty \|\| !reason\.trim\(\)\}/);
+assert.doesNotMatch(modulesPanelSource, /taller|veterinaria/i, "el panel no conoce ningun modulo por nombre");
+console.log("OK platform-admin: seccion Modulos y servicio");

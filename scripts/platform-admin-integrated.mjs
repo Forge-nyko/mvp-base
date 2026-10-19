@@ -276,6 +276,19 @@ try {
   assert.deepEqual((await adminDb.doc(`negocios/${secondId}`).get()).data().modulosHabilitados, []);
   await rejected("SDK cliente no escribe modulosHabilitados", () => updateDoc(doc(secondOwner.db, "negocios", secondId), {modulosHabilitados: ["taller"]}), ["permission-denied"]);
 
+  // Regresion: las actualizaciones existentes del negocio no tocan modulosHabilitados.
+  await cambiarModulosEmpresaPlataformaHandler(superRequest({businessId: secondId, modulos: ["taller", "veterinaria"], motivo: "Prueba de regresion", requestId: requestId("modules_regression")}), handlerDeps);
+  const enabledModulesNow = async () => (await adminDb.doc(`negocios/${secondId}`).get()).data().modulosHabilitados;
+  assert.deepEqual(await enabledModulesNow(), ["taller", "veterinaria"]);
+  const regressionProfile = {...editableProfile(secondProfile), telefono: "+56 9 8765 4321"};
+  await call(secondOwner, "updateBusinessProfile")({businessId: secondId, profile: regressionProfile});
+  assert.deepEqual(await enabledModulesNow(), ["taller", "veterinaria"]);
+  await call(secondOwner, "updateBusinessInformation")({businessId: secondId, profile: regressionProfile});
+  assert.deepEqual(await enabledModulesNow(), ["taller", "veterinaria"]);
+  console.log("OK regresion: updateBusinessProfile y updateBusinessInformation conservan modulosHabilitados");
+  await cambiarModulosEmpresaPlataformaHandler(superRequest({businessId: secondId, modulos: [], motivo: "Fin de la regresion", requestId: requestId("modules_regression_clear")}), handlerDeps);
+  assert.deepEqual(await enabledModulesNow(), []);
+
   await rejected("claim no abre SDK global", () => getDocs(collection(platform.db, "negocios")), ["permission-denied"]);
   await rejected("platform no falsea estado por SDK", () => updateDoc(doc(platform.db, "negocios", firstId), {estado: "suspendida"}), ["permission-denied"]);
   await rejected("usuario normal no abre evidencia", () => call(owner, "obtenerDocumentoVerificacionPlataforma")({businessId: firstId, solicitudId: firstRequest.data.solicitudId}), ["permission-denied"]);
@@ -299,6 +312,17 @@ try {
   assert.equal((await adminDb.collection(`negocios/${firstId}/eventosPlataforma`).get()).size, 1);
   await call(platform, "cambiarEstadoEmpresaPlataforma")({businessId: firstId, estado: "activo", motivo: "", requestId: requestId("reactivate_business")});
   assert.equal((await call(owner, "getBusinessSession")({})).data.accessState, "active");
+
+  // Regresion de updateBusinessSettings: exige empresa verificada, por eso va con firstId.
+  await cambiarModulosEmpresaPlataformaHandler(superRequest({businessId: firstId, modulos: ["taller"], motivo: "Regresion de configuracion", requestId: requestId("modules_settings_on")}), handlerDeps);
+  const firstModulesNow = async () => (await adminDb.doc(`negocios/${firstId}`).get()).data().modulosHabilitados;
+  assert.deepEqual(await firstModulesNow(), ["taller"]);
+  await call(owner, "updateBusinessSettings")({businessId: firstId, section: "inventario", settings: {alertasStockBajo: true, umbralStockBajo: 3, permitirStockNegativo: false}});
+  assert.deepEqual(await firstModulesNow(), ["taller"]);
+  await call(owner, "updateBusinessSettings")({businessId: firstId, section: "cotizaciones", settings: {validezCotizacionDias: 20}});
+  assert.deepEqual(await firstModulesNow(), ["taller"]);
+  console.log("OK regresion: updateBusinessSettings conserva modulosHabilitados");
+  await cambiarModulosEmpresaPlataformaHandler(superRequest({businessId: firstId, modulos: [], motivo: "Fin de la regresion", requestId: requestId("modules_settings_off")}), handlerDeps);
 
   const suspendUserId = requestId("suspend_user");
   await call(platform, "cambiarEstadoUsuarioPlataforma")({uid: owner.uid, estado: "suspendido", motivo: "Revision de cuenta", requestId: suspendUserId});

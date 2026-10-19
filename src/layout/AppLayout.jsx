@@ -14,9 +14,10 @@ import LoadingState from "../components/ui/LoadingState";
 import PageHeader from "../components/ui/PageHeader";
 import ResponsiveDialog from "../components/ui/ResponsiveDialog";
 import SkipLink from "../components/ui/SkipLink";
-import { getRouteMeta, navigationSections } from "../app/navigation";
+import { buildNavigationSections, getRouteMeta } from "../app/navigation";
 import {
   filterNavigationSections,
+  getBusinessPathOptions,
   getDefaultBusinessPath,
 } from "../domain/rbac.mjs";
 import {
@@ -34,7 +35,7 @@ function PrimaryNavigation({
   idPrefix,
   onNavigate,
   pathname,
-  sections = navigationSections,
+  sections,
 }) {
   return (
     <nav className="sidebar-nav" aria-label={ariaLabel}>
@@ -117,9 +118,16 @@ function AppLayout({
     initialProfile: negocioActivo || {},
   });
   const allowedNavigationSections = React.useMemo(
-    () => businessVerified
-      ? filterNavigationSections(navigationSections, negocioActivo)
-      : filterNavigationForBusinessVerification(navigationSections, negocioActivo),
+    () => {
+      const navigationSections = buildNavigationSections();
+      return businessVerified
+        ? filterNavigationSections(
+          navigationSections,
+          negocioActivo,
+          getBusinessPathOptions(negocioActivo)
+        )
+        : filterNavigationForBusinessVerification(navigationSections, negocioActivo);
+    },
     [negocioActivo]
   );
   const mainNavigationSections = allowedNavigationSections.filter(
@@ -253,7 +261,7 @@ function AppLayout({
         if (!layoutMountedRef.current) return;
         const nextBusiness = session?.activeBusiness;
         if (nextBusiness?.id === businessId && canBusinessOperate(nextBusiness)) {
-          navigate(getDefaultBusinessPath(nextBusiness), {
+          navigate(getDefaultBusinessPath(nextBusiness, getBusinessPathOptions(nextBusiness)), {
             replace: true,
             state: {
               verificationToastTitle: "Empresa verificada",
@@ -301,7 +309,7 @@ function AppLayout({
     const session = await onBusinessChanged(business.id);
     const nextBusiness = session?.activeBusiness || business;
     navigate(canBusinessOperate(nextBusiness)
-      ? getDefaultBusinessPath(nextBusiness)
+      ? getDefaultBusinessPath(nextBusiness, getBusinessPathOptions(nextBusiness))
       : "/empresa?seccion=verificacion", {
       state: {
         businessToastTitle: `Ahora estás trabajando en ${business.nombreComercial}`,
@@ -314,7 +322,7 @@ function AppLayout({
     const session = await onBusinessCreated();
     const nextBusiness = session?.activeBusiness || business;
     navigate(canBusinessOperate(nextBusiness)
-      ? getDefaultBusinessPath(nextBusiness)
+      ? getDefaultBusinessPath(nextBusiness, getBusinessPathOptions(nextBusiness))
       : "/empresa?seccion=verificacion", {
       state: {
         businessToastTitle: `${business.nombreComercial} fue creado correctamente`,

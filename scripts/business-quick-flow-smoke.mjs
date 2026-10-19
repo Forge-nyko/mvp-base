@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { normalizeQuickBusinessPayload } from "../src/domain/businessQuickPayload.mjs";
 import { resolveInitialActivationRoute } from "../src/domain/initialActivationNavigation.mjs";
 import { filterNavigationSections } from "../src/domain/rbac.mjs";
+import { buildNavigationSections, navigationSections } from "../src/app/navigation.js";
 
 const [
   onboarding,
@@ -193,7 +194,7 @@ assert.match(app, /path="\/dashboard" element=\{<Navigate to=\{safeLanding\} rep
 assert.match(app, /path="\/resumen" element=\{<Navigate to=\{safeLanding\} replace \/>\}/);
 assert.match(
   appLayout,
-  /navigate\(canBusinessOperate\(nextBusiness\)[\s\S]*?getDefaultBusinessPath\(nextBusiness\)[\s\S]*?"\/empresa\?seccion=verificacion"/
+  /navigate\(canBusinessOperate\(nextBusiness\)[\s\S]*?getDefaultBusinessPath\(nextBusiness, getBusinessPathOptions\(nextBusiness\)\)[\s\S]*?"\/empresa\?seccion=verificacion"/
 );
 assert.match(componentStyles, /\.activation-checklist li:last-child:nth-child\(odd\)[\s\S]*?grid-column: 1 \/ -1/);
 assert.match(componentStyles, /@media \(max-width: 640px\)[\s\S]*?\.activation-checklist li:last-child:nth-child\(odd\)[\s\S]*?grid-column: auto/);
@@ -257,6 +258,22 @@ assert.deepEqual(visibleRoutesFor("FINANZAS"), [
   "/compras",
   "/cuenta",
 ]);
+// Módulos verticales: con el registro vacío del Core el menú no cambia y no hay
+// grupo "Módulos"; con un registro de prueba solo aparece el módulo habilitado.
+assert.equal(buildNavigationSections(), navigationSections);
+assert.equal(navigationSections.some((section) => section.label === "Módulos"), false);
+assert.deepEqual(
+  filterNavigationSections(buildNavigationSections(), "OWNER").map((section) => section.label),
+  ["Inicio", "Comercial", "Operación", "Abastecimiento", "Gestión", "Cuenta"]
+);
+const testVerticalRegistry = [{ id: "prueba", label: "Módulo de prueba", basePath: "/modulo-prueba" }];
+const verticalSections = buildNavigationSections(testVerticalRegistry);
+assert.deepEqual(verticalSections.map((section) => section.label).slice(-2), ["Módulos", "Cuenta"]);
+const verticalMenuFor = (options) =>
+  filterNavigationSections(verticalSections, { role: "OWNER" }, { registry: testVerticalRegistry, ...options })
+    .flatMap((section) => section.items.map((item) => item.to));
+assert.equal(verticalMenuFor({}).includes("/modulo-prueba"), false, "sin enabledModules el vertical no se ve");
+assert.equal(verticalMenuFor({ enabledModules: [] }).includes("/modulo-prueba"), false);
 assert.match(app, /key=\{businessId\}/);
 assert.match(companyConfig, /ownerOnly: true/);
 assert.match(companyConfig, /<LockedSetting[\s\S]*?label="País"/);

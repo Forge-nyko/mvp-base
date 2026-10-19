@@ -1,3 +1,5 @@
+import {VERTICAL_MODULES, getEnabledVerticalModules} from "./verticalModules.mjs";
+
 export const BUSINESS_ROLES = Object.freeze([
   "OWNER",
   "ADMIN",
@@ -210,7 +212,33 @@ export function hasBusinessPermission(access, permission) {
   );
 }
 
-export function canAccessBusinessPath(access, pathname) {
+// Módulos verticales: una ruta bajo el basePath de un módulo del registro exige
+// que el negocio lo tenga habilitado, además del permiso normal. Sin la opción
+// enabledModules, o con acceso en string, quedan denegadas. Las rutas del Core
+// no pasan por esta comprobación.
+function findVerticalModule(pathname, registry) {
+  return registry.find(({basePath}) =>
+    typeof basePath === "string" && basePath.length > 1 && basePath.startsWith("/") &&
+    (pathname === basePath || pathname.startsWith(`${basePath}/`))
+  );
+}
+
+function isVerticalPathEnabled(access, pathname, {enabledModules, registry = VERTICAL_MODULES} = {}) {
+  const vertical = findVerticalModule(pathname, registry);
+  if (!vertical) return true;
+  return typeof access !== "string" &&
+    Array.isArray(enabledModules) &&
+    enabledModules.includes(vertical.id);
+}
+
+// Opciones de acceso a rutas para el negocio activo de la sesión: los módulos
+// verticales habilitados vienen de negocios/{businessId}.modulosHabilitados.
+export function getBusinessPathOptions(business) {
+  return {enabledModules: getEnabledVerticalModules(business)};
+}
+
+export function canAccessBusinessPath(access, pathname, options = {}) {
+  if (!isVerticalPathEnabled(access, pathname, options)) return false;
   const normalized = normalizeBusinessAccess(access);
   if (normalized.modules) {
     if (/^\/cuenta(?:\/|$)/.test(pathname)) return true;
@@ -221,7 +249,7 @@ export function canAccessBusinessPath(access, pathname) {
   return Boolean(match && hasBusinessPermission(normalized.role, match[1]));
 }
 
-export function getDefaultBusinessPath(access) {
+function resolveDefaultBusinessPath(access) {
   const normalized = normalizeBusinessAccess(access);
   if (normalized.modules) {
     const firstModule = BUSINESS_MODULES.find((moduleId) => normalized.modules.includes(moduleId));
@@ -235,11 +263,16 @@ export function getDefaultBusinessPath(access) {
   return "/cotizaciones";
 }
 
-export function filterNavigationSections(sections, access) {
+export function getDefaultBusinessPath(access, options = {}) {
+  const landing = resolveDefaultBusinessPath(access);
+  return isVerticalPathEnabled(access, landing, options) ? landing : "/cuenta";
+}
+
+export function filterNavigationSections(sections, access, options = {}) {
   return sections
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => canAccessBusinessPath(access, item.to)),
+      items: section.items.filter((item) => canAccessBusinessPath(access, item.to, options)),
     }))
     .filter((section) => section.items.length > 0);
 }

@@ -52,7 +52,10 @@ assert.equal(frontendRegistry.isKnownVerticalModule("taller", sample), true);
 // Paridad textual: el mismo codigo salvo la sintaxis de exportacion.
 const functionsBlock = (source) => {
   const start = source.indexOf("const VERTICAL_MODULES");
-  const end = source.indexOf("\nmodule.exports") === -1 ? source.length : source.indexOf("\nmodule.exports");
+  // El bloque espejo termina en module.exports (Functions) o en el marcador de
+  // las funciones solo-frontend (src).
+  const cuts = [source.indexOf("\nmodule.exports"), source.indexOf("\n// --- Solo frontend")].filter((index) => index !== -1);
+  const end = cuts.length ? Math.min(...cuts) : source.length;
   return source.slice(start, end).replace(/^export /gm, "").replace(/\s+$/g, "");
 };
 assert.equal(

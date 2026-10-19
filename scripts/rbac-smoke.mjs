@@ -7,6 +7,8 @@ import {
   BUSINESS_MODULES,
   BUSINESS_ROLES,
   canAccessBusinessPath,
+  filterNavigationSections,
+  getBusinessPathOptions,
   getDefaultBusinessPath,
   hasBusinessPermission,
 } from "../src/domain/rbac.mjs";
@@ -97,6 +99,51 @@ assert.equal(hasBusinessPermission(customAccess, P.CLIENTS_WRITE), false);
 assert.equal(getDefaultBusinessPath(customAccess), "/clientes");
 assert.equal(getDefaultBusinessPath({role: "MEMBER", profileId: "empty", modules: []}), "/cuenta");
 console.log("OK RBAC: perfil personalizado limita módulos y resuelve landing determinista");
+
+// Módulos verticales (SPEC 031). El registro real nace vacío; aquí se inyecta un
+// registro de prueba. Su basePath solapa a propósito con /clientes para probar
+// la regla completa: el módulo habilitado Y el permiso normal de la ruta
+// (clients.read). Las rutas del Core no cambian con el registro vacío.
+const testRegistry = Object.freeze([{id: "prueba", label: "Prueba", basePath: "/clientes"}]);
+const withModule = {enabledModules: ["prueba"], registry: testRegistry};
+const withoutModule = {enabledModules: [], registry: testRegistry};
+assert.equal(canAccessBusinessPath({role: "VENTAS"}, "/clientes", {registry: testRegistry}), false, "sin enabledModules queda denegada");
+assert.equal(canAccessBusinessPath({role: "VENTAS"}, "/clientes", withoutModule), false, "modulo no habilitado");
+assert.equal(canAccessBusinessPath({role: "VENTAS"}, "/clientes", {enabledModules: ["otro"], registry: testRegistry}), false);
+assert.equal(canAccessBusinessPath({role: "VENTAS"}, "/clientes", withModule), true, "habilitado mas permiso");
+assert.equal(canAccessBusinessPath({role: "VENTAS"}, "/clientes/cliente-1", withModule), true);
+assert.equal(canAccessBusinessPath({role: "TECNICO"}, "/clientes", withModule), false, "habilitado pero sin permiso");
+assert.equal(canAccessBusinessPath("VENTAS", "/clientes", withModule), false, "acceso en string: vertical denegada");
+// Un vertical sin permiso propio en rbac queda denegado aunque este habilitado, y
+// los perfiles por modulos nunca lo incluyen.
+const isolatedRegistry = Object.freeze([{id: "aislado", label: "Aislado", basePath: "/modulo-aislado"}]);
+const isolatedEnabled = {enabledModules: ["aislado"], registry: isolatedRegistry};
+assert.equal(canAccessBusinessPath({role: "OWNER"}, "/modulo-aislado", isolatedEnabled), false, "sin permiso en rbac");
+assert.equal(canAccessBusinessPath({role: "MEMBER", profileId: "p", modules: ["clientes", "ventas"]}, "/modulo-aislado/x", isolatedEnabled), false, "los perfiles por modulos no incluyen verticales");
+assert.equal(canAccessBusinessPath({role: "VENTAS"}, "/ventas", withoutModule), true, "rutas del Core no cambian");
+assert.equal(canAccessBusinessPath("VENTAS", "/ventas"), true);
+assert.equal(canAccessBusinessPath({role: "OWNER"}, "/reportes", withoutModule), true);
+// getDefaultBusinessPath nunca aterriza en un vertical deshabilitado.
+const landingRegistry = Object.freeze([{id: "aterrizaje", label: "Aterrizaje", basePath: "/reportes"}]);
+assert.equal(getDefaultBusinessPath({role: "OWNER"}, {enabledModules: [], registry: landingRegistry}), "/cuenta");
+assert.equal(getDefaultBusinessPath({role: "OWNER"}, {registry: landingRegistry}), "/cuenta");
+assert.equal(getDefaultBusinessPath("OWNER", {enabledModules: ["aterrizaje"], registry: landingRegistry}), "/cuenta");
+assert.equal(getDefaultBusinessPath({role: "OWNER"}, {enabledModules: ["aterrizaje"], registry: landingRegistry}), "/reportes");
+assert.equal(getDefaultBusinessPath({role: "VENTAS"}, {registry: landingRegistry}), "/cotizaciones");
+// Menú: el ítem vertical solo aparece habilitado.
+const verticalMenu = [{label: "Modulos", items: [{to: "/clientes"}, {to: "/ventas"}]}];
+const menuTargets = (options) => filterNavigationSections(verticalMenu, {role: "OWNER"}, options).flatMap((section) => section.items.map((item) => item.to));
+assert.deepEqual(menuTargets(withoutModule), ["/ventas"]);
+assert.deepEqual(menuTargets(withModule), ["/clientes", "/ventas"]);
+// Con el registro real (vacio) nada cambia y las opciones salen de la sesion.
+assert.deepEqual(getBusinessPathOptions({modulosHabilitados: ["taller"]}), {enabledModules: []}, "el registro real vacio descarta todo");
+assert.deepEqual(getBusinessPathOptions(undefined), {enabledModules: []});
+assert.equal(canAccessBusinessPath({role: "OWNER"}, "/clientes", getBusinessPathOptions({role: "OWNER"})), true);
+// Ningun vertical entra en BUSINESS_MODULES.
+for (const entry of testRegistry) assert.equal(BUSINESS_MODULES.includes(entry.id), false);
+assert.equal(BUSINESS_MODULES.includes("taller"), false);
+assert.equal(BUSINESS_MODULES.includes("veterinaria"), false);
+console.log("OK RBAC: rutas verticales exigen modulo habilitado ademas del permiso");
 
 function rejectingDependencies(role) {
   return {

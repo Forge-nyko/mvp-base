@@ -240,6 +240,11 @@
 .platform-verification-confirmation { display: grid; gap: var(--space-2); }
 .platform-notice { background: var(--color-surface-hover); border: 1px solid var(--color-brand-200); border-radius: var(--radius-md); color: var(--color-brand-700); margin-bottom: var(--space-4); padding: var(--space-3) var(--space-4); }
 .platform-help { color: var(--color-text-muted); font-size: var(--font-size-xs); margin: var(--space-4) 0 0; }
+.platform-help--flush { margin-top: 0; }
+.platform-modules__current { color: var(--color-text-muted); font-size: var(--font-size-sm); margin: 0 0 var(--space-3); }
+.platform-modules__current strong { color: var(--color-text-strong); }
+.platform-modules__list { border: 0; display: grid; gap: var(--space-3); margin: 0; min-width: 0; padding: 0; }
+.platform-modules__legend { border: 0; clip: rect(0 0 0 0); height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px; }
 .platform-danger-zone { align-items: center; border-color: var(--color-danger-200); display: flex; gap: var(--space-5); justify-content: space-between; }
 .platform-danger-zone h2 { color: var(--color-danger-700); }
 .platform-danger-zone p,

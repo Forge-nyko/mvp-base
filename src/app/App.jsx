@@ -67,6 +67,7 @@ import {
 import {
   BUSINESS_PERMISSIONS,
   canAccessBusinessPath,
+  getBusinessPathOptions,
   getDefaultBusinessPath,
   hasBusinessPermission,
 } from "../domain/rbac.mjs";
@@ -195,7 +196,10 @@ function AppRoutes({
     if (!platformAccess?.isSuperadmin) {
       return <Navigate to={businessSession?.needsOnboarding
         ? "/onboarding"
-        : getDefaultBusinessPath(businessSession?.activeBusiness)} replace />;
+        : getDefaultBusinessPath(
+          businessSession?.activeBusiness,
+          getBusinessPathOptions(businessSession?.activeBusiness)
+        )} replace />;
     }
     return <Routes>
       <Route element={<PlatformAdminLayout usuario={usuario} businessSession={businessSession} onReturnToErp={onBusinessCreated} />}>
@@ -275,8 +279,9 @@ function AppRoutes({
   const activeBusiness = businessSession?.activeBusiness;
   const businessId = activeBusiness?.id;
   const role = activeBusiness?.role;
+  const businessPathOptions = getBusinessPathOptions(activeBusiness);
   const safeLanding = canBusinessOperate(activeBusiness)
-    ? getDefaultBusinessPath(activeBusiness)
+    ? getDefaultBusinessPath(activeBusiness, businessPathOptions)
     : "/empresa?seccion=verificacion";
   if (initialActivationRoute.status === "prompt") {
     return (
@@ -293,7 +298,7 @@ function AppRoutes({
   const unverifiedSetupAccess = !canBusinessOperate(activeBusiness) &&
     isUnverifiedBusinessAllowedPath(location.pathname);
   if (!["/", "/login", "/onboarding"].includes(location.pathname) &&
-      !canAccessBusinessPath(activeBusiness, location.pathname) &&
+      !canAccessBusinessPath(activeBusiness, location.pathname, businessPathOptions) &&
       !unverifiedSetupAccess) {
     return <Navigate to={safeLanding} replace />;
   }

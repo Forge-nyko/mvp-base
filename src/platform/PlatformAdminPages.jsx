@@ -18,6 +18,7 @@ import LoadingState from "../components/ui/LoadingState";
 import ResponsiveDialog from "../components/ui/ResponsiveDialog";
 import Skeleton, {SkeletonRegion} from "../components/ui/Skeleton";
 import StatusBadge from "../components/ui/StatusBadge";
+import PlatformModulesPanel, {MODULES_EVENT_TYPE, moduleEventSummary} from "./PlatformModulesPanel";
 import {COUNTRIES, getCountryByCode} from "../domain/businessCatalog";
 import {formatFiscalIdentifierForDisplay} from "../domain/fiscalIdentifier.mjs";
 import {BUSINESS_ROLE_LABELS} from "../domain/rbac.mjs";
@@ -31,6 +32,7 @@ import {
   listPlatformUsers,
   permanentlyDeletePlatformBusiness,
   resolvePlatformVerification,
+  setPlatformBusinessModules,
   setPlatformBusinessStatus,
   setPlatformUserStatus,
 } from "../services/platformAdminService";
@@ -64,6 +66,7 @@ const PLATFORM_EVENT_LABELS = {
   EMPRESA_REACTIVADA: "Empresa reactivada",
   USUARIO_SUSPENDIDO: "Usuario suspendido",
   USUARIO_REACTIVADO: "Usuario reactivado",
+  modulos_actualizados: "Módulos actualizados",
 };
 
 function humanizeToken(value) {
@@ -405,7 +408,8 @@ export function PlatformBusinessDetailPage() {
   };
   if (state.loading && !state.data) return <Loading />;
   if (state.error) return <ErrorState error={state.error} retry={load} />;
-  const {empresa, propietario, miembros, solicitudActual, eventos} = state.data;
+  const {empresa, propietario, miembros, solicitudActual, eventos, modulosDisponibles = []} = state.data;
+  const enabledModules = empresa.modulosHabilitados || [];
   const pending = empresa.verificacion?.estado === "PENDIENTE" && solicitudActual;
   const verified = empresa.verificacion?.estado === "VERIFICADA";
   const verificationLabel = VERIFICATION_LABELS[empresa.verificacion?.estado] ||
@@ -439,8 +443,17 @@ export function PlatformBusinessDetailPage() {
         <div className="platform-verification-decision"><label>Motivo de rechazo *<textarea required rows="2" value={rejectionReason} onChange={(event) => {setRejectionReason(event.target.value); requestRef.current = "";}} /></label><small>Explica brevemente qué debe corregir la empresa.</small><Button variant="danger" disabled={working || !rejectionReason.trim()} onClick={() => setVerificationDecision("RECHAZAR")}>Revisar rechazo</Button></div>
       </div>}
     </section>
+    <PlatformModulesPanel
+      key={enabledModules.join("|")}
+      registry={modulosDisponibles}
+      enabled={enabledModules}
+      deleted={empresa.estado === "eliminada"}
+      working={working}
+      onEdit={() => {requestRef.current = "";}}
+      onSave={(modulos, motivo) => run("update_modules", (requestId) => setPlatformBusinessModules({businessId, modulos, motivo, requestId}))}
+    />
     <section className="platform-panel"><h2>Miembros ({miembros.length})</h2><div className="platform-table-wrap"><table className="platform-table"><thead><tr><th>Usuario</th><th>Correo</th><th>Perfil</th><th>Estado</th></tr></thead><tbody>{miembros.map((member) => <tr key={member.uid} onClick={() => navigate(`/admin/usuarios/${member.uid}`)}><td>{personName(member.nombre)}</td><td>{member.correo}</td><td>{BUSINESS_ROLE_LABELS[member.rol] || humanizeToken(member.rol)}</td><td>{platformStateLabel(member.estado)}</td></tr>)}</tbody></table></div></section>
-    <section className="platform-panel"><h2>Historial</h2>{eventos.length ? <ol className="platform-timeline">{eventos.map((event) => <li key={`${event.origen}-${event.id}`}><span>{platformOriginLabel(event.origen)}</span><strong>{platformEventLabel(event.tipo)}</strong><p>{event.estadoAnterior && `${platformStateLabel(event.estadoAnterior)} → `}{platformStateLabel(event.estadoResultante)}{event.motivo && ` · ${event.motivo}`}</p><time>{date(event.creadoEn)}</time></li>)}</ol> : <div className="platform-empty">Sin eventos registrados.</div>}</section>
+    <section className="platform-panel"><h2>Historial</h2>{eventos.length ? <ol className="platform-timeline">{eventos.map((event) => <li key={`${event.origen}-${event.id}`}><span>{platformOriginLabel(event.origen)}</span><strong>{platformEventLabel(event.tipo)}</strong><p>{event.tipo === MODULES_EVENT_TYPE ? moduleEventSummary(event, modulosDisponibles) : <>{event.estadoAnterior && `${platformStateLabel(event.estadoAnterior)} → `}{platformStateLabel(event.estadoResultante)}{event.motivo && ` · ${event.motivo}`}</>}</p><time>{date(event.creadoEn)}</time></li>)}</ol> : <div className="platform-empty">Sin eventos registrados.</div>}</section>
     <section className="platform-panel platform-danger-zone"><div><h2>Zona de peligro</h2><p>Esta acción elimina permanentemente la empresa y todos sus datos exclusivos. Los usuarios de Auth no se eliminan.</p></div><Button variant="danger" icon={Trash2} onClick={() => {setDeleteConfirmation(""); setDeleteError(""); deleteRequestRef.current = ""; setDeleteOpen(true);}}>Eliminar empresa permanentemente</Button></section>
     <ResponsiveDialog
       open={deleteOpen}

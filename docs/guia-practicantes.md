@@ -41,9 +41,22 @@ Lo marcado `[CONFIRMAR]` se verifica al cortar la rama. Si algo de esta guía no
   - reglas para tus propias colecciones (lectura con el módulo, escritura `if false`);
   - tus propias Functions en archivos nuevos, exportadas en `index.js`.
 - **No autorizado:** modificar Functions centrales existentes y descontar stock (espera la forma única de consumo de inventario de Core).
-- Ningún módulo vertical llega a producción sin el interruptor de módulos por negocio.
+- Ningún módulo vertical llega a producción sin el interruptor de módulos por negocio (ya existe; ver "Cómo registrar un módulo vertical" más abajo).
+- **Saca taller de `BUSINESS_MODULES` en tu rama.** Los módulos verticales no son módulos del Core ni entran en los perfiles por módulos.
 - Un commit por etapa. Los documentos deben coincidir con el diff real.
 - Reporta siempre el código de salida real de cada prueba.
+
+### Cómo registrar un módulo vertical
+
+El interruptor de módulos por negocio ya existe (SPEC 031). Un módulo vertical vive en su propio registro, separado de los módulos del Core, y el superadmin lo habilita negocio por negocio. Para registrar el tuyo:
+
+1. **Entrada en el registro, con paridad.** Agrega `{id, label, basePath}` (por ejemplo `{id: "taller", label: "Taller", basePath: "/taller"}`) en `VERTICAL_MODULES` de **`functions/verticalModules.js`** y de **`src/domain/verticalModules.mjs`**. Las dos copias deben quedar idénticas: `npm run test:rbac` compara el bloque del registro texto a texto.
+2. **No lo agregues a `BUSINESS_MODULES`** (`rbac`) ni a los perfiles por módulos. Un módulo vertical no aparece en los perfiles personalizados; lo ven los roles con permiso, solo si el negocio lo tiene habilitado.
+3. **Permisos y rutas en `rbac`.** Agrega tu permiso y la ruta en `routePermissions` para tu `basePath`. La habilitación del negocio se comprueba además del permiso: `canAccessBusinessPath`, `filterNavigationSections` y `getDefaultBusinessPath` deniegan toda ruta bajo tu `basePath` si el módulo no está en `enabledModules` (se obtiene de la sesión con `getBusinessPathOptions(negocioActivo)`).
+4. **Menú.** No declares el ítem a mano: sale del registro, bajo el grupo "Módulos", y solo aparece si el módulo está habilitado.
+5. **Functions.** En cada Function de tu módulo, pasa `requiredVerticalModule: "<id>"` a `requireBusinessAccess`. Si el negocio no lo tiene habilitado, responde `failed-precondition` ("Este módulo no está habilitado para tu empresa.").
+6. **Reglas Firestore.** En las colecciones de tu módulo combina `hasBusinessModuleAccess` con `isBusinessModuleEnabled(businessId, "<id>")` para la lectura; la escritura sigue `if false`.
+7. **Habilitación.** El superadmin lo activa por negocio desde la consola de plataforma (detalle de la empresa, sección "Módulos"), con un motivo que queda en el historial. El cambio se ve al recargar la sesión.
 
 ## 5. Verificación antes de pedir revisión
 
@@ -68,4 +81,4 @@ Aclaraciones:
 
 ## 6. Qué viene
 
-El interruptor de módulos por negocio, y después la integración de Taller y Clínica Veterinaria al Core. Las revisiones técnicas completas de cada PR se hacen cuando ya estén adaptados a esta baseline.
+La integración de Taller y Clínica Veterinaria al Core, ya con el interruptor de módulos por negocio. Las revisiones técnicas completas de cada PR se hacen cuando ya estén adaptados a esta baseline.
