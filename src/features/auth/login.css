@@ -358,6 +358,13 @@
   margin: 0 0 var(--space-2);
 }
 
+/* El subtítulo existe en las dos pestañas aunque vaya vacío: su altura mínima
+   es una línea de texto, así que "Mi empresa" y "Soy colaborador" ocupan lo
+   mismo y el título, Google y el formulario no se mueven al cambiar. */
+.auth-card .auth-body__title .auth-card__subtitle {
+  min-height: calc(var(--font-size-md) * var(--line-height-default));
+}
+
 .auth-card .auth-google {
   border-radius: var(--radius-pill);
   font-size: var(--font-size-md);

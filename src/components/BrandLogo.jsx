@@ -32,6 +32,7 @@ function BrandLogo({
   className = "",
   iconSize,
   subtitle = BRAND_SUBTITLE,
+  animated = false,
 }) {
   const isAuth = variant === "auth";
   const rootClassName = ["brand-logo", `brand-logo--${variant}`, className]
@@ -45,7 +46,7 @@ function BrandLogo({
       aria-label={showText ? undefined : BRAND_NAME}
     >
       <span className="brand-logo__icon" aria-hidden="true">
-        <BrandMark size={iconSize || (isAuth ? 42 : 40)} />
+        <BrandMark size={iconSize || (isAuth ? 42 : 40)} animated={animated} />
       </span>
 
       {showText && (

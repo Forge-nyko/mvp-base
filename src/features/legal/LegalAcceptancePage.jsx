@@ -50,11 +50,11 @@ function LegalAcceptancePage({ usuario, isUpdate = false, onAccepted }) {
       <SkipLink targetId="legal-acceptance-main" />
       <main
         id="legal-acceptance-main"
-        className="onboarding-screen"
+        className="onboarding-screen legal-acceptance-screen"
         tabIndex="-1"
       >
         <section
-          className="onboarding-card onboarding-card--message"
+          className="onboarding-card onboarding-card--message legal-acceptance"
           aria-labelledby="legal-acceptance-title"
         >
           <BrandLogo variant="auth" showText />

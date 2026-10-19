@@ -81,6 +81,85 @@
   flex: 0 0 auto;
 }
 
+/* Marca animada (BrandMark animated, p. ej. LoadingScreen): el arco de la C se
+   dibuja con stroke-dasharray (pathLength normalizado a 1) y después aparece el
+   visto; al final del ciclo ambos se funden y el bucle vuelve a empezar. */
+.brand-mark--animated .brand-mark__arc,
+.brand-mark--animated .brand-mark__check {
+  animation-duration: var(--motion-brand-mark-duration);
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  stroke-dasharray: 1;
+}
+
+.brand-mark--animated .brand-mark__arc {
+  animation-name: brand-mark-arc;
+}
+
+.brand-mark--animated .brand-mark__check {
+  animation-name: brand-mark-check;
+}
+
+@keyframes brand-mark-arc {
+  0% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+
+  6% {
+    opacity: 1;
+  }
+
+  45% {
+    stroke-dashoffset: 0;
+  }
+
+  88% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes brand-mark-check {
+  0%,
+  46% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+
+  52% {
+    opacity: 1;
+  }
+
+  66% {
+    stroke-dashoffset: 0;
+  }
+
+  88% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Movimiento reducido: marca quieta y completa (sin depender del último
+   fotograma de la animación, que termina en opacidad 0). */
+@media (prefers-reduced-motion: reduce) {
+  .brand-mark--animated .brand-mark__arc,
+  .brand-mark--animated .brand-mark__check {
+    animation: none;
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
 .brand-logo__name-main {
   font-weight: var(--font-weight-bold);
 }

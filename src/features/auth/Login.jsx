@@ -334,7 +334,9 @@ function Login() {
         <h1 id="auth-title" className="auth-card__title">
           {title}
         </h1>
-        {subtitle && <p className="auth-card__subtitle">{subtitle}</p>}
+        {/* Siempre se renderiza: reserva la altura de una línea (login.css) para
+            que cambiar de pestaña no desplace el resto del formulario. */}
+        <p className="auth-card__subtitle">{subtitle}</p>
       </div>
 
       {!isResetView && (

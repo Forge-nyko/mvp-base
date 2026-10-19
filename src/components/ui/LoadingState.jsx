@@ -6,8 +6,15 @@ const LOADING_STATE_VARIANTS = ["page", "section", "inline"];
 // Estado de carga de una región (no de un botón). El texto visible es el
 // nombre accesible: role="status" vive solo aquí, así que el elemento que se
 // reemplace no debe conservar su propio role ni aria-live. El label va como
-// único nodo de texto de su elemento.
-function LoadingState({ variant = "section", label, className = "" }) {
+// único nodo de texto de su elemento. `showSpinner={false}` omite el círculo
+// cuando la pantalla ya muestra otro indicador (la marca animada de
+// LoadingScreen); el role y el texto no cambian.
+function LoadingState({
+  variant = "section",
+  label,
+  className = "",
+  showSpinner = true,
+}) {
   const variantModifier = LOADING_STATE_VARIANTS.includes(variant)
     ? variant
     : "section";
@@ -22,7 +29,9 @@ function LoadingState({ variant = "section", label, className = "" }) {
 
   return (
     <div className={classes} role="status">
-      <Spinner size={variantModifier === "inline" ? "sm" : "md"} />
+      {showSpinner && (
+        <Spinner size={variantModifier === "inline" ? "sm" : "md"} />
+      )}
       <span className="ui-loading-state__label">{text}</span>
     </div>
   );

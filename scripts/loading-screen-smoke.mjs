@@ -34,22 +34,27 @@ try {
   assert.ok(markup.indexOf("brand-logo brand-logo--auth") > -1, "BrandLogo variant=auth presente");
   assert.ok(markup.indexOf("brand-logo brand-logo--auth") < markup.indexOf('role="status"'), "BrandLogo va antes y como hermano del status");
   assert.equal(count(status, /role=|aria-live/g), 1, "nada más con role ni aria-live dentro del status");
-  assert.match(markup, /<span class="ui-spinner ui-spinner--md" aria-hidden="true"><\/span>/, "Spinner md decorativo");
+  assert.doesNotMatch(markup, /ui-spinner/, "sin círculo giratorio: lo reemplaza la marca animada");
+  assert.match(markup, /<svg class="brand-mark brand-mark--animated" width="64" height="64"/, "marca de 64 px animada");
+  assert.ok(markup.indexOf("brand-mark--animated") < markup.indexOf('role="status"'), "la marca animada va fuera del role=status");
+  assert.doesNotMatch(status, /brand-mark/, "la marca animada no queda dentro del role=status");
+  assert.match(markup, /class="brand-mark__arc"[^>]*pathLength="1"/, "arco de la C con pathLength normalizado");
+  assert.match(markup, /class="brand-mark__check"[^>]*pathLength="1"/, "visto con pathLength normalizado");
   assertClean(markup, "LoadingScreen");
   console.log("OK: estructura — un único role=status, BrandLogo fuera de él, sin aria-live ni anidamiento");
 
   // --- Label por defecto y personalizado (un único nodo de texto) ---
-  assert.match(markup, /<span class="ui-loading-state__label">Cargando ValoraCloud\.\.\.<\/span>/, "label por defecto");
+  assert.match(markup, /<span class="ui-loading-state__label">Preparando tu espacio\.\.\.<\/span>/, "label por defecto");
   const custom = html({label: "Restaurando sesión..."});
   assert.match(custom, /<span class="ui-loading-state__label">Restaurando sesión\.\.\.<\/span>/, "label personalizado");
-  assert.doesNotMatch(custom, /Cargando ValoraCloud/);
+  assert.doesNotMatch(custom, /Preparando tu espacio/);
   assert.equal(count(custom, /role="status"/g), 1);
   for (const bad of [null, 0, NaN, {}, ""]) {
     const badMarkup = html({label: bad});
     assert.equal(count(badMarkup, /role="status"/g), 1);
     assertClean(badMarkup, `LoadingScreen con label ${String(bad)}`);
   }
-  assert.match(html({label: undefined}), /Cargando ValoraCloud\.\.\./, "label undefined cae al valor por defecto");
+  assert.match(html({label: undefined}), /Preparando tu espacio\.\.\./, "label undefined cae al valor por defecto");
   assertClean(custom, "LoadingScreen con label personalizado");
   console.log("OK: label por defecto y personalizado, y valores inválidos sin undefined/NaN/Infinity");
 
@@ -94,6 +99,33 @@ try {
   assert.ok(shimmerRule && shimmerKeyframes);
   assert.doesNotMatch(shimmerRule + shimmerKeyframes, /animation-fill-mode|forwards|\bboth\b/, "sin both en el shimmer");
   console.log("OK: CSS — .ui-reveal-delay con both y los dos tokens, un keyframes, sin @media; .brand-loader solo con tokens; shimmer sin both");
+
+  // --- Marca animada: opt-in, solo con tokens y quieta con movimiento reducido ---
+  const [{default: BrandMark}, {default: LoadingState}, layoutCssSource] = await Promise.all([
+    vite.ssrLoadModule("/src/components/brand/BrandMark.jsx"),
+    vite.ssrLoadModule("/src/components/ui/LoadingState.jsx"),
+    readFile(new URL("../src/styles/layout.css", import.meta.url), "utf8"),
+  ]);
+  const staticMark = renderToStaticMarkup(React.createElement(BrandMark, {}));
+  assert.doesNotMatch(staticMark, /brand-mark--animated|brand-mark__arc|brand-mark__check|pathLength/, "BrandMark sin animated queda igual que antes");
+  const defaultState = renderToStaticMarkup(React.createElement(LoadingState, {variant: "page", label: "Cargando..."}));
+  assert.match(defaultState, /ui-spinner ui-spinner--md/, "LoadingState conserva el spinner por defecto");
+  const noSpinnerState = renderToStaticMarkup(React.createElement(LoadingState, {variant: "page", label: "Cargando...", showSpinner: false}));
+  assert.doesNotMatch(noSpinnerState, /ui-spinner/);
+  assert.match(noSpinnerState, /role="status"/);
+
+  const markCss = layoutCssSource.replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.match(markCss, /\.brand-mark--animated \.brand-mark__arc,\s*\.brand-mark--animated \.brand-mark__check \{[^}]*animation-duration: var\(--motion-brand-mark-duration\);[^}]*stroke-dasharray: 1;/);
+  assert.equal(count(markCss, /@keyframes brand-mark-arc\b/g), 1);
+  assert.equal(count(markCss, /@keyframes brand-mark-check\b/g), 1);
+  assert.equal(count(tokens, /--motion-brand-mark-duration:\s*2\.6s/g), 1);
+  const markReduced = markCss.match(/@media \(prefers-reduced-motion: reduce\) \{\s*\.brand-mark--animated[\s\S]*?\n\}/)?.[0] || "";
+  assert.match(markReduced, /animation: none;/, "reduced motion: sin animación");
+  assert.match(markReduced, /opacity: 1;/, "reduced motion: marca completa");
+  assert.match(markReduced, /stroke-dashoffset: 0;/, "reduced motion: arco y visto dibujados");
+  const markRules = markCss.slice(markCss.indexOf(".brand-mark--animated"), markCss.indexOf(".brand-logo__name-main"));
+  assert.doesNotMatch(markRules, /#[0-9a-f]{3,8}\b|rgb\(|hsl\(|animation(?:-duration)?:[^;]*\d(?:ms|s)\b/i, "marca animada sin colores ni duraciones literales");
+  console.log("OK: marca animada — opt-in, pathLength, dasharray, un keyframes por trazo, token de duración y quieta con reduced motion");
 
   // --- App.jsx: mismos puntos, misma posición, sin perder EnvironmentNotice ---
   assert.match(appSource, /import LoadingScreen from "\.\.\/components\/LoadingScreen";/);

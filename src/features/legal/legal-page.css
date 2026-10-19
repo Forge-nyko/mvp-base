@@ -97,6 +97,20 @@
   }
 }
 
+/* Tarjeta centrada y angosta: la regla posterior de .onboarding-card
+   (max-width: 100%) pisaba el ancho de --message, por eso se refuerza aquí con
+   más especificidad sin tocar las otras pantallas que usan esas clases. */
+.onboarding-card.legal-acceptance {
+  margin-inline: auto;
+  max-width: 560px;
+  text-align: center;
+}
+
+.legal-acceptance > p {
+  margin-inline: auto;
+  text-align: center;
+}
+
 .legal-acceptance__links {
   display: grid;
   gap: var(--space-2);
@@ -119,4 +133,17 @@
 .legal-acceptance__actions {
   flex-wrap: wrap;
   gap: var(--space-3);
+}
+
+/* En móvil la tarjeta queda centrada también en vertical y los dos botones se
+   apilan, centrados y a todo el ancho. */
+@media (max-width: 680px) {
+  .onboarding-screen.legal-acceptance-screen {
+    align-items: center;
+  }
+
+  .legal-acceptance__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }

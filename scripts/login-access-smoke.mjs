@@ -100,6 +100,16 @@ assert.match(loginSource, /label: "Soy colaborador"/);
 assert.match(loginSource, /<Tabs[\s\S]*?idPrefix="auth-access"[\s\S]*?label="Tipo de acceso"/);
 assert.match(loginSource, /"Acceso de colaborador"/);
 assert.match(loginSource, /"Tu empresa te agrega con tu correo\."/);
+// El subtítulo se renderiza siempre (vacío en "Mi empresa") y reserva una línea:
+// cambiar de pestaña no debe desplazar título, Google ni formulario.
+assert.match(loginSource, /<p className="auth-card__subtitle">\{subtitle\}<\/p>/, "el subtítulo no es condicional");
+assert.doesNotMatch(loginSource, /subtitle &&/, "sin render condicional del subtítulo");
+assert.match(
+  loginCss,
+  /\.auth-card \.auth-body__title \.auth-card__subtitle \{\s*min-height: calc\(var\(--font-size-md\) \* var\(--line-height-default\)\);\s*\}/,
+  "altura de una línea reservada con tokens"
+);
+assert.doesNotMatch(loginCss, /\.auth-card__subtitle[^{]*\{[^}]*(?:display: none|visibility: hidden)/, "el subtítulo vacío no se oculta del flujo");
 assert.doesNotMatch(loginSource, /placeholder=/, "campos sin placeholder");
 assert.doesNotMatch(loginSource, /valoracloud-login-background/, "Login ya no importa el PNG");
 assert.doesNotMatch(stageSource, /valoracloud-login-background|<img/);
