@@ -104,7 +104,6 @@ async function main() {
       }),
       adminDb.doc(`negocios/${businessId}`).set({
         estado: "activo",
-        creadoPorUid: ownerUid,
         verificacionEmpresa: {estado: "VERIFICADA"},
         // Toda empresa real recibe creadoPorUid al crearse
         // (functions/businessOnboarding.js) — storage.rules exige que el
@@ -406,7 +405,6 @@ async function main() {
         estado: "activo",
         creadoPorUid: ownerUid,
         verificacionEmpresa: {estado: "VERIFICADA"},
-        creadoPorUid: ownerUid,
       }),
       adminDb.doc(`membresias/${businessId}__${ownerUid}`).set({
         negocioId: businessId,

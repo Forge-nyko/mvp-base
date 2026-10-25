@@ -152,13 +152,13 @@ del Inventario Core.
 Actualmente están definidas las siguientes rutas internas:
 
 ```text
-/veterinaria
-/veterinaria/pacientes
-/veterinaria/pacientes/nuevo
-/veterinaria/pacientes/:pacienteId
-/veterinaria/agenda
-/veterinaria/agenda/nueva
-/veterinaria/citas/:citaId
+/clinica-veterinaria
+/clinica-veterinaria/pacientes
+/clinica-veterinaria/pacientes/nuevo
+/clinica-veterinaria/pacientes/:pacienteId
+/clinica-veterinaria/agenda
+/clinica-veterinaria/agenda/nueva
+/clinica-veterinaria/citas/:citaId
 ```
 
 Estas rutas representan la estructura inicial de navegación.
@@ -166,8 +166,7 @@ Estas rutas representan la estructura inicial de navegación.
 Actualmente reutilizan el contenedor principal del módulo, por lo que no deben
 considerarse como siete pantallas productivas independientes terminadas.
 
-La conexión global de `/veterinaria/*` se realizará cuando se integre el módulo
-sobre la nueva baseline de ValoraCloud.
+La ruta global `/clinica-veterinaria/*` ya se encuentra integrada en `App.jsx`.
 
 ---
 
@@ -288,52 +287,62 @@ Actualmente se encuentran implementados:
 
 ---
 
-## 13. Integración pendiente con nueva baseline
+## 13. Integracion con student-baseline
 
-El mantenedor autorizó realizar posteriormente:
+Actualmente el modulo ya se encuentra integrado con student-baseline.
 
-- integración de `/veterinaria/*` en `App.jsx`;
-- entrada de Clínica Veterinaria en el menú;
-- módulo y permisos propios en RBAC;
+La integracion incluye:
+
+- registro de veterinaria en VERTICAL_MODULES;
+- ruta base /clinica-veterinaria;
+- montaje de VeterinaryPage en App.jsx;
+- entrada de menu obtenida desde el registro de modulos verticales;
+- permiso veterinaria.read en RBAC;
 - Firestore Rules para las colecciones veterinarias;
-- Functions propias para crear y modificar pacientes;
-- Functions propias para citas;
-- Functions propias para atenciones.
+- bloqueo de escrituras directas desde el navegador.
 
-Estos cambios se realizarán sobre la nueva baseline para evitar conflictos con
-las modificaciones recientes del Core.
+Para el MVP, la lectura de datos clinicos queda limitada a OWNER y ADMIN.
+
+Los roles TECNICO y MEMBER no tienen acceso a datos clinicos veterinarios en
+esta etapa.
+
+Quedan pendientes para una etapa posterior:
+
+- Functions para crear y modificar pacientes;
+- Functions para citas;
+- Functions para atenciones;
+- pruebas de aislamiento entre empresas a nivel de Functions.
 
 ---
-
 ## 14. Cambios visuales pendientes
 
-Cuando se realice la migración a la nueva baseline también deberán incorporarse:
+Los siguientes ajustes se realizaran cuando Mauricio entregue la nueva baseline
+con las guias visuales correspondientes:
 
-- tokens de diseño en reemplazo de valores `rgba()` escritos directamente;
-- `LoadingState`;
-- `SkeletonCards`;
-- clases visuales compartidas `ui-`.
+- tokens de diseno segun la nueva guia;
+- LoadingState;
+- SkeletonCards;
+- clases visuales compartidas ui-;
+- validaciones adicionales de colores y contraste.
 
-Estos cambios no se realizan todavía porque dependen de los componentes y
-tokens de la nueva versión del sistema.
+Estos cambios se dejan pendientes expresamente para la nueva baseline.
 
 ---
-
 ## 15. Restricciones actuales
 
-Por indicación del mantenedor, actualmente no se debe:
+Por indicacion del mantenedor, actualmente no se debe:
 
 - modificar Functions centrales;
 - implementar un mecanismo propio de descuento de stock;
-- modificar la economía del Inventario Core;
-- desplegar cambios a producción;
-- modificar secretos o configuración productiva.
+- modificar la economia del Inventario Core;
+- desplegar cambios a produccion;
+- modificar secretos o configuracion productiva.
 
-La activación del módulo según el rubro del negocio será implementada
-posteriormente desde el Core de ValoraCloud.
+La activacion de Veterinaria no depende del rubro del negocio. El acceso se
+controla mediante el registro de modulos verticales y los modulos habilitados
+para cada negocio.
 
 ---
-
 ## 16. Documentación relacionada
 
 La especificación técnica principal se encuentra actualmente en:
