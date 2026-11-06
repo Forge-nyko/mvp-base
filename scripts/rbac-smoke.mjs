@@ -159,6 +159,11 @@ assert.equal(
   "OWNER no accede con veterinaria deshabilitada"
 );
 assert.equal(
+  canAccessBusinessPath({role: "ADMIN"}, "/clinica-veterinaria", veterinaryDisabled),
+  false,
+  "ADMIN no accede con veterinaria deshabilitada"
+);
+assert.equal(
   canAccessBusinessPath({role: "OWNER"}, "/clinica-veterinaria", veterinaryEnabled),
   true,
   "OWNER accede con veterinaria habilitada"
@@ -179,6 +184,13 @@ assert.equal(
   "MEMBER no tiene permiso clinico"
 );
 
+for (const role of ["VENTAS", "COMPRAS", "FINANZAS"]) {
+  assert.equal(
+    canAccessBusinessPath({role}, "/clinica-veterinaria", veterinaryEnabled),
+    false,
+    `${role} no tiene permiso clinico`
+  );
+}
 console.log("OK RBAC: Veterinaria exige modulo habilitado y permiso clinico");
 console.log("OK RBAC: rutas verticales exigen modulo habilitado ademas del permiso");
 

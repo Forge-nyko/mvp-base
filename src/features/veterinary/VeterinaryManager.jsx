@@ -308,7 +308,16 @@ function VeterinaryManager({
         )}
 
         {!loadingVeterinaryData &&
-          !veterinaryDataError && (
+          !veterinaryDataError &&
+          patients.length === 0 && (
+            <div className="erp-empty-state">
+              No hay pacientes veterinarios registrados.
+            </div>
+          )}
+
+        {!loadingVeterinaryData &&
+          !veterinaryDataError &&
+          patients.length > 0 && (
             <>
               <p>
                 Pacientes:{" "}

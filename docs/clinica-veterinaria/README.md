@@ -287,23 +287,23 @@ Actualmente se encuentran implementados:
 
 ---
 
-## 13. Integracion con student-baseline
+## 13. Integración con student-baseline
 
-Actualmente el modulo ya se encuentra integrado con student-baseline.
+Actualmente el módulo ya se encuentra integrado con `student-baseline`.
 
-La integracion incluye:
+La integración incluye:
 
-- registro de veterinaria en VERTICAL_MODULES;
-- ruta base /clinica-veterinaria;
-- montaje de VeterinaryPage en App.jsx;
-- entrada de menu obtenida desde el registro de modulos verticales;
-- permiso veterinaria.read en RBAC;
+- registro de `veterinaria` en `VERTICAL_MODULES`;
+- ruta base `/clinica-veterinaria`;
+- montaje de `VeterinaryPage` en `App.jsx`;
+- entrada de menú obtenida desde el registro de módulos verticales;
+- permiso `veterinaria.read` en RBAC;
 - Firestore Rules para las colecciones veterinarias;
 - bloqueo de escrituras directas desde el navegador.
 
-Para el MVP, la lectura de datos clinicos queda limitada a OWNER y ADMIN.
+Para el MVP, la lectura de datos clínicos queda limitada a `OWNER` y `ADMIN`.
 
-Los roles TECNICO y MEMBER no tienen acceso a datos clinicos veterinarios en
+Los roles `TECNICO` y `MEMBER` no tienen acceso a datos clínicos veterinarios en
 esta etapa.
 
 Quedan pendientes para una etapa posterior:
@@ -314,35 +314,35 @@ Quedan pendientes para una etapa posterior:
 - pruebas de aislamiento entre empresas a nivel de Functions.
 
 ---
+
 ## 14. Cambios visuales pendientes
 
-Los siguientes ajustes se realizaran cuando Mauricio entregue la nueva baseline
-con las guias visuales correspondientes:
+Los siguientes ajustes se realizarán en una etapa posterior:
 
-- tokens de diseno segun la nueva guia;
-- LoadingState;
-- SkeletonCards;
-- clases visuales compartidas ui-;
-- validaciones adicionales de colores y contraste.
+- `LoadingState`;
+- `SkeletonCards`;
+- ajustes visuales asociados a la nueva guía de diseño.
 
-Estos cambios se dejan pendientes expresamente para la nueva baseline.
+Estos cambios pueden realizarse en otro PR, según lo indicado por el mantenedor.
 
 ---
+
 ## 15. Restricciones actuales
 
-Por indicacion del mantenedor, actualmente no se debe:
+Por indicación del mantenedor, actualmente no se debe:
 
 - modificar Functions centrales;
 - implementar un mecanismo propio de descuento de stock;
-- modificar la economia del Inventario Core;
-- desplegar cambios a produccion;
-- modificar secretos o configuracion productiva.
+- modificar la economía del Inventario Core;
+- desplegar cambios a producción;
+- modificar secretos o configuración productiva.
 
-La activacion de Veterinaria no depende del rubro del negocio. El acceso se
-controla mediante el registro de modulos verticales y los modulos habilitados
+La activación de Veterinaria no depende del rubro del negocio. El acceso se
+controla mediante el registro de módulos verticales y los módulos habilitados
 para cada negocio.
 
 ---
+
 ## 16. Documentación relacionada
 
 La especificación técnica principal se encuentra actualmente en:
