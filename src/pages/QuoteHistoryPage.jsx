@@ -1755,7 +1755,7 @@ const styles = {
     gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
   },
   commercialStatusEvent: {
-    borderLeft: "2px solid var(--color-brand-600)",
+    borderLeft: "2px solid var(--color-text-brand-accent)",
     display: "grid",
     gap: "2px",
     paddingLeft: "8px",
@@ -1763,7 +1763,7 @@ const styles = {
   commercialStatusCurrent: {
     background: "var(--color-surface-panel)",
     border: "1px solid var(--color-border-control)",
-    borderLeft: "4px solid var(--color-brand-600)",
+    borderLeft: "4px solid var(--color-text-brand-accent)",
     borderRadius: "5px",
     gridColumn: "1 / -1",
     padding: "9px 10px",
@@ -1778,7 +1778,7 @@ const styles = {
     fontSize: "12px",
   },
   commercialStatusNote: {
-    color: "var(--color-brand-600)",
+    color: "var(--color-text-brand-accent)",
     fontSize: "11px",
     fontWeight: 700,
   },
@@ -1847,7 +1847,7 @@ const styles = {
     background: "var(--color-text-strong)",
     border: 0,
     borderRadius: "4px",
-    color: "var(--color-text-inverse)",
+    color: "var(--color-text-on-strong)",
     cursor: "pointer",
     display: "inline-flex",
     fontSize: "13px",
@@ -2023,7 +2023,7 @@ const styles = {
   },
   printTh: {
     background: "var(--color-text-strong)",
-    color: "var(--color-text-inverse)",
+    color: "var(--color-text-on-strong)",
     fontSize: "12px",
     padding: "10px",
     textAlign: "left",
@@ -2066,7 +2066,7 @@ const styles = {
     color: "var(--color-text-strong)",
   },
   totalValueStrong: {
-    color: "var(--color-brand-600)",
+    color: "var(--color-text-brand-accent)",
     fontSize: "22px",
   },
   observationsBox: {

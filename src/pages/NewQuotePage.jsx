@@ -2984,7 +2984,7 @@ const styles = {
     color: "var(--color-text-strong)",
   },
   totalValueStrong: {
-    color: "var(--color-brand-600)",
+    color: "var(--color-text-brand-accent)",
     fontSize: "22px",
   },
   observationsPanel: {
@@ -3157,7 +3157,7 @@ const styles = {
     background: "var(--color-text-strong)",
     border: 0,
     borderRadius: "6px",
-    color: "var(--color-text-inverse)",
+    color: "var(--color-text-on-strong)",
     cursor: "pointer",
     display: "inline-flex",
     alignItems: "center",
@@ -3187,9 +3187,9 @@ const styles = {
   },
   secondaryButton: {
     background: "var(--color-surface-panel)",
-    border: "1px solid var(--color-brand-600)",
+    border: "1px solid var(--color-text-brand-accent)",
     borderRadius: "6px",
-    color: "var(--color-brand-600)",
+    color: "var(--color-text-brand-accent)",
     cursor: "pointer",
     display: "inline-flex",
     alignItems: "center",
@@ -3201,9 +3201,9 @@ const styles = {
   secondaryLinkButton: {
     alignItems: "center",
     background: "var(--color-surface-panel)",
-    border: "1px solid var(--color-brand-600)",
+    border: "1px solid var(--color-text-brand-accent)",
     borderRadius: "6px",
-    color: "var(--color-brand-600)",
+    color: "var(--color-text-brand-accent)",
     display: "inline-flex",
     fontWeight: 800,
     justifyContent: "center",
@@ -3221,7 +3221,7 @@ const styles = {
   restoreDefaultButton: {
     background: "none",
     border: 0,
-    color: "var(--color-brand-600)",
+    color: "var(--color-text-brand-accent)",
     cursor: "pointer",
     fontSize: "12px",
     fontWeight: 800,
@@ -3231,9 +3231,9 @@ const styles = {
   },
   dictationButton: {
     background: "var(--color-surface-panel)",
-    border: "1px solid var(--color-brand-600)",
+    border: "1px solid var(--color-text-brand-accent)",
     borderRadius: "6px",
-    color: "var(--color-brand-600)",
+    color: "var(--color-text-brand-accent)",
     cursor: "pointer",
     display: "inline-flex",
     alignItems: "center",
@@ -3249,7 +3249,7 @@ const styles = {
     color: "var(--color-danger-700)",
   },
   micIcon: {
-    background: "var(--color-brand-600)",
+    background: "var(--color-text-brand-accent)",
     borderRadius: "999px",
     display: "inline-block",
     height: "14px",
@@ -3288,7 +3288,7 @@ const styles = {
     width: "8px",
   },
   statusDotActive: {
-    background: "var(--color-brand-600)",
+    background: "var(--color-text-brand-accent)",
   },
   statusDotWarning: {
     background: "var(--color-warning-800)",
@@ -3465,7 +3465,7 @@ const styles = {
   },
   printTh: {
     background: "var(--color-text-strong)",
-    color: "var(--color-text-inverse)",
+    color: "var(--color-text-on-strong)",
     fontSize: "12px",
     padding: "10px",
     textAlign: "left",

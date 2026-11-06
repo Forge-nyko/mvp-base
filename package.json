@@ -41,7 +41,8 @@
     "test:inventory-rules-budget-fix": "firebase emulators:exec --only auth,firestore \"node scripts/inventory-rules-budget-fix-smoke.mjs\"",
     "test:work-rules-budget-fix": "firebase emulators:exec --only auth,firestore \"node scripts/work-rules-budget-fix-smoke.mjs\"",
     "test:business-verification-rules": "firebase emulators:exec --only auth,firestore,storage \"node scripts/business-verification-rules-smoke.mjs\"",
-    "test:storage-rules-budget-fix": "firebase emulators:exec --only auth,firestore,storage \"node scripts/storage-rules-budget-fix-smoke.mjs\"",
+    "test:storage-rules-budget": "node scripts/storage-rules-budget-smoke.mjs",
+    "test:storage-rules-budget-fix":"firebase emulators:exec --only auth,firestore,storage \"node scripts/storage-rules-budget-fix-smoke.mjs\"",
     "test:ai-rate-limits": "node scripts/ai-rate-limiter-smoke.mjs",
     "test:inventory-docs": "node scripts/inventory-document-import-smoke.mjs",
     "test:inventory-sheets": "node scripts/inventory-spreadsheet-smoke.mjs",
@@ -125,10 +126,12 @@
     "test:design": "node scripts/design-smoke.mjs",
     "test:design-scan": "node scripts/design-scan-smoke.mjs",
     "test:contrast": "node scripts/contrast-smoke.mjs",
+    "test:contrast-usage": "node scripts/contrast-usage-smoke.mjs",
     "test:empty-state": "node scripts/empty-state-illustration-smoke.mjs",
     "test:notification-bell": "node scripts/notification-bell-smoke.mjs",
     "test:summary": "node scripts/financial-model-smoke.mjs",
-    "seed:business-catalogs:emulator": "node scripts/seed-business-catalogs.mjs --emulator"
+    "seed:business-catalogs:emulator": "node scripts/seed-business-catalogs.mjs --emulator",
+    "verify:deploy": "node scripts/verificar-despliegue.mjs"
   },
   "browserslist": {
     "production": [
