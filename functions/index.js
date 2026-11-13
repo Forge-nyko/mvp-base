@@ -3889,6 +3889,67 @@ const marketReferenceDependencies = {
   isEmulatorEnvironment,
   requireBusinessAccess: requireOperationalBusinessAccess,
 };
+const {guardarPacienteVeterinarioHandler} = require("./veterinaryPatientPersistence");
+
+exports.guardarPacienteVeterinario = onCall(
+  {maxInstances: 10, region: DEFAULT_FUNCTION_REGION},
+  (request) => guardarPacienteVeterinarioHandler(request, {
+    db,
+    HttpsError,
+    FieldValue,
+    requireBusinessAccess: requireOperationalBusinessAccess,
+  })
+);
+
+const {guardarCitaVeterinariaHandler} = require("./veterinaryAppointmentPersistence");
+
+exports.guardarCitaVeterinaria = onCall(
+  {maxInstances: 10, region: DEFAULT_FUNCTION_REGION},
+  (request) => guardarCitaVeterinariaHandler(request, {
+    db,
+    HttpsError,
+    FieldValue,
+    requireBusinessAccess: requireOperationalBusinessAccess,
+  })
+);
+
+const {guardarAtencionVeterinariaHandler} = require("./veterinaryAttentionPersistence");
+
+exports.guardarAtencionVeterinaria = onCall(
+  {maxInstances: 10, region: DEFAULT_FUNCTION_REGION},
+  (request) => guardarAtencionVeterinariaHandler(request, {
+    db,
+    HttpsError,
+    FieldValue,
+    requireBusinessAccess: requireOperationalBusinessAccess,
+  })
+);
+
+const {guardarRecepcionVeterinariaHandler} = require("./veterinaryReceptionPersistence");
+
+exports.guardarRecepcionVeterinaria = onCall(
+  {maxInstances: 10, region: DEFAULT_FUNCTION_REGION},
+  (request) => guardarRecepcionVeterinariaHandler(request, {
+    db,
+    HttpsError,
+    FieldValue,
+    requireBusinessAccess: requireOperationalBusinessAccess,
+  })
+);
+
+const {fotosAtencionVeterinariaHandler} = require("./veterinaryAttentionPhotos");
+
+exports.fotosAtencionVeterinaria = onCall(
+  {maxInstances: 10, region: DEFAULT_FUNCTION_REGION},
+  (request) => fotosAtencionVeterinariaHandler(request, {
+    db,
+    bucket: adminStorageBucket,
+    HttpsError,
+    FieldValue,
+    requireBusinessAccess: requireOperationalBusinessAccess,
+  })
+);
+
 const businessOnboardingDependencies = {
   auth: adminAuth,
   db,

@@ -4,6 +4,7 @@ import React, {
   useState,
 } from "react";
 
+import { Link } from "react-router-dom";
 import LoadingState from "../../components/ui/LoadingState";
 
 import {
@@ -283,6 +284,9 @@ function VeterinaryManager({
         <>
           <div className="erp-panel">
             <h2>Resumen clínico</h2>
+            <Link to="/clinica-veterinaria/pacientes">Ver pacientes</Link>
+            {" · "}
+            <Link to="/clinica-veterinaria/agenda">Ver agenda</Link>
 
             {veterinaryDataError ? (
               <div className="erp-empty-state" role="alert">

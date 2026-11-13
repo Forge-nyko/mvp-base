@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   buildVeterinaryPatientMutationPayload,
+  formatVeterinaryPatientAge,
   getVeterinaryPatientFieldErrors,
 } from "../src/features/veterinary/domain/patientModel.mjs";
 
@@ -139,6 +140,12 @@ assert.equal(
   "El peso debe ser un número mayor que cero."
 );
 
-console.log(
-  "OK veterinary-patient-model-smoke"
-);
+assert.equal(formatVeterinaryPatientAge("2022-05-10", "2026-11-12"), "4 años y 6 meses");
+assert.equal(formatVeterinaryPatientAge("2026-11-10", "2026-11-12"), "2 días");
+assert.equal(formatVeterinaryPatientAge("2026-11-12", "2026-11-12"), "0 días");
+assert.equal(formatVeterinaryPatientAge("2024-02-29", "2025-02-28"), "1 año");
+assert.equal(formatVeterinaryPatientAge("2027-01-01", "2026-11-12"), "");
+assert.equal(formatVeterinaryPatientAge("2026-02-30", "2026-11-12"), "");
+assert.equal(formatVeterinaryPatientAge("2025-11-12", {toDate: () => new Date(2026, 10, 12)}), "1 año");
+assert.equal(formatVeterinaryPatientAge("2022-05-10", null), "");
+console.log("OK veterinary-patient-model-smoke");

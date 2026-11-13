@@ -401,6 +401,7 @@ function AppRoutes({
             <VeterinaryPage
               key={businessId}
               businessId={businessId}
+              countryCode={activeBusiness?.paisCodigo}
               role={activeBusiness?.role}
             />
           }

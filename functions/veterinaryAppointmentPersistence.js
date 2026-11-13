@@ -1,0 +1,98 @@
+"use strict";
+
+const {
+  buildVeterinaryAppointmentMutationPayload,
+  hasVeterinaryAppointmentSlotConflict,
+} = require("./veterinaryAppointmentModel.mjs");
+
+function requireId(value, HttpsError) {
+  if (typeof value !== "string" || !/^[a-zA-Z0-9_-]{1,120}$/.test(value)) {
+    throw new HttpsError("invalid-argument", "Selecciona una cita o paciente válido.");
+  }
+  return value;
+}
+
+function slotRef(business, {fecha, hora}) {
+  return business.collection("cuposVeterinarios").doc(fecha + "_" + hora.replace(":", ""));
+}
+
+async function guardarCitaVeterinariaHandler(request, {db, HttpsError, FieldValue, requireBusinessAccess}) {
+  const {uid, businessId, businessRef} = await requireBusinessAccess(
+      request, {db, HttpsError}, {roles: ["OWNER", "ADMIN"], requiredVerticalModule: "veterinaria"},
+  );
+  const {operacion, citaId, cita} = request.data;
+  if (!["crear", "reprogramar", "cancelar"].includes(operacion)) {
+    throw new HttpsError("invalid-argument", "Selecciona una operación válida.");
+  }
+  const id = requireId(citaId, HttpsError);
+  const appointments = businessRef.collection("citasVeterinarias");
+  const ref = appointments.doc(id);
+  return db.runTransaction(async (tx) => {
+    const snapshot = await tx.get(ref);
+    const existing = snapshot.data();
+    if (operacion === "crear" && snapshot.exists) {
+      if (existing.negocioId === businessId && existing.creadoPorUid === uid) return {citaId: id};
+      throw new HttpsError("already-exists", "Ya existe una cita con ese identificador.");
+    }
+    if (operacion !== "crear" && (!existing || existing.negocioId !== businessId)) {
+      throw new HttpsError("not-found", "La cita ya no está disponible.");
+    }
+    if (operacion === "cancelar" && existing.estado === "cancelada") return {citaId: id};
+    if (existing && !["agendada", "confirmada"].includes(existing.estado) &&
+        !(operacion === "cancelar" && existing.estado === "en_espera")) {
+      throw new HttpsError("failed-precondition", "Solo puedes cambiar citas agendadas o confirmadas.");
+    }
+
+    const oldSlot = existing && /^\d{4}-\d{2}-\d{2}$/.test(existing.fecha) && /^\d{2}:\d{2}$/.test(existing.hora) ?
+      slotRef(businessRef, existing) : null;
+    const oldLock = oldSlot ? await tx.get(oldSlot) : null;
+    const audit = {actualizadoEn: FieldValue.serverTimestamp(), actualizadoPorUid: uid};
+    if (operacion === "cancelar") {
+      tx.update(ref, {...audit, estado: "cancelada"});
+      if (oldLock?.get("citaId") === id) tx.delete(oldSlot);
+      return {citaId: id};
+    }
+
+    const patientId = requireId(existing?.pacienteId ?? cita?.pacienteId, HttpsError);
+    const patient = await tx.get(businessRef.collection("pacientesVeterinarios").doc(patientId));
+    if (!patient.exists || patient.get("negocioId") !== businessId ||
+        !["activo", undefined].includes(patient.get("estado"))) {
+      throw new HttpsError("failed-precondition", "Selecciona un paciente activo de esta empresa.");
+    }
+    const tutorId = requireId(patient.get("tutorClienteId"), HttpsError);
+    const tutor = await tx.get(businessRef.collection("clientes").doc(tutorId));
+    if (!tutor.exists || tutor.get("negocioId") !== businessId || tutor.get("estado") === "archivado") {
+      throw new HttpsError("failed-precondition", "El paciente debe tener un tutor activo de esta empresa.");
+    }
+
+    let payload;
+    try {
+      payload = buildVeterinaryAppointmentMutationPayload({...cita, pacienteId: patientId, tutorClienteId: tutorId});
+    } catch (error) {
+      if (!error.fieldErrors) throw error;
+      throw new HttpsError("invalid-argument", Object.values(error.fieldErrors)[0], error.fieldErrors);
+    }
+    const nextSlot = slotRef(businessRef, payload);
+    const lock = oldSlot?.path === nextSlot.path ? oldLock : await tx.get(nextSlot);
+    if (lock.exists && lock.get("citaId") !== id) {
+      throw new HttpsError("already-exists", "Ya hay una cita en ese horario.");
+    }
+    const sameTime = await tx.get(appointments.where("fecha", "==", payload.fecha).where("hora", "==", payload.hora));
+    const booked = sameTime.docs.map((item) => ({...item.data(), citaId: item.id}));
+    if (hasVeterinaryAppointmentSlotConflict(booked, payload, id)) {
+      throw new HttpsError("already-exists", "Ya hay una cita en ese horario.");
+    }
+
+    const update = {...payload, ...audit, estado: "agendada"};
+    if (operacion === "crear") {
+      tx.create(ref, {...update, negocioId: businessId, creadoEn: audit.actualizadoEn, creadoPorUid: uid});
+    } else {
+      tx.update(ref, update);
+    }
+    tx.set(nextSlot, {citaId: id});
+    if (oldSlot && oldSlot.path !== nextSlot.path && oldLock.get("citaId") === id) tx.delete(oldSlot);
+    return {citaId: id};
+  });
+}
+
+module.exports = {guardarCitaVeterinariaHandler};

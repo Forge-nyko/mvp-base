@@ -7,7 +7,9 @@ import {
   where,
 } from "firebase/firestore";
 
-import { db } from "../../../firebase/firebaseConfig";
+import { httpsCallable } from "firebase/functions";
+import { assertClientWriteAllowed } from "../../../config/firebaseEnvironment.mjs";
+import { db, getFirebaseFunctions } from "../../../firebase/firebaseConfig";
 
 import {
   requireBusinessId,
@@ -29,8 +31,8 @@ function veterinaryBusinessQuery(collectionPath, businessId) {
 
 function mapSnapshot(snapshot) {
   return snapshot.docs.map((entry) => ({
-    id: entry.id,
     ...entry.data(),
+    id: entry.id,
   }));
 }
 
@@ -179,4 +181,42 @@ export async function getVeterinaryAttention(
     id: snapshot.id,
     ...snapshot.data(),
   };
+}
+export async function guardarPacienteVeterinario(businessId, pacienteId, paciente, operacion) {
+  assertClientWriteAllowed("guardar pacientes veterinarios");
+  const callable = httpsCallable(getFirebaseFunctions(), "guardarPacienteVeterinario");
+  const result = await callable({
+    businessId: requireBusinessId(businessId),
+    pacienteId,
+    paciente,
+    operacion,
+  });
+  return result.data.pacienteId;
+}
+
+export async function guardarCitaVeterinaria(businessId, citaId, operacion, cita) {
+  assertClientWriteAllowed("guardar citas veterinarias");
+  const callable = httpsCallable(getFirebaseFunctions(), "guardarCitaVeterinaria");
+  const result = await callable({businessId: requireBusinessId(businessId), citaId, operacion, cita});
+  return result.data.citaId;
+}
+
+export async function guardarAtencionVeterinaria(businessId, citaId, operacion, atencion = {}) {
+  assertClientWriteAllowed("guardar atenciones veterinarias");
+  const callable = httpsCallable(getFirebaseFunctions(), "guardarAtencionVeterinaria");
+  const result = await callable({businessId: requireBusinessId(businessId), citaId, operacion, atencion});
+  return result.data.atencionId;
+}
+
+export async function guardarRecepcionVeterinaria(businessId, citaId, recepcion) {
+  assertClientWriteAllowed("guardar recepción veterinaria");
+  const callable = httpsCallable(getFirebaseFunctions(), "guardarRecepcionVeterinaria");
+  await callable({businessId: requireBusinessId(businessId), citaId, recepcion});
+}
+
+export async function operarFotoVeterinaria(businessId, atencionId, fotoId, operacion, data = {}) {
+  if (operacion !== "leer") assertClientWriteAllowed("guardar fotos clínicas veterinarias");
+  const callable = httpsCallable(getFirebaseFunctions(), "fotosAtencionVeterinaria");
+  const result = await callable({businessId: requireBusinessId(businessId), atencionId, fotoId, operacion, ...data});
+  return result.data;
 }

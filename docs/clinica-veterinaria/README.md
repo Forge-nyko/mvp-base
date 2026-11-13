@@ -149,17 +149,25 @@ del Inventario Core.
 
 ## 7. Rutas React
 
-La ruta operativa es `/clinica-veterinaria`. Las seis subrutas siguientes están
-pendientes de implementación. Por ahora muestran el mismo resumen clínico que
-la ruta raíz.
+La ruta `/clinica-veterinaria` muestra el resumen clínico. Desde **Ver pacientes**
+se puede buscar, registrar, abrir la ficha y editar un paciente.
 
 ```text
 /clinica-veterinaria/pacientes
 /clinica-veterinaria/pacientes/nuevo
 /clinica-veterinaria/pacientes/:pacienteId
+/clinica-veterinaria/pacientes/:pacienteId/editar
+```
+
+Desde **Ver agenda** se pueden listar, agendar, reprogramar y cancelar citas.
+La agenda valida que el paciente tenga un tutor activo del mismo negocio y
+reserva un solo turno por fecha y hora para cada empresa.
+
+```text
 /clinica-veterinaria/agenda
 /clinica-veterinaria/agenda/nueva
 /clinica-veterinaria/citas/:citaId
+/clinica-veterinaria/citas/:citaId/atencion
 ```
 
 La ruta global `/clinica-veterinaria/*` ya se encuentra integrada en `App.jsx`.
@@ -304,19 +312,50 @@ esta etapa.
 
 Quedan pendientes para una etapa posterior:
 
-- Functions para crear y modificar pacientes;
-- Functions para citas;
-- Functions para atenciones;
-- pruebas de aislamiento entre empresas a nivel de Functions.
+- alta asistida por IA y descuento de stock mediante el futuro mecanismo autorizado del Core.
 
 ---
 
-## 14. Ficha del paciente pendiente
+## 14. Alta, edición y ficha del paciente
 
-`src/features/veterinary/patients/PatientDetail.jsx` y
-`src/features/veterinary/patients/patient-detail.css` se conservan para
-integrar la ficha del paciente en una etapa posterior. La navegación actual
-del módulo todavía no monta esa ficha.
+El formulario usa tutores activos de Clientes. Con **Registrar tutor** se abre
+el formulario de Clientes dentro de Veterinaria. El tutor se guarda en
+Clientes de la empresa activa y queda seleccionado para el paciente. Si
+indicas la fecha de nacimiento, el formulario y la ficha calculan la edad
+a la fecha de registro. Si la desconoces, puedes escribir una edad estimada. El alta y la edición llaman a
+`guardarPacienteVeterinario`, que verifica la membresía, el rol, el módulo
+habilitado, la habilitación operativa de la empresa y el tutor del mismo
+negocio. La ficha muestra los datos del paciente y de su tutor. El historial clínico
+muestra las atenciones finalizadas en orden cronológico inverso.
+
+## Atención desde la agenda
+
+Abre una cita pendiente, registra la hora de llegada y selecciona la prioridad.
+Puedes anotar observaciones y signos vitales. Guarda la recepción y el triage
+para dejar la cita en espera. Luego selecciona **Iniciar atención**. Completa el motivo,
+diagnóstico, tratamiento, indicaciones y resultado clínico. Puedes asociar
+servicios y productos activos del inventario con sus cantidades. Al cerrar,
+la cita y la atención quedan finalizadas en una sola transacción y el
+registro aparece en la ficha del paciente. Las referencias de inventario
+se conservan en la atención como registro informativo, sin movimientos de stock.
+
+### Fotos clínicas y mapa corporal
+
+Durante la atención, abre **Fotos y mapa corporal de la mascota** y agrega
+hasta 12 fotos opcionales en formato JPEG, PNG o WebP. Cada archivo
+seleccionado se agrega a la lista pendiente y el formulario avanza a la
+siguiente vista. Revisa la lista y pulsa **Subir todas las fotos**. Si
+una foto falla, queda pendiente para volver a intentar. **Detalle (opcional)**
+se selecciona manualmente. En el visor,
+**Frente**, **Izquierda**, **Derecha**, **Atrás**, **Arriba** y **Abajo** cambian
+a la foto tomada desde ese ángulo. Los botones se habilitan al agregar una
+foto de la vista correspondiente. La transición simula un cambio de
+perspectiva entre fotos reales de la mascota.
+
+Pulsa **Marcar lesión**, señala el punto y guarda el nombre de la zona y una
+observación. **Enfocar** acerca la imagen a esa marca. Guarda el mapa antes
+de cerrar la atención. En **Historial clínico**, abre **Ver fotos clínicas**
+en la atención correspondiente para revisar las fotos y sus marcas.
 
 ---
 

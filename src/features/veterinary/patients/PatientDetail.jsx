@@ -11,6 +11,7 @@ import {
 import Button from "../../../components/ui/Button";
 import StatusBadge from "../../../components/ui/StatusBadge";
 
+import {formatVeterinaryPatientAge} from "../domain/patientModel.mjs";
 import "./patient-detail.css";
 
 const PATIENT_STATUS_LABELS = Object.freeze({
@@ -24,7 +25,7 @@ function formatDate(value) {
 
   const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
     ? new Date(`${value}T12:00:00`)
-    : new Date(value);
+    : value?.toDate?.() ?? new Date(value);
 
   if (Number.isNaN(date.getTime())) {
     return "No registrada";
@@ -59,6 +60,9 @@ export default function PatientDetail({
   loading = false,
   error = "",
   canMutate = false,
+  showClinicalActivity = true,
+  showHistory = showClinicalActivity,
+  renderHistoryPhotos,
   onEditPatient,
   onViewTutor,
   onScheduleAppointment,
@@ -103,6 +107,7 @@ export default function PatientDetail({
     );
   }
 
+  const registeredAge = formatVeterinaryPatientAge(patient.fechaNacimiento, patient.creadoEn);
   const patientStatus =
     PATIENT_STATUS_LABELS[patient.estado] || "Activo";
 
@@ -199,8 +204,8 @@ export default function PatientDetail({
             </div>
 
             <div>
-              <dt>Edad estimada</dt>
-              <dd>{patient.edadEstimada || "No registrada"}</dd>
+              <dt>{registeredAge ? "Edad al registro" : "Edad estimada"}</dt>
+              <dd>{registeredAge || patient.edadEstimada || "No registrada"}</dd>
             </div>
 
             <div>
@@ -341,120 +346,137 @@ export default function PatientDetail({
           </dl>
         </section>
 
-        {/* Próximas citas */}
-        <section className="erp-panel veterinary-patient-card">
+        {showClinicalActivity && (
+          <>
+            {/* Próximas citas */}
+            <section className="erp-panel veterinary-patient-card">
 
-          <div className="veterinary-patient-section-title">
-            <CalendarDays size={20} />
+              <div className="veterinary-patient-section-title">
+                <CalendarDays size={20} />
 
-            <div>
-              <h2>Próximas citas</h2>
+                <div>
+                  <h2>Próximas citas</h2>
 
-              <p>
-                Agenda asociada al paciente.
-              </p>
-            </div>
-          </div>
+                  <p>
+                    Agenda asociada al paciente.
+                  </p>
+                </div>
+              </div>
 
-          {appointments.length === 0 ? (
-            <EmptySection>
-              No existen próximas citas registradas para este paciente.
-            </EmptySection>
-          ) : (
-            <div className="veterinary-patient-list">
+              {appointments.length === 0 ? (
+                <EmptySection>
+                  No existen próximas citas registradas para este paciente.
+                </EmptySection>
+              ) : (
+                <div className="veterinary-patient-list">
 
-              {appointments.map((appointment) => (
-                <article
-                  key={appointment.citaId || appointment.id}
-                  className="veterinary-patient-list-item"
-                >
-                  <div>
-                    <strong>
-                      {formatDate(appointment.fecha)}
-                    </strong>
+                  {appointments.map((appointment) => (
+                    <article
+                      key={appointment.citaId || appointment.id}
+                      className="veterinary-patient-list-item"
+                    >
+                      <div>
+                        <strong>
+                          {formatDate(appointment.fecha)}
+                        </strong>
 
-                    <p>
-                      {appointment.hora || ""}
-                      {appointment.tipoAtencion
-                        ? ` · ${appointment.tipoAtencion}`
-                        : ""}
-                    </p>
-                  </div>
+                        <p>
+                          {appointment.hora || ""}
+                          {appointment.tipoAtencion
+                            ? ` · ${appointment.tipoAtencion}`
+                            : ""}
+                        </p>
+                      </div>
 
-                  <StatusBadge variant="neutral">
-                    {appointment.estado || "Agendada"}
-                  </StatusBadge>
-                </article>
-              ))}
+                      <StatusBadge variant="neutral">
+                        {appointment.estado || "Agendada"}
+                      </StatusBadge>
+                    </article>
+                  ))}
 
-            </div>
-          )}
+                </div>
+              )}
 
-        </section>
+            </section>
 
-        {/* Historial */}
-        <section className="erp-panel veterinary-patient-card veterinary-patient-card--full">
+          </>
+        )}
+        {showHistory && (
+          <>
+            {/* Historial */}
+            <section className="erp-panel veterinary-patient-card veterinary-patient-card--full">
 
-          <div className="veterinary-patient-section-title">
-            <ClipboardPlus size={20} />
+              <div className="veterinary-patient-section-title">
+                <ClipboardPlus size={20} />
 
-            <div>
-              <h2>Historial clínico</h2>
+                <div>
+                  <h2>Historial clínico</h2>
 
-              <p>
-                Atenciones finalizadas del paciente.
-              </p>
-            </div>
-          </div>
+                  <p>
+                    Atenciones finalizadas del paciente.
+                  </p>
+                </div>
+              </div>
 
-          {history.length === 0 ? (
-            <EmptySection>
-              Este paciente todavía no registra atenciones veterinarias.
-            </EmptySection>
-          ) : (
-            <div className="veterinary-patient-history">
+              {history.length === 0 ? (
+                <EmptySection>
+                  Este paciente todavía no registra atenciones veterinarias.
+                </EmptySection>
+              ) : (
+                <div className="veterinary-patient-history">
 
-              {history.map((attention) => (
-                <article
-                  key={attention.atencionId || attention.id}
-                  className="veterinary-patient-history-item"
-                >
-                  <div className="veterinary-patient-history-date">
-                    {formatDate(
-                      attention.finalizadaEn ||
-                      attention.iniciadaEn
-                    )}
-                  </div>
+                  {history.map((attention) => (
+                    <article
+                      key={attention.atencionId || attention.id}
+                      className="veterinary-patient-history-item"
+                    >
+                      <div className="veterinary-patient-history-date">
+                        {formatDate(
+                          attention.finalizadaEn ||
+                          attention.iniciadaEn
+                        )}
+                      </div>
 
-                  <div>
-                    <h3>
-                      {attention.motivoConsulta ||
-                        "Atención veterinaria"}
-                    </h3>
+                      <div>
+                        <h3>
+                          {attention.motivoConsulta ||
+                            "Atención veterinaria"}
+                        </h3>
 
-                    <p>
-                      <strong>Diagnóstico:</strong>{" "}
-                      {attention.diagnostico ||
-                        "Sin diagnóstico registrado"}
-                    </p>
+                        <p>
+                          <strong>Diagnóstico:</strong>{" "}
+                          {attention.diagnostico ||
+                            "Sin diagnóstico registrado"}
+                        </p>
 
-                    <p>
-                      <strong>Tratamiento:</strong>{" "}
-                      {attention.tratamiento ||
-                        "Sin tratamiento registrado"}
-                    </p>
-                  </div>
-                </article>
-              ))}
+                        <p>
+                          <strong>Tratamiento:</strong>{" "}
+                          {attention.tratamiento ||
+                            "Sin tratamiento registrado"}
+                        </p>
+                        {attention.indicaciones && <p><strong>Indicaciones:</strong> {attention.indicaciones}</p>}
+                        {[...(attention.servicios ?? []), ...(attention.productos ?? [])].length > 0 && (
+                          <ul>
+                            {[...(attention.servicios ?? []), ...(attention.productos ?? [])].map((item) => (
+                              <li key={item.itemId}>{item.nombre} · {item.cantidad} {item.unidad}</li>
+                            ))}
+                          </ul>
+                        )}
+                        {renderHistoryPhotos?.(attention)}
+                      </div>
+                    </article>
+                  ))}
 
-            </div>
-          )}
+                </div>
+              )}
 
-        </section>
+            </section>
+          </>
+        )}
 
       </div>
 
-      {canMutate && (
+      {canMutate && showClinicalActivity && (
         <section className="erp-panel veterinary-patient-actions">
 
           <h2>Acciones veterinarias</h2>
