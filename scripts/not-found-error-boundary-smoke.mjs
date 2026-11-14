@@ -24,6 +24,8 @@ const platformLayoutSource = await read("src/platform/PlatformAdminLayout.jsx");
 const boundarySource = await read("src/components/AppErrorBoundary.jsx");
 const notFoundSource = await read("src/components/NotFoundPage.jsx");
 const statusSource = await read("src/components/AppStatusPage.jsx");
+const componentsCss = await read("src/styles/components.css");
+const unavailableSource = await read("src/pages/BusinessUnavailablePage.jsx");
 
 // --- Ayudas de AST -----------------------------------------------------------
 const elementName = (element) => element.openingElement.name.name;
@@ -173,6 +175,27 @@ for (const {basePath} of VERTICAL_MODULES) {
 assert.equal(isKnownBusinessPath("/xyz"), false, "con el registro real, /xyz no existe");
 assert.equal(isKnownAppPath("/xyz"), false, "con el registro real, /xyz no existe en la aplicación");
 
+// --- 6b) Diseño de la variante screen: ancho acotado, centrado y párrafo centrado ----
+// La regla posterior de .onboarding-card (max-width: 100%) pisa el ancho de --message y "--message > p" deja margin: 0, así que
+// la variante screen lleva su propia regla (más específica, como .onboarding-card.legal-acceptance) y solo ella.
+const cssRule = (selector) => {
+  const start = componentsCss.indexOf(`\n${selector} {`);
+  assert.notEqual(start, -1, `components.css debe tener la regla ${selector}`);
+  return componentsCss.slice(start, componentsCss.indexOf("}", start));
+};
+const cardRule = cssRule(".onboarding-card.app-status-card");
+assert.match(cardRule, /max-width: \d+px;/, "la tarjeta tiene ancho máximo");
+assert.match(cardRule, /margin-inline: auto;/, "la tarjeta queda centrada");
+assert.match(cardRule, /text-align: center;/, "el texto de la tarjeta queda centrado");
+const paragraphRule = cssRule(".onboarding-card.app-status-card > p");
+assert.match(paragraphRule, /margin-inline: auto;/, "el párrafo se centra (sin margin: 0 pegado a la izquierda)");
+assert.match(paragraphRule, /text-align: center;/);
+assert.doesNotMatch(cardRule + paragraphRule, /#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(|box-shadow|border-radius/, "la regla no agrega colores, sombras ni radios");
+assert.equal((componentsCss.match(/app-status-card/g) || []).length, 2, "la clase solo aparece en sus dos reglas");
+assert.match(statusSource, /<section className="onboarding-card onboarding-card--message app-status-card"/, "solo la variante screen lleva la clase");
+assert.equal((statusSource.match(/app-status-card/g) || []).length, 1, "la variante content no la lleva");
+assert.doesNotMatch(unavailableSource, /app-status-card/, "BusinessUnavailablePage no cambia");
+
 // --- 7) Renderizado de prueba (Vite ssrLoadModule + renderToStaticMarkup) -----
 const vite = await createServer({appType: "custom", logLevel: "silent", server: {middlewareMode: true}});
 const originalConsoleError = console.error;
@@ -200,6 +223,9 @@ try {
   assert.doesNotMatch(screen, JARGON);
   // Sin colores ni medidas literales en el marcado.
   assert.doesNotMatch(content + screen, /style=|#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(/);
+  // Diseño de la variante screen: tarjeta angosta y centrada (clase app-status-card, regla en components.css); la variante content no la lleva.
+  assert.match(screen, /<section class="onboarding-card onboarding-card--message app-status-card"/, "404 de pantalla completa: la tarjeta lleva la clase de ancho y centrado");
+  assert.doesNotMatch(content, /app-status-card|onboarding-card/, "la variante content no cambia");
 
   // Mensaje de error: reintentar + ir al inicio, sin message ni pila.
   const SECRET = "SECRETO-DEL-ERROR-123";
@@ -216,6 +242,11 @@ try {
   }
   assert.match(fallbackMarkup("screen"), /<h1 id="app-error-title"/);
   assert.match(fallbackMarkup("content"), /<h2 id="app-error-title"/);
+  // El error de pantalla completa usa el mismo componente: misma tarjeta angosta y centrada, con título, descripción y los dos botones.
+  const errorScreen = fallbackMarkup("screen");
+  assert.match(errorScreen, /<section class="onboarding-card onboarding-card--message app-status-card"/);
+  assert.match(errorScreen, /<p>Ocurrió un problema inesperado/);
+  assert.doesNotMatch(fallbackMarkup("content"), /app-status-card|onboarding-card/, "la variante content no cambia");
 
   // Comportamiento del boundary sin DOM: estado, registro y reinicio.
   assert.deepEqual(ErrorBoundary.getDerivedStateFromError(failure), {failed: true}, "el estado no guarda el error");

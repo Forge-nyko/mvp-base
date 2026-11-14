@@ -1735,6 +1735,21 @@
   margin-top: var(--space-6);
 }
 
+/* Variante screen de AppStatusPage (404 y error de pantalla completa). La regla posterior de
+   .onboarding-card (max-width: 100%) pisa el ancho de --message y ".onboarding-card--message > p"
+   (margin: 0) deja el párrafo pegado a la izquierda: aquí se recupera, solo para esta variante, la tarjeta
+   angosta y centrada de la aceptación legal (legal-page.css, .onboarding-card.legal-acceptance). */
+.onboarding-card.app-status-card {
+  margin-inline: auto;
+  max-width: 560px;
+  text-align: center;
+}
+
+.onboarding-card.app-status-card > p {
+  margin-inline: auto;
+  text-align: center;
+}
+
 .onboarding-message-email {
   color: var(--color-text-muted);
   display: block;

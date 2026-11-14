@@ -34,7 +34,7 @@ function AppStatusPage({
   if (variant === "screen") {
     return (
       <main className="onboarding-screen">
-        <section className="onboarding-card onboarding-card--message" aria-labelledby={titleId} role={role}>
+        <section className="onboarding-card onboarding-card--message app-status-card" aria-labelledby={titleId} role={role}>
           <BrandLogo variant="auth" showText />
           {icon && (
             <span className="onboarding-icon" aria-hidden="true">
