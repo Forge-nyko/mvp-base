@@ -26,6 +26,9 @@ const SMOKE_SCRIPTS = [
   "test:sales-model",
   "test:rbac",
   "test:market-relevance",
+  "test:visible-text-accents",
+  "test:user-facing-error",
+  "test:not-found",
 ];
 const EMULATOR_SCRIPTS = [
   "test:rules",
