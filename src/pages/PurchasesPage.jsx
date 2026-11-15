@@ -7,6 +7,7 @@ import Button from "../components/ui/Button";
 import EmptyState from "../components/ui/EmptyState";
 import EmptyStateIllustration from "../components/ui/EmptyStateIllustration";
 import ModuleHeader from "../components/ui/ModuleHeader";
+import Notice from "../components/ui/Notice";
 import ResponsiveDialog from "../components/ui/ResponsiveDialog";
 import {SkeletonCards, SkeletonRegion, SkeletonTable} from "../components/ui/Skeleton";
 import {getRouteMeta} from "../app/navigation";
@@ -24,7 +25,7 @@ function Actions({canManage, onAction, purchase, processing}) {
       {canManage && purchase.estado === "borrador" && (
         <>
           <button type="button" disabled={processing} onClick={() => onAction(purchase, "confirmar")}>Confirmar</button>
-          <details className="po-more-actions"><summary>Más acciones ···</summary><div><button type="button" disabled={processing} onClick={() => onAction(purchase, "cancelar")}>Cancelar compra</button></div></details>
+          <Button type="button" variant="ghost-danger" className="po-history__danger po-history__cancel-purchase" disabled={processing} onClick={() => onAction(purchase, "cancelar")}>Cancelar compra</Button>
         </>
       )}
       {canManage && purchase.estado === "confirmada" && (
@@ -51,6 +52,12 @@ export default function PurchasesPage({businessId, role}) {
   useEffect(() => { let active = true; setLoading(true); listarCompras(businessId).then((values) => { if (active) { setItems(values); setLoadFailed(false); } }).catch((error) => { if (active) { setMessage(userErrorMessage(error)); setLoadFailed(true); } }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [businessId]);
   const filtered = useMemo(() => items.filter((item) => (status === "todos" || item.estado === status) && (origin === "todos" || (origin === "oc" ? item.ordenCompraId : !item.ordenCompraId)) && matchesPurchaseSearch(item, search)), [items, origin, search, status]);
   const action = (purchase, type) => { setReversalReason(""); setPendingAction({purchase, type}); };
+  // El rechazo del servidor queda dentro de `pendingAction.error`: abrir o cerrar el diálogo crea/descarta el objeto,
+  // así un error de un intento anterior nunca aparece en un diálogo nuevo. Mientras exista, la acción no se repite.
+  const actionError = pendingAction?.error || null;
+  const backButtonRef = useRef(null);
+  useEffect(() => { if (actionError) backButtonRef.current?.focus(); }, [actionError]);
+  const changeReversalReason = (value) => { setReversalReason(value); setPendingAction((current) => (current?.error ? {...current, error: null} : current)); };
   const executeAction = async () => {
     const {purchase, type} = pendingAction || {};
     if (!purchase) return;
@@ -85,9 +92,8 @@ export default function PurchasesPage({businessId, role}) {
       }
       setPendingAction(null); setReversalReason(""); await load();
     } catch (error) {
-      setMessage(userErrorMessage(error));
       const title = type === "confirmar" ? "No se pudo confirmar la compra" : type === "revertir" ? "No se pudo revertir la compra" : "No se pudo cancelar la compra";
-      sileo.error({title, description: userErrorMessage(error)});
+      setPendingAction((current) => (current ? {...current, error: {title, message: userErrorMessage(error)}} : current));
     } finally { setProcessing(""); }
   };
   const open = (purchase) => navigate(purchase.estado === "borrador" && canManage ? `/compras/${purchase.id}/editar` : `/compras/${purchase.id}`);
@@ -193,7 +199,7 @@ export default function PurchasesPage({businessId, role}) {
           </>
         )}
       </section>}
-      <ResponsiveDialog open={Boolean(pendingAction)} onClose={() => !processing && setPendingAction(null)} eyebrow={pendingAction?.type === "confirmar" ? "Compra preparada" : "Más acciones"} title={pendingAction?.type === "confirmar" ? "Confirmar compra" : pendingAction?.type === "revertir" ? "Revertir compra" : "Cancelar compra"} description={pendingAction?.type === "confirmar" ? "Revisa el efecto físico de este documento antes de confirmar." : pendingAction?.type === "revertir" ? "Esta acción revertirá los movimientos de inventario asociados y conservará el registro histórico." : "La compra preparada quedará cancelada sin modificar stock."} size="small" footer={<><Button type="button" variant="secondary" disabled={Boolean(processing)} onClick={() => setPendingAction(null)}>Volver</Button><Button type="button" variant={pendingAction?.type === "confirmar" ? "primary" : "danger"} loading={Boolean(processing)} disabled={pendingAction?.type === "revertir" && !reversalReason.trim()} onClick={executeAction}>{processing ? "Procesando..." : pendingAction?.type === "confirmar" ? "Confirmar compra" : pendingAction?.type === "revertir" ? "Revertir compra" : "Cancelar compra"}</Button></>}>{pendingAction?.type === "revertir" ? <label className="purchase-field-wide">Motivo de reversión *<textarea value={reversalReason} onChange={(event) => setReversalReason(event.target.value)} /></label> : <p>{pendingAction?.type === "confirmar" ? getPurchaseStockSemantics(pendingAction.purchase).confirmationMessage : "Esta acción no se puede deshacer."}</p>}</ResponsiveDialog>
+      <ResponsiveDialog open={Boolean(pendingAction)} onClose={() => !processing && setPendingAction(null)} eyebrow={pendingAction?.type === "confirmar" ? "Compra preparada" : "Más acciones"} title={pendingAction?.type === "confirmar" ? "Confirmar compra" : pendingAction?.type === "revertir" ? "Revertir compra" : "Cancelar compra"} description={pendingAction?.type === "confirmar" ? "Revisa el efecto físico de este documento antes de confirmar." : pendingAction?.type === "revertir" ? "Esta acción revertirá los movimientos de inventario asociados y conservará el registro histórico." : "La compra preparada quedará cancelada sin modificar stock."} size="small" footer={<><Button ref={backButtonRef} type="button" variant="secondary" disabled={Boolean(processing)} onClick={() => setPendingAction(null)}>Volver</Button><Button type="button" variant={pendingAction?.type === "confirmar" ? "primary" : "danger"} loading={Boolean(processing)} disabled={(pendingAction?.type === "revertir" && !reversalReason.trim()) || Boolean(actionError)} onClick={executeAction}>{processing ? "Procesando..." : pendingAction?.type === "confirmar" ? "Confirmar compra" : pendingAction?.type === "revertir" ? "Revertir compra" : "Cancelar compra"}</Button></>}>{pendingAction?.type === "revertir" ? <label className="purchase-field-wide">Motivo de reversión *<textarea value={reversalReason} onChange={(event) => changeReversalReason(event.target.value)} /></label> : <p>{pendingAction?.type === "confirmar" ? getPurchaseStockSemantics(pendingAction.purchase).confirmationMessage : "Esta acción no se puede deshacer."}</p>}{actionError && <Notice variant="error" className="po-dialog-error" title={actionError.title}>{actionError.message}</Notice>}</ResponsiveDialog>
     </main>
   );
 }

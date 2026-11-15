@@ -54,6 +54,7 @@ const emptyDraft = () => ({
 const lineId = () => `linea-${globalThis.crypto?.randomUUID?.() ||
   `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 const hasText = (value) => Boolean(String(value ?? "").trim());
+const PROVIDER_AT_PURCHASE_NOTE = "Datos del proveedor al momento de la compra";
 const visibleObservation = (value, purchase) => {
   const observation = String(value || "").trim();
   const generated = purchase?.recepcionNumero ? `Originada desde ${purchase.recepcionNumero}` : "";
@@ -73,7 +74,7 @@ function PurchaseProviderSnapshot({provider = {}}) {
     ["Dirección", provider.direccion],
     ["Condiciones", provider.condicionesPago],
   ].filter(([, value]) => hasText(value));
-  return <section className="po-panel purchase-provider-card"><header><span className="po-kicker">Proveedor</span><h2>{provider.razonSocial || "Proveedor histórico"}</h2><small>Snapshot histórico conservado</small></header>{details.length > 0 && <dl>{details.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>}</section>;
+  return <section className="po-panel purchase-provider-card"><header><span className="po-kicker">Proveedor</span><h2>{provider.razonSocial || "Proveedor histórico"}</h2><small>{PROVIDER_AT_PURCHASE_NOTE}</small></header>{details.length > 0 && <dl>{details.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>}</section>;
 }
 
 function PurchaseDocumentInfo({draft, purchase, money}) {
@@ -107,6 +108,9 @@ export default function NewPurchasePage({businessId, role}) {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [message, setMessage] = useState("");
+  // Rechazo de la confirmación ({title, message}): se muestra dentro del diálogo "Confirmar compra", que no se cierra solo.
+  const [confirmError, setConfirmError] = useState(null);
+  const backButtonRef = useRef(null);
   const createId = useRef(createPurchaseRequestId("purchase-create"));
   const confirmId = useRef(createPurchaseRequestId("purchase-confirm"));
   const pendingConfirmationPurchaseId = useRef("");
@@ -256,8 +260,11 @@ export default function NewPurchasePage({businessId, role}) {
     }
   };
 
+  const closeConfirmDialog = () => { setActionDialog(""); setConfirmError(null); };
+  useEffect(() => { if (confirmError) backButtonRef.current?.focus(); }, [confirmError]);
+
   const confirm = async () => {
-    setActionDialog("");
+    setConfirmError(null);
     setProcessing(true);
     setMessage("");
     let stored = purchase;
@@ -267,7 +274,7 @@ export default function NewPurchasePage({businessId, role}) {
         setPurchase(stored);
       }
     } catch (error) {
-      sileo.error({title: "No se pudo preparar la compra", description: userErrorMessage(error)});
+      setConfirmError({title: "No se pudo preparar la compra", message: userErrorMessage(error)});
       setProcessing(false);
       return;
     }
@@ -276,6 +283,7 @@ export default function NewPurchasePage({businessId, role}) {
       pendingConfirmationPurchaseId.current = "";
       confirmId.current = createPurchaseRequestId("purchase-confirm");
       setPurchase(confirmed);
+      setActionDialog("");
       navigate(`/compras/${confirmed.id}`, {
         replace: true,
         state: {
@@ -295,7 +303,7 @@ export default function NewPurchasePage({businessId, role}) {
     } catch (error) {
       if (!shouldReconcilePurchaseConfirmation(error)) {
         pendingConfirmationPurchaseId.current = "";
-        sileo.error({title: "No se pudo confirmar la compra", description: userErrorMessage(error)});
+        setConfirmError({title: "No se pudo confirmar la compra", message: userErrorMessage(error)});
       } else {
         try {
           const authoritative = await obtenerCompra(businessId, stored.id);
@@ -303,12 +311,10 @@ export default function NewPurchasePage({businessId, role}) {
             finishConfirmation(authoritative);
           } else {
             if (authoritative) setPurchase(authoritative);
-            setMessage(userErrorMessage(error));
-            sileo.error({title: "No se pudo confirmar la compra", description: "La compra continúa preparada. Puedes reintentar con seguridad."});
+            setConfirmError({title: "No se pudo confirmar la compra", message: userErrorMessage(error) + " La compra continúa preparada. Puedes reintentar con seguridad."});
           }
         } catch {
-          setMessage(userErrorMessage(error));
-          sileo.error({title: "No se pudo verificar la confirmación", description: "Recarga la compra antes de volver a intentarlo."});
+          setConfirmError({title: "No se pudo verificar la confirmación", message: userErrorMessage(error) + " Recarga la compra antes de volver a intentarlo."});
         }
       }
     } finally {
@@ -381,6 +387,7 @@ export default function NewPurchasePage({businessId, role}) {
       <div className="no-print">
         {readOnly && purchase ? <PurchaseProviderSnapshot provider={purchase.proveedorSnapshot} /> : <ProviderSelector
           disabled={readOnly || referencesLocked}
+          historicalNote={PROVIDER_AT_PURCHASE_NOTE}
           onChange={(proveedorId) => setDraft((current) => ({...current, proveedorId}))}
           originalSnapshot={purchase?.proveedorSnapshot}
           providers={providers}
@@ -494,8 +501,9 @@ export default function NewPurchasePage({businessId, role}) {
         providers={providers}
         taxName={purchase?.impuestoNombre || company?.impuestoPredeterminadoNombre || "Impuesto"}
       />
-      <ResponsiveDialog open={actionDialog === "confirm"} onClose={() => !processing && setActionDialog("")} eyebrow="Compra preparada" title="Confirmar compra" description="Al confirmar, se registrará el documento económico del proveedor." size="small" footer={<><Button type="button" variant="secondary" disabled={processing} onClick={() => setActionDialog("")}>Volver</Button><Button type="button" loading={processing} onClick={confirm}>{processing ? "Confirmando..." : "Confirmar compra"}</Button></>}>
+      <ResponsiveDialog open={actionDialog === "confirm"} onClose={() => !processing && closeConfirmDialog()} eyebrow="Compra preparada" title="Confirmar compra" description="Al confirmar, se registrará el documento económico del proveedor." size="small" footer={<><Button ref={backButtonRef} type="button" variant="secondary" disabled={processing} onClick={closeConfirmDialog}>Volver</Button><Button type="button" loading={processing} disabled={Boolean(confirmError)} onClick={confirm}>{processing ? "Confirmando..." : "Confirmar compra"}</Button></>}>
         <p>{stockSemantics.confirmationMessage}</p>
+        {confirmError && <Notice variant="error" className="po-dialog-error" title={confirmError.title}>{confirmError.message}</Notice>}
       </ResponsiveDialog>
       <ResponsiveDialog open={actionDialog === "cancel"} onClose={() => !processing && setActionDialog("")} eyebrow="Más acciones" title="Cancelar compra" description="La compra preparada quedará cancelada y ya no podrá editarse." size="small" footer={<><Button type="button" variant="secondary" disabled={processing} onClick={() => setActionDialog("")}>Volver</Button><Button type="button" variant="danger" loading={processing} onClick={cancel}>{processing ? "Cancelando..." : "Cancelar compra"}</Button></>}><p>Cancelar una compra preparada no modifica stock.</p></ResponsiveDialog>
     </main>

@@ -16,6 +16,7 @@ import {
   resolvePurchaseVatTreatment,
   shouldReconcilePurchaseConfirmation,
 } from "../src/domain/purchaseModel.mjs";
+import {userErrorMessage} from "../src/domain/userFacingError.mjs";
 
 const require = createRequire(import.meta.url);
 const {calculatePurchaseTotals: calculateBackendPurchaseTotals, normalizePurchaseInput, normalizeSupplierDocumentNumber, documentCoherenceState, documentTotalsTolerance, DOCUMENT_TOTALS_TOLERANCE} = require("../functions/purchasePersistence.js");
@@ -273,7 +274,91 @@ const noticeRule = purchasesCss.match(/\.purchase-detail__totals-notice \{([^}]*
 assert.match(noticeRule, /padding: 0 var\(--space-4\) var\(--space-4\)/);
 assert.doesNotMatch(noticeRule, /#[0-9a-fA-F]{3,8}|rgb|hsl/, "el aviso no introduce colores literales");
 assert.match(purchaseDetail, /No hay un documento asociado a esta compra\./);
-assert.match(purchaseDetail, /Snapshot hist[oó]rico conservado/);
+// Texto del proveedor en el formulario de Compras: sin jerga en inglés, tanto en la vista de solo lectura como en el selector.
+assert.doesNotMatch(purchaseDetail, /[Ss]napshot hist[oó]rico/);
+assert.equal((purchaseDetail.match(/Datos del proveedor al momento de la compra/g) || []).length, 1, "el texto vive en una sola constante");
+assert.match(purchaseDetail, /<small>\{PROVIDER_AT_PURCHASE_NOTE\}<\/small>/);
+assert.match(purchaseDetail, /historicalNote=\{PROVIDER_AT_PURCHASE_NOTE\}/);
+const providerSelectorSource = fs.readFileSync(new URL("../src/features/purchaseOrders/ProviderSelector.jsx", import.meta.url), "utf8");
+assert.match(providerSelectorSource, /\{isHistorical && <em className="po-provider__snapshot">\{historicalNote\}<\/em>\}/);
+// Paneles abiertos del formulario de edición: el cuerpo lleva el mismo padding que el resumen y las notas; los valores, peso normal.
+const panelBodyRule = purchasesCss.match(/\.po-details > \.purchase-document-grid \{([^}]*)\}/)?.[1] || "";
+assert.match(panelBodyRule, /padding: 14px;/, "el cuerpo del panel tiene aire lateral");
+assert.match(purchasesCss, /\.purchase-document-summary \{[^}]*padding: 14px;/);
+assert.match(purchasesCss, /\.purchase-notes-grid \{[^}]*padding: 14px;/);
+const panelValueRule = purchasesCss.match(/\.po-details > \.purchase-document-grid input, \.po-details > \.purchase-document-grid select, \.po-details > \.purchase-document-grid textarea \{([^}]*)\}/)?.[1] || "";
+assert.match(panelValueRule, /font-weight: var\(--font-weight-regular\);/, "los valores escritos no van en negrita");
+assert.match(purchasesCss, /\.purchase-document-grid label \{[^}]*font-weight: 700;/, "las etiquetas siguen en negrita");
+assert.match(purchasesCss, /\.purchase-document-grid \{ display: grid; gap: 12px; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); padding-top: 14px; \}/, "la regla base compartida con Ventas no cambia");
+assert.equal((purchaseDetail.match(/<details className="po-panel po-details"/g) || []).length, 3);
+assert.equal((purchaseDetail.match(/<div className="purchase-document-grid">/g) || []).length, 2, "los dos paneles editables usan el cuerpo directo del details");
+// "Cancelar compra" es un botón directo con la variante peligrosa (antes, un menú "Más acciones" de una sola opción), en la lista y en el formulario.
+const purchaseOrdersCss = fs.readFileSync(new URL("../src/features/purchaseOrders/purchase-orders.css", import.meta.url), "utf8");
+const listActionsSource = purchasesPage.slice(purchasesPage.indexOf("function Actions("), purchasesPage.indexOf("export default function PurchasesPage"));
+assert.ok(listActionsSource.length > 0, "se localiza el componente Actions de la lista");
+assert.doesNotMatch(purchasesPage, /<details|po-more-actions|Más acciones ···/, "la lista no deja el menú de una sola opción");
+assert.doesNotMatch(purchaseSummary, /<details|po-more-actions|Más acciones/, "el formulario no deja el menú de una sola opción");
+assert.match(listActionsSource, /purchase\.estado === "borrador" && \(\s*<>\s*<button type="button" disabled=\{processing\} onClick=\{\(\) => onAction\(purchase, "confirmar"\)\}>Confirmar<\/button>\s*<Button type="button" variant="ghost-danger" className="po-history__danger po-history__cancel-purchase" disabled=\{processing\} onClick=\{\(\) => onAction\(purchase, "cancelar"\)\}>Cancelar compra<\/Button>\s*<\/>\s*\)\}/, "en la lista, el botón vive junto a Confirmar y solo en borrador con permiso");
+assert.match(listActionsSource, /canManage && purchase\.estado === "borrador"/, "mismo permiso por rol y mismo estado");
+assert.equal((purchasesPage.match(/>Cancelar compra<\/Button>/g) || []).length, 1, "un solo botón directo con el texto fijo (el del diálogo usa expresión)");
+assert.match(purchaseSummary, /import Button from "\.\.\/\.\.\/components\/ui\/Button";/);
+assert.match(purchaseSummary, /\{onCancel && <div className="po-summary__danger"><Button type="button" variant="ghost-danger" disabled=\{processing\} onClick=\{onCancel\}>Cancelar compra<\/Button><\/div>\}/, "en el formulario, el botón queda en la columna de acciones, apartado de Confirmar compra");
+assert.ok(purchaseSummary.indexOf("Guardar cambios") < purchaseSummary.indexOf(">Cancelar compra<"), "el botón va bajo Guardar cambios");
+assert.match(purchaseDetail, /disabled=\{readOnly\}/, "el panel sigue deshabilitado fuera del borrador o sin permiso");
+assert.match(purchaseDetail, /onCancel=\{purchase \? \(\) => setActionDialog\("cancel"\) : null\}/, "solo una compra ya guardada ofrece cancelar");
+assert.match(purchasesCss, /\.po-history__actions > \.po-history__cancel-purchase \{ min-height: 0; \}/);
+assert.match(purchaseOrdersCss, /\.po-history__actions > \.po-history__danger \{[^}]*color: var\(--color-danger-700\);/, "el botón de la lista usa el color peligroso del tema");
+assert.doesNotMatch(purchasesCss.slice(purchasesCss.indexOf("Cancelar compra\" como botón directo")), /#[0-9a-fA-F]{3,8}|rgb\(|hsl\(/, "sin colores literales en el estilo nuevo");
+// La cancelación conserva su confirmación: el botón solo abre el diálogo; la Function se llama únicamente desde la acción confirmada.
+assert.match(purchasesPage, /const action = \(purchase, type\) => \{ setReversalReason\(""\); setPendingAction\(\{purchase, type\}\); \};/);
+assert.equal((purchasesPage.match(/cancelarCompraBorrador\(/g) || []).length, 1);
+assert.ok(purchasesPage.indexOf("const executeAction") < purchasesPage.indexOf("cancelarCompraBorrador("), "la lista cancela solo desde executeAction");
+assert.match(purchasesPage, /variant=\{pendingAction\?\.type === "confirmar" \? "primary" : "danger"\} loading=\{Boolean\(processing\)\}/, "el diálogo de la lista confirma con botón peligroso");
+assert.match(purchasesPage, /"La compra preparada quedará cancelada sin modificar stock\."/);
+assert.doesNotMatch(purchaseSummary, /cancelarCompra/, "el panel solo avisa onCancel; no cancela por su cuenta");
+assert.equal((purchaseDetail.match(/cancelarCompraBorrador\(/g) || []).length, 1);
+assert.match(purchaseDetail, /const cancel = async \(\) => \{[\s\S]*?cancelarCompraBorrador\(businessId, purchase\.id\)/);
+assert.match(purchaseDetail, /<ResponsiveDialog open=\{actionDialog === "cancel"\}[^\n]*La compra preparada quedará cancelada y ya no podrá editarse\.[^\n]*<Button type="button" variant="danger" loading=\{processing\} onClick=\{cancel\}>/, "el formulario confirma en un diálogo antes de cancelar");
+// Cuando el servidor rechaza "Confirmar compra" (duplicado, red, permiso), el mensaje queda DENTRO del diálogo con <Notice>, el diálogo
+// no se cierra y la misma operación no se repite mientras el aviso esté visible (hay que cerrar el diálogo, o cambiar el motivo en Revertir).
+// La lista guarda el error en pendingAction: abrir o cerrar el diálogo descarta el objeto y el error no reaparece en un diálogo nuevo.
+const listExecuteSource = purchasesPage.slice(purchasesPage.indexOf("const executeAction"), purchasesPage.indexOf("const open = "));
+const listCatchSource = listExecuteSource.slice(listExecuteSource.indexOf("} catch (error) {"), listExecuteSource.indexOf("} finally"));
+assert.ok(listExecuteSource.length > 0 && listCatchSource.length > 0, "se localiza executeAction y su catch en la lista");
+assert.match(purchasesPage, /import Notice from "\.\.\/components\/ui\/Notice";/);
+assert.match(listCatchSource, /setPendingAction\(\(current\) => \(current \? \{\.\.\.current, error: \{title, message: userErrorMessage\(error\)\}\} : current\)\)/, "la lista guarda el rechazo en el diálogo abierto, con el mensaje del helper");
+assert.doesNotMatch(listCatchSource, /sileo\./, "el rechazo ya no va solo a una burbuja que desaparece");
+assert.doesNotMatch(listCatchSource, /setMessage\(/, "el rechazo no se duplica como mensaje de página detrás del diálogo");
+assert.doesNotMatch(listCatchSource, /setPendingAction\(null\)/, "un fallo no cierra el diálogo");
+assert.match(purchasesPage, /const actionError = pendingAction\?\.error \|\| null;/);
+assert.match(purchasesPage, /\{actionError && <Notice variant="error" className="po-dialog-error" title=\{actionError\.title\}>\{actionError\.message\}<\/Notice>\}<\/ResponsiveDialog>/, "el aviso es un <Notice> de error dentro del diálogo");
+assert.match(purchasesPage, /disabled=\{\(pendingAction\?\.type === "revertir" && !reversalReason\.trim\(\)\) \|\| Boolean\(actionError\)\} onClick=\{executeAction\}/, "con el error visible, la acción no se puede repetir");
+assert.match(purchasesPage, /const changeReversalReason = \(value\) => \{ setReversalReason\(value\); setPendingAction\(\(current\) => \(current\?\.error \? \{\.\.\.current, error: null\} : current\)\); \};/, "cambiar el motivo de reversión limpia el error");
+assert.match(purchasesPage, /onChange=\{\(event\) => changeReversalReason\(event\.target\.value\)\}/);
+assert.match(purchasesPage, /useEffect\(\(\) => \{ if \(actionError\) backButtonRef\.current\?\.focus\(\); \}, \[actionError\]\);/, "el foco pasa a Volver cuando el botón principal queda deshabilitado");
+assert.match(purchasesPage, /<Button ref=\{backButtonRef\} type="button" variant="secondary"/);
+// Formulario /compras/:id/editar: el diálogo ya no se cierra al pulsar Confirmar; solo se cierra al terminar bien o con Volver.
+const formConfirmSource = purchaseDetail.slice(purchaseDetail.indexOf("const confirm = async"), purchaseDetail.indexOf("const cancel = async"));
+assert.ok(formConfirmSource.length > 0, "se localiza confirm() en el formulario");
+assert.match(formConfirmSource, /const confirm = async \(\) => \{\s*setConfirmError\(null\);\s*setProcessing\(true\);/, "confirm() no cierra el diálogo al empezar");
+assert.equal((formConfirmSource.match(/setConfirmError\(\{title: /g) || []).length, 4, "los cuatro fallos de confirm() van al diálogo");
+assert.doesNotMatch(formConfirmSource, /sileo\./, "ningún fallo de confirm() queda solo en una burbuja");
+assert.doesNotMatch(formConfirmSource, /setMessage\(userErrorMessage/, "el rechazo no se duplica como mensaje de página");
+assert.match(formConfirmSource, /setPurchase\(confirmed\);\s*setActionDialog\(""\);/, "el diálogo se cierra al confirmar bien");
+assert.match(purchaseDetail, /const closeConfirmDialog = \(\) => \{ setActionDialog\(""\); setConfirmError\(null\); \};/);
+assert.match(purchaseDetail, /<ResponsiveDialog open=\{actionDialog === "confirm"\} onClose=\{\(\) => !processing && closeConfirmDialog\(\)\}/);
+assert.match(purchaseDetail, /<Button ref=\{backButtonRef\} type="button" variant="secondary" disabled=\{processing\} onClick=\{closeConfirmDialog\}>Volver<\/Button><Button type="button" loading=\{processing\} disabled=\{Boolean\(confirmError\)\} onClick=\{confirm\}>/, "Volver descarta el error; con el error visible no se repite Confirmar compra");
+assert.match(purchaseDetail, /\{confirmError && <Notice variant="error" className="po-dialog-error" title=\{confirmError\.title\}>\{confirmError\.message\}<\/Notice>\}/);
+assert.match(purchaseDetail, /useEffect\(\(\) => \{ if \(confirmError\) backButtonRef\.current\?\.focus\(\); \}, \[confirmError\]\);/);
+assert.match(purchasesCss, /\.po-dialog-error \{ margin-top: var\(--space-3\); \}/, "el aviso se separa del texto del diálogo con un token de espacio");
+// El mensaje que se muestra es el del servidor, sin tocar el helper: duplicado, red y permiso (ya normalizados por purchaseService).
+const duplicateMessage = "Este proveedor ya tiene una compra confirmada con la factura N° 123 (COM-000001). Revisa que la factura no se haya ingresado antes.";
+assert.equal(userErrorMessage(Object.assign(new Error(duplicateMessage), {code: "failed-precondition"})), duplicateMessage);
+assert.equal(userErrorMessage(Object.assign(new Error("Tu membresía no permite administrar compras."), {code: "permission-denied"})), "Tu membresía no permite administrar compras.");
+assert.equal(userErrorMessage(Object.assign(new Error("No pudimos conectar con el servicio. Intenta nuevamente."), {code: "unavailable"})), "No pudimos conectar con el servicio. Intenta nuevamente.");
+assert.equal(shouldReconcilePurchaseConfirmation({code: "failed-precondition"}), false, "el duplicado no pasa por la reconciliación: es un rechazo definitivo");
+assert.equal(shouldReconcilePurchaseConfirmation({code: "permission-denied"}), false);
+assert.equal(shouldReconcilePurchaseConfirmation({code: "unavailable"}), true, "un corte de red sí se reconcilia contra el servidor");
 assert.doesNotMatch(purchaseDetail, />\s*\{effect\.movimientoEntradaId\}/);
 assert.doesNotMatch(purchaseDetail, />\s*\{effect\.movimientoReversionId\}/);
 assert.match(purchasePrint, /po-document-preview/);

@@ -32,6 +32,11 @@
 .purchase-document-grid label { display: grid; font-size: 13px; font-weight: 700; gap: 6px; }
 .purchase-document-grid input, .purchase-document-grid select, .purchase-document-grid textarea { border: 1px solid var(--color-border-control); border-radius: 6px; font: inherit; min-height: 44px; padding: 9px 11px; }
 .purchase-document-grid .purchase-field-wide { grid-column: 1 / -1; }
+/* Formulario de edición de Compras: el cuerpo del panel (.po-details tiene padding 0) lleva el mismo aire que el resumen
+   (.purchase-document-summary) y las notas (.purchase-notes-grid), y los valores escritos van en peso normal; solo las
+   etiquetas quedan en negrita. Acotado a .po-details para no cambiar Ventas, que reutiliza .purchase-document-grid. */
+.po-details > .purchase-document-grid { padding: 14px; }
+.po-details > .purchase-document-grid input, .po-details > .purchase-document-grid select, .po-details > .purchase-document-grid textarea { font-weight: var(--font-weight-regular); }
 .purchase-document-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 14px; }
 .purchase-detail__totals-notice { padding: 0 var(--space-4) var(--space-4); }
 .purchase-notes-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 14px; }
@@ -147,3 +152,9 @@
 .purchase-exact-accept__list span { color: var(--color-text-default); font-size: var(--font-size-sm); overflow-wrap: anywhere; }
 .purchase-exact-accept__list strong { color: var(--color-text-strong); font-size: var(--font-size-sm); overflow-wrap: anywhere; }
 .purchase-exact-accept__actions { display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: flex-end; }
+/* "Cancelar compra" como botón directo en la lista (antes iba en un menú de una sola opción): mismo alto que "Confirmar".
+   El color y el borde peligrosos vienen de .po-history__actions > .po-history__danger. */
+.po-history__actions > .po-history__cancel-purchase { min-height: 0; }
+/* Rechazo del servidor dentro de los diálogos "Confirmar compra" / "Revertir compra" / "Cancelar compra": el aviso es un <Notice>
+   y solo necesita separarse del texto del diálogo (el cuerpo del diálogo no define separación entre hijos). */
+.po-dialog-error { margin-top: var(--space-3); }
