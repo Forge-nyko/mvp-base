@@ -139,6 +139,22 @@
   .purchase-detail__totals > div { min-width: 0; }
 }
 
+/* Bloque "Factura importada y pendiente de confirmación" dentro del panel del documento: el cuerpo del panel (.po-details) no tiene
+   padding, así que el bloque llevaba solo margin-top y quedaba de borde a borde. Mismo aire de 14px que el cuerpo del panel. */
+.po-details > .purchase-imported-document-summary { margin: 14px; }
+/* Acciones de cada fila de la lista de Compras (tabla y tarjetas móviles): los tres botones son <Button> del sistema, en tamaño chico.
+   No usa .po-history__actions porque su regla `.po-history__actions button` (purchase-orders.css) pisa fondo, borde, color y relleno
+   de cualquier variante de Button; esa clase queda intacta para Órdenes de compra. Se apunta al elemento (`> button`) y no a
+   la clase del Button, que solo se define en components.css. */
+.purchase-row-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.purchase-row-actions > button { font-size: var(--font-size-xs); min-height: 2rem; padding: var(--space-1) var(--space-3); }
+.purchase-row-actions > .purchase-row-actions__confirm { border-color: var(--color-text-brand-accent); color: var(--color-text-brand); }
+@media (pointer: coarse) { .purchase-row-actions > button { min-height: 2.75rem; } }
+@media (max-width: 767px) {
+  .po-history-card .purchase-row-actions { display: grid; grid-template-columns: 1fr; }
+  .po-history-card .purchase-row-actions > button { width: 100%; }
+}
+
 /* Importar factura: "Aceptar coincidencias exactas" y su resumen de confirmación.
    Solo tokens; el modo oscuro sale de los propios tokens. */
 .purchase-exact-accept { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-3); }
@@ -152,9 +168,6 @@
 .purchase-exact-accept__list span { color: var(--color-text-default); font-size: var(--font-size-sm); overflow-wrap: anywhere; }
 .purchase-exact-accept__list strong { color: var(--color-text-strong); font-size: var(--font-size-sm); overflow-wrap: anywhere; }
 .purchase-exact-accept__actions { display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: flex-end; }
-/* "Cancelar compra" como botón directo en la lista (antes iba en un menú de una sola opción): mismo alto que "Confirmar".
-   El color y el borde peligrosos vienen de .po-history__actions > .po-history__danger. */
-.po-history__actions > .po-history__cancel-purchase { min-height: 0; }
 /* Rechazo del servidor dentro de los diálogos "Confirmar compra" / "Revertir compra" / "Cancelar compra": el aviso es un <Notice>
    y solo necesita separarse del texto del diálogo (el cuerpo del diálogo no define separación entre hijos). */
 .po-dialog-error { margin-top: var(--space-3); }

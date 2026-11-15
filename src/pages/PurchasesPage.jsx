@@ -12,7 +12,7 @@ import ResponsiveDialog from "../components/ui/ResponsiveDialog";
 import {SkeletonCards, SkeletonRegion, SkeletonTable} from "../components/ui/Skeleton";
 import {getRouteMeta} from "../app/navigation";
 import {formatMoney} from "../utils/formatters";
-import {canManagePurchases, getPurchaseDocumentTypeLabel, getPurchaseStockSemantics, getPurchaseStatusLabel, matchesPurchaseSearch} from "../domain/purchaseModel.mjs";
+import {canManagePurchases, getPurchaseDocumentTypeLabel, getPurchaseStockSemantics, getPurchaseStatusLabel, matchesPurchaseSearch, shouldReconcilePurchaseConfirmation} from "../domain/purchaseModel.mjs";
 import {cancelarCompraBorrador, confirmarCompra, createPurchaseRequestId, listarCompras, revertirCompra} from "../services/purchaseService";
 import "../features/purchases/purchases.css";
 import {userErrorMessage} from "../domain/userFacingError.mjs";
@@ -21,15 +21,15 @@ const money = (value, document) => formatMoney(value, document?.moneda, document
 const MODULE = getRouteMeta("/compras");
 function Actions({canManage, onAction, purchase, processing}) {
   return (
-    <div className="po-history__actions">
+    <div className="purchase-row-actions">
       {canManage && purchase.estado === "borrador" && (
         <>
-          <button type="button" disabled={processing} onClick={() => onAction(purchase, "confirmar")}>Confirmar</button>
-          <Button type="button" variant="ghost-danger" className="po-history__danger po-history__cancel-purchase" disabled={processing} onClick={() => onAction(purchase, "cancelar")}>Cancelar compra</Button>
+          <Button type="button" variant="ghost" className="purchase-row-actions__confirm" disabled={processing} onClick={() => onAction(purchase, "confirmar")}>Confirmar</Button>
+          <Button type="button" variant="ghost-danger" disabled={processing} onClick={() => onAction(purchase, "cancelar")}>Cancelar compra</Button>
         </>
       )}
       {canManage && purchase.estado === "confirmada" && (
-        <button type="button" disabled={processing} onClick={() => onAction(purchase, "revertir")}>Revertir compra</button>
+        <Button type="button" variant="secondary" disabled={processing} onClick={() => onAction(purchase, "revertir")}>Revertir compra</Button>
       )}
     </div>
   );
@@ -56,7 +56,9 @@ export default function PurchasesPage({businessId, role}) {
   // así un error de un intento anterior nunca aparece en un diálogo nuevo. Mientras exista, la acción no se repite.
   const actionError = pendingAction?.error || null;
   const backButtonRef = useRef(null);
-  useEffect(() => { if (actionError) backButtonRef.current?.focus(); }, [actionError]);
+  // Un fallo reintentable (corte de red) deja el botón principal habilitado y con el foco; uno definitivo lo deshabilita y el foco pasa a Volver.
+  const actionBlocked = Boolean(actionError) && !actionError.retryable;
+  useEffect(() => { if (actionBlocked) backButtonRef.current?.focus(); }, [actionBlocked]);
   const changeReversalReason = (value) => { setReversalReason(value); setPendingAction((current) => (current?.error ? {...current, error: null} : current)); };
   const executeAction = async () => {
     const {purchase, type} = pendingAction || {};
@@ -66,6 +68,7 @@ export default function PurchasesPage({businessId, role}) {
       return;
     }
     setProcessing(purchase.id); setMessage("");
+    setPendingAction((current) => (current?.error ? {...current, error: null} : current));
     try {
       if (type === "confirmar") {
         const requestId = confirmIds.current.get(purchase.id) || createPurchaseRequestId("purchase-confirm");
@@ -93,7 +96,9 @@ export default function PurchasesPage({businessId, role}) {
       setPendingAction(null); setReversalReason(""); await load();
     } catch (error) {
       const title = type === "confirmar" ? "No se pudo confirmar la compra" : type === "revertir" ? "No se pudo revertir la compra" : "No se pudo cancelar la compra";
-      setPendingAction((current) => (current ? {...current, error: {title, message: userErrorMessage(error)}} : current));
+      // Solo "Confirmar" se reintenta: reutiliza el mismo requestId y la Function es idempotente.
+      const retryable = type === "confirmar" && shouldReconcilePurchaseConfirmation(error);
+      setPendingAction((current) => (current ? {...current, error: {title, message: userErrorMessage(error), retryable}} : current));
     } finally { setProcessing(""); }
   };
   const open = (purchase) => navigate(purchase.estado === "borrador" && canManage ? `/compras/${purchase.id}/editar` : `/compras/${purchase.id}`);
@@ -199,7 +204,7 @@ export default function PurchasesPage({businessId, role}) {
           </>
         )}
       </section>}
-      <ResponsiveDialog open={Boolean(pendingAction)} onClose={() => !processing && setPendingAction(null)} eyebrow={pendingAction?.type === "confirmar" ? "Compra preparada" : "Más acciones"} title={pendingAction?.type === "confirmar" ? "Confirmar compra" : pendingAction?.type === "revertir" ? "Revertir compra" : "Cancelar compra"} description={pendingAction?.type === "confirmar" ? "Revisa el efecto físico de este documento antes de confirmar." : pendingAction?.type === "revertir" ? "Esta acción revertirá los movimientos de inventario asociados y conservará el registro histórico." : "La compra preparada quedará cancelada sin modificar stock."} size="small" footer={<><Button ref={backButtonRef} type="button" variant="secondary" disabled={Boolean(processing)} onClick={() => setPendingAction(null)}>Volver</Button><Button type="button" variant={pendingAction?.type === "confirmar" ? "primary" : "danger"} loading={Boolean(processing)} disabled={(pendingAction?.type === "revertir" && !reversalReason.trim()) || Boolean(actionError)} onClick={executeAction}>{processing ? "Procesando..." : pendingAction?.type === "confirmar" ? "Confirmar compra" : pendingAction?.type === "revertir" ? "Revertir compra" : "Cancelar compra"}</Button></>}>{pendingAction?.type === "revertir" ? <label className="purchase-field-wide">Motivo de reversión *<textarea value={reversalReason} onChange={(event) => changeReversalReason(event.target.value)} /></label> : <p>{pendingAction?.type === "confirmar" ? getPurchaseStockSemantics(pendingAction.purchase).confirmationMessage : "Esta acción no se puede deshacer."}</p>}{actionError && <Notice variant="error" className="po-dialog-error" title={actionError.title}>{actionError.message}</Notice>}</ResponsiveDialog>
+      <ResponsiveDialog open={Boolean(pendingAction)} onClose={() => !processing && setPendingAction(null)} eyebrow={pendingAction?.type === "revertir" ? "Compra confirmada" : "Compra preparada"} title={pendingAction?.type === "confirmar" ? "Confirmar compra" : pendingAction?.type === "revertir" ? "Revertir compra" : "Cancelar compra"} description={pendingAction?.type === "confirmar" ? "Revisa el efecto físico de este documento antes de confirmar." : pendingAction?.type === "revertir" ? "Esta acción revertirá los movimientos de inventario asociados y conservará el registro histórico." : "La compra preparada quedará cancelada sin modificar stock."} size="small" footer={<><Button ref={backButtonRef} type="button" variant="secondary" disabled={Boolean(processing)} onClick={() => setPendingAction(null)}>Volver</Button><Button type="button" variant={pendingAction?.type === "confirmar" ? "primary" : "danger"} loading={Boolean(processing)} disabled={(pendingAction?.type === "revertir" && !reversalReason.trim()) || actionBlocked} onClick={executeAction}>{processing ? "Procesando..." : pendingAction?.type === "confirmar" ? "Confirmar compra" : pendingAction?.type === "revertir" ? "Revertir compra" : "Cancelar compra"}</Button></>}>{pendingAction?.type === "revertir" ? <label className="purchase-field-wide">Motivo de reversión *<textarea value={reversalReason} onChange={(event) => changeReversalReason(event.target.value)} /></label> : <p>{pendingAction?.type === "confirmar" ? getPurchaseStockSemantics(pendingAction.purchase).confirmationMessage : "Esta acción no se puede deshacer."}</p>}{actionError && <Notice variant="error" className="po-dialog-error" title={actionError.title}>{actionError.message}</Notice>}</ResponsiveDialog>
     </main>
   );
 }
