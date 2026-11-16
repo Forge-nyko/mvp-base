@@ -44,7 +44,10 @@ async function imageAsJpeg(file) {
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     for (const quality of [0.82, 0.65, 0.45]) {
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
-      if (blob?.type === "image/jpeg" && blob.size <= 2 * 1024 * 1024) {
+      if (!blob || blob.type !== "image/jpeg" || !blob.size) {
+        throw new Error("No se pudo convertir la foto a JPEG. Prueba con otra imagen o navegador.");
+      }
+      if (blob.size <= 2 * 1024 * 1024) {
         return await new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(String(reader.result).split(",")[1]);
