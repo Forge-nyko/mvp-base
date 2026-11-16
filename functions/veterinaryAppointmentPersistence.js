@@ -42,9 +42,56 @@ async function guardarCitaVeterinariaHandler(request, {db, HttpsError, FieldValu
   const id = requireId(citaId, HttpsError);
   const appointments = businessRef.collection("citasVeterinarias");
   const ref = appointments.doc(id);
+  // Resolve document references outside the transaction, then revalidate every
+  // operational snapshot in one getAll. These reads never authorize a write.
+  const initial = await ref.get();
+  const initialData = initial.data();
+  if (operacion !== "crear" && !initial.exists) {
+    throw new HttpsError("not-found", "La cita ya no está disponible.");
+  }
+  const oldSlot = initialData && /^\d{4}-\d{2}-\d{2}$/.test(initialData.fecha) && /^\d{2}:\d{2}$/.test(initialData.hora) ?
+    slotRef(businessRef, initialData) : null;
+  let patientRef;
+  let tutorRef;
+  let patientId;
+  let tutorId;
+  let payload;
+  let nextSlot;
+  let candidates = [];
+  if (operacion !== "cancelar" && !(operacion === "crear" && initial.exists)) {
+    patientId = requireId(initialData?.pacienteId ?? cita?.pacienteId, HttpsError);
+    patientRef = businessRef.collection("pacientesVeterinarios").doc(patientId);
+    const patient = await patientRef.get();
+    if (!patient.exists || patient.get("negocioId") !== businessId) {
+      throw new HttpsError("failed-precondition", "Selecciona un paciente activo de esta empresa.");
+    }
+    tutorId = requireId(patient.get("tutorClienteId"), HttpsError);
+    tutorRef = businessRef.collection("clientes").doc(tutorId);
+    try {
+      if (!timeZone) throw new RangeError("Zona horaria ausente");
+      payload = buildVeterinaryAppointmentMutationPayload(
+          {...cita, pacienteId: patientId, tutorClienteId: tutorId}, {timeZone},
+      );
+    } catch (error) {
+      if (error instanceof RangeError) throw new HttpsError("failed-precondition", "Configura un país con zona horaria definida para la empresa.");
+      if (!error.fieldErrors) throw error;
+      throw new HttpsError("invalid-argument", Object.values(error.fieldErrors)[0], error.fieldErrors);
+    }
+    nextSlot = slotRef(businessRef, payload);
+    // Compatibility with old appointments without a slot reservation. Re-read
+    // these documents in getAll; new concurrent bookings contend on nextSlot.
+    candidates = (await appointments.where("fecha", "==", payload.fecha).where("hora", "==", payload.hora).get()).docs.map((doc) => doc.ref);
+  }
+  const refs = [...new Map([ref, patientRef, tutorRef, nextSlot, oldSlot, ...candidates]
+      .filter(Boolean).map((item) => [item.path, item])).values()];
   return db.runTransaction(async (tx) => {
-    const snapshot = await tx.get(ref);
+    const snapshots = await tx.getAll(...refs);
+    const byPath = new Map(snapshots.map((item) => [item.ref.path, item]));
+    const snapshot = byPath.get(ref.path);
     const existing = snapshot.data();
+    if (operacion === "crear" && initial.exists && !snapshot.exists) {
+      throw new HttpsError("aborted", "La cita cambió. Recarga la agenda antes de volver a intentar.");
+    }
     if (operacion === "crear" && snapshot.exists) {
       if (existing.negocioId === businessId && existing.creadoPorUid === uid) return {citaId: id};
       throw new HttpsError("already-exists", "Ya existe una cita con ese identificador.");
@@ -58,9 +105,10 @@ async function guardarCitaVeterinariaHandler(request, {db, HttpsError, FieldValu
       throw new HttpsError("failed-precondition", "Solo puedes cambiar citas agendadas o confirmadas.");
     }
 
-    const oldSlot = existing && /^\d{4}-\d{2}-\d{2}$/.test(existing.fecha) && /^\d{2}:\d{2}$/.test(existing.hora) ?
-      slotRef(businessRef, existing) : null;
-    const oldLock = oldSlot ? await tx.get(oldSlot) : null;
+    if (operacion !== "crear" && !snapshot.updateTime.isEqual(initial.updateTime)) {
+      throw new HttpsError("aborted", "La cita cambió. Recarga la agenda antes de volver a intentar.");
+    }
+    const oldLock = oldSlot ? byPath.get(oldSlot.path) : null;
     const audit = {actualizadoEn: FieldValue.serverTimestamp(), actualizadoPorUid: uid};
     if (operacion === "cancelar") {
       tx.update(ref, {...audit, estado: "cancelada"});
@@ -68,36 +116,24 @@ async function guardarCitaVeterinariaHandler(request, {db, HttpsError, FieldValu
       return {citaId: id};
     }
 
-    const patientId = requireId(existing?.pacienteId ?? cita?.pacienteId, HttpsError);
-    const patient = await tx.get(businessRef.collection("pacientesVeterinarios").doc(patientId));
+    const patient = byPath.get(patientRef.path);
+    const tutor = byPath.get(tutorRef.path);
     if (!patient.exists || patient.get("negocioId") !== businessId ||
         !["activo", undefined].includes(patient.get("estado"))) {
       throw new HttpsError("failed-precondition", "Selecciona un paciente activo de esta empresa.");
     }
-    const tutorId = requireId(patient.get("tutorClienteId"), HttpsError);
-    const tutor = await tx.get(businessRef.collection("clientes").doc(tutorId));
+    if (patient.get("tutorClienteId") !== tutorId) {
+      throw new HttpsError("aborted", "El tutor del paciente cambió. Recarga la ficha antes de volver a intentar.");
+    }
     if (!tutor.exists || tutor.get("negocioId") !== businessId || tutor.get("estado") === "archivado") {
       throw new HttpsError("failed-precondition", "El paciente debe tener un tutor activo de esta empresa.");
     }
-
-    let payload;
-    try {
-      if (!timeZone) throw new RangeError("Zona horaria ausente");
-      payload = buildVeterinaryAppointmentMutationPayload(
-          {...cita, pacienteId: patientId, tutorClienteId: tutorId}, {timeZone},
-      );
-    } catch (error) {
-      if (error instanceof RangeError) throw new HttpsError("failed-precondition", "Configura un país con zona horaria definida para la empresa.");
-      if (!error.fieldErrors) throw error;
-      throw new HttpsError("invalid-argument", Object.values(error.fieldErrors)[0], error.fieldErrors);
-    }
-    const nextSlot = slotRef(businessRef, payload);
-    const lock = oldSlot?.path === nextSlot.path ? oldLock : await tx.get(nextSlot);
+    const lock = byPath.get(nextSlot.path);
     if (lock.exists && lock.get("citaId") !== id) {
       throw new HttpsError("already-exists", "Ya hay una cita en ese horario.");
     }
-    const sameTime = await tx.get(appointments.where("fecha", "==", payload.fecha).where("hora", "==", payload.hora));
-    const booked = sameTime.docs.map((item) => ({...item.data(), citaId: item.id}));
+    const booked = candidates.map((candidate) => byPath.get(candidate.path))
+        .filter((item) => item.exists).map((item) => ({...item.data(), citaId: item.id}));
     if (hasVeterinaryAppointmentSlotConflict(booked, payload, id)) {
       throw new HttpsError("already-exists", "Ya hay una cita en ese horario.");
     }

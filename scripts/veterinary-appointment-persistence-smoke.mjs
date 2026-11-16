@@ -24,7 +24,7 @@ const db = admin.firestore();
 try {
   const {user} = await signInAnonymously(auth);
   const uid = user.uid;
-  const businessId = "clinica-ficticia";
+  const businessId = "clinica-citas-" + uid;
   const business = db.doc("negocios/" + businessId);
   const membership = db.doc("membresias/" + businessId + "__" + uid);
   await Promise.all([
@@ -39,9 +39,9 @@ try {
   ]);
   const citaId = "cita-demo";
   const cita = {pacienteId: "paciente-demo", fecha: "2099-11-12", hora: "10:30", motivo: "Control de prueba"};
-  const save = (patch = {}) => guardarCitaVeterinariaHandler({
+  const save = (patch = {}, dependencyDb = db) => guardarCitaVeterinariaHandler({
     auth: {uid}, data: {businessId, citaId, cita, operacion: "crear", ...patch},
-  }, {db, HttpsError, FieldValue: admin.firestore.FieldValue, requireBusinessAccess: requireOperationalBusinessAccess});
+  }, {db: dependencyDb, HttpsError, FieldValue: admin.firestore.FieldValue, requireBusinessAccess: requireOperationalBusinessAccess});
   const ref = doc(clientDb, "negocios", businessId, "citasVeterinarias", citaId);
   await assert.rejects(save({businessId: "otra-clinica"}), {code: "permission-denied"});
   await assert.rejects(save({cita: {...cita, pacienteId: "paciente-ajeno"}}), {code: "failed-precondition"});
@@ -84,6 +84,31 @@ try {
   assert.equal((await getDoc(winningRef)).get("estado"), "cancelada");
   await assert.rejects(save({citaId: winner, operacion: "reprogramar"}), {code: "failed-precondition"});
   await save({citaId: "cita-reutilizada", cita: {...cita, hora: "11:30"}});
+  // Change references after discovery and before the authoritative getAll.
+  const changeBeforeTransaction = (change) => new Proxy(db, {
+    get(target, key) {
+      if (key === "runTransaction") return async (...args) => {
+        await change();
+        return target.runTransaction(...args);
+      };
+      const value = Reflect.get(target, key);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  const patientRef = business.collection("pacientesVeterinarios").doc("paciente-demo");
+  await business.collection("clientes").doc("otro-tutor").set({negocioId: businessId, estado: "activo"});
+  await assert.rejects(save({citaId: "tutor-cambio", cita: {...cita, hora: "12:30"}}, changeBeforeTransaction(
+    () => patientRef.update({tutorClienteId: "otro-tutor"}),
+  )), {code: "aborted"});
+  assert.equal((await business.collection("citasVeterinarias").doc("tutor-cambio").get()).exists, false);
+  assert.equal((await business.collection("cuposVeterinarios").doc(cita.fecha + "_1230").get()).exists, false);
+  await patientRef.update({tutorClienteId: "tutor-demo"});
+  const reusable = business.collection("citasVeterinarias").doc("cita-reutilizada");
+  await assert.rejects(save({citaId: "cita-reutilizada", operacion: "reprogramar", cita: {...cita, hora: "12:30"}}, changeBeforeTransaction(
+    () => reusable.update({estado: "confirmada"}),
+  )), {code: "aborted"});
+  assert.equal((await reusable.get()).get("hora"), "11:30");
+  assert.equal((await business.collection("cuposVeterinarios").doc(cita.fecha + "_1130").get()).get("citaId"), "cita-reutilizada");
   await business.update({modulosHabilitados: []});
   await assert.rejects(save(), {code: "failed-precondition"});
   await business.update({modulosHabilitados: ["veterinaria"]});
