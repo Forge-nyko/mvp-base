@@ -1,14 +1,15 @@
 "use strict";
 
-const {
-  buildVeterinaryReceptionMutationPayload,
-  buildVeterinaryTriageMutationPayload,
-  canStartVeterinaryReception,
-} = require("./veterinaryReceptionTriageModel.mjs");
+const {importVeterinaryModel} = require("./veterinaryModels");
 
 const validId = (value) => typeof value === "string" && /^[a-zA-Z0-9_-]{1,120}$/.test(value);
 
 async function guardarRecepcionVeterinariaHandler(request, {db, HttpsError, FieldValue, requireBusinessAccess}) {
+  const {
+    buildVeterinaryReceptionMutationPayload,
+    buildVeterinaryTriageMutationPayload,
+    canStartVeterinaryReception,
+  } = await importVeterinaryModel("receptionTriageModel");
   const {uid, businessId, businessRef} = await requireBusinessAccess(
       request, {db, HttpsError}, {roles: ["OWNER", "ADMIN"], requiredVerticalModule: "veterinaria"},
   );

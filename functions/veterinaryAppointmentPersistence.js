@@ -1,9 +1,6 @@
 "use strict";
 
-const {
-  buildVeterinaryAppointmentMutationPayload,
-  hasVeterinaryAppointmentSlotConflict,
-} = require("./veterinaryAppointmentModel.mjs");
+const {importVeterinaryModel} = require("./veterinaryModels");
 
 function requireId(value, HttpsError) {
   if (typeof value !== "string" || !/^[a-zA-Z0-9_-]{1,120}$/.test(value)) {
@@ -17,6 +14,10 @@ function slotRef(business, {fecha, hora}) {
 }
 
 async function guardarCitaVeterinariaHandler(request, {db, HttpsError, FieldValue, requireBusinessAccess}) {
+  const {
+    buildVeterinaryAppointmentMutationPayload,
+    hasVeterinaryAppointmentSlotConflict,
+  } = await importVeterinaryModel("appointmentModel");
   const {uid, businessId, businessRef} = await requireBusinessAccess(
       request, {db, HttpsError}, {roles: ["OWNER", "ADMIN"], requiredVerticalModule: "veterinaria"},
   );

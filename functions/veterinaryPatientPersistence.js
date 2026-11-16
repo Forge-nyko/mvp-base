@@ -1,6 +1,6 @@
 "use strict";
 
-const {buildVeterinaryPatientMutationPayload} = require("./veterinaryPatientModel.mjs");
+const {importVeterinaryModel} = require("./veterinaryModels");
 
 function documentId(value, HttpsError) {
   if (typeof value !== "string" || !/^[a-zA-Z0-9_-]{1,160}$/.test(value)) {
@@ -10,6 +10,7 @@ function documentId(value, HttpsError) {
 }
 
 async function guardarPacienteVeterinarioHandler(request, {db, HttpsError, FieldValue, requireBusinessAccess}) {
+  const {buildVeterinaryPatientMutationPayload} = await importVeterinaryModel("patientModel");
   const {uid, businessId, businessRef} = await requireBusinessAccess(
       request, {db, HttpsError}, {roles: ["OWNER", "ADMIN"], requiredVerticalModule: "veterinaria"},
   );

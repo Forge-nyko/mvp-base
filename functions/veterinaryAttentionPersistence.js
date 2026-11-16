@@ -1,10 +1,10 @@
 "use strict";
 
-const {buildVeterinaryAttentionMutationPayload} = require("./veterinaryAttentionModel.mjs");
-const {buildVeterinaryClinicalClosureMutationPayload} = require("./veterinaryClinicalClosureModel.mjs");
-const {buildVeterinaryInventoryReference} = require("./veterinaryInventoryPharmacyIntegrationModel.mjs");
+const {importVeterinaryModel} = require("./veterinaryModels");
 
 async function guardarAtencionVeterinariaHandler(request, {db, HttpsError, FieldValue, requireBusinessAccess}) {
+  const {buildVeterinaryAttentionMutationPayload} = await importVeterinaryModel("attentionModel");
+  const {buildVeterinaryClinicalClosureMutationPayload} = await importVeterinaryModel("clinicalClosureModel");
   const {uid, businessId, businessRef} = await requireBusinessAccess(
       request, {db, HttpsError}, {roles: ["OWNER", "ADMIN"], requiredVerticalModule: "veterinaria"},
   );
@@ -81,6 +81,7 @@ async function guardarAtencionVeterinariaHandler(request, {db, HttpsError, Field
 }
 
 async function loadReferences(tx, business, businessId, items, HttpsError) {
+  const {buildVeterinaryInventoryReference} = await importVeterinaryModel("inventoryPharmacyIntegrationModel");
   if (!Array.isArray(items) || items.length > 100) {
     throw new HttpsError("invalid-argument", "Registra hasta 50 servicios y 50 productos.");
   }
