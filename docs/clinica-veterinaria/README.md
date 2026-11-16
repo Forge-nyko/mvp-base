@@ -28,8 +28,7 @@ El módulo considera las siguientes áreas funcionales:
 - cierre clínico;
 - integración con Inventario y Farmacia.
 
-Actualmente el módulo cuenta con modelos de dominio, validaciones, rutas
-internas React y una capa inicial de lectura de datos.
+La rama de revisión incluye lectura y escritura mediante Functions de pacientes, citas, recepción, atención y fotos. Su integración y despliegue los coordina el mantenedor.
 
 ---
 
@@ -86,9 +85,7 @@ src/
             └── inventoryPharmacyIntegrationModel.mjs
 ```
 
-Los archivos existentes bajo `src/features/veterinary/dev/` corresponden a
-previsualizaciones y laboratorios de desarrollo y no forman parte de la
-integración productiva actual.
+Las previsualizaciones de desarrollo no forman parte del paquete de integración.
 
 ---
 
@@ -216,12 +213,12 @@ negocios/{businessId}/...
 
 El frontend no constituye autoridad de autorización.
 
-Las futuras escrituras deberán realizarse mediante Functions y validarse con:
+Las escrituras se realizan mediante Functions que validan:
 
 - usuario autenticado;
 - negocio activo;
 - membresía activa;
-- permisos correspondientes;
+- rol OWNER o ADMIN, módulo habilitado y empresa verificada;
 - aislamiento entre negocios.
 
 No se permiten escrituras directas de stock desde el navegador.
@@ -263,7 +260,7 @@ git diff --check
 Resultados:
 
 - compilación general correcta;
-- 7/7 smoke tests veterinarios correctos;
+- modelos de dominio, empaquetado aislado sin src, migración y cuatro smokes de persistencia en emuladores; consultar la salida de cada revisión, no interpretar esta lista como una ejecución nueva.
 - Firestore Rules correctas;
 - RBAC correcto;
 - servicio de Inventario correcto;
@@ -384,3 +381,30 @@ docs/specs/027-clinica-veterinaria-mvp.md
 ```
 
 El número oficial de esta especificación es `027`.
+
+## 17. Comportamiento de la rama de revisión
+
+- Microchip: el modelo compartido elimina espacios y guiones y convierte a mayúsculas, conservando ceros iniciales (`00-ab` → `00AB`). La reserva por chip en `microchipsVeterinarios` es la única autoridad de unicidad por empresa; paciente, reserva y comprobante de requestId se guardan atómicamente. Cambiar el chip libera la reserva anterior del mismo paciente.
+- Ediciones simultáneas: una versión desactualizada se rechaza. Recarga la ficha y revisa los cambios antes de reenviar. Un reintento con el mismo requestId y los mismos datos devuelve el resultado previo antes de comprobar la versión.
+- Agenda: usa una zona de referencia según `paisCodigo` (por ejemplo CL: America/Santiago). No usa company.zonaHoraria. País ausente, desconocido u OTHER impide crear o reprogramar; configura un país admitido. En países con varias zonas, la referencia nacional no representa todas sus regiones. Reprogramar conserva el estado confirmado.
+- Fotos: entrada JPEG, PNG o WebP de hasta 20 MiB. El navegador convierte a JPEG, limita el lado mayor a 1800 píxeles y prueba calidad 0.82, 0.65 y 0.45 hasta quedar en 2 MiB. Si no cabe, pide reducir la imagen o elegir otra. Si la conversión falla o no produce JPEG, informa un error de conversión, separado del límite de tamaño. La Function valida la estructura JPEG. Hasta 12 fotos activas y 24 retiradas por atención; al llegar al límite de retiradas se bloquean nuevos retiros. La política de retención queda pendiente.
+- Stock, perfil del trabajador y cambios al selector de tutor siguen pendientes de coordinación. Esta rama no descuenta stock.
+
+## 18. Migración de microchips antiguos (antes de habilitar escrituras)
+
+Pausa las escrituras de pacientes mientras revisas y aplicas la migración. El escaneo inicial no sustituye ese requisito. El script actual permite exclusivamente emulador local y proyecto demo; no ejecuta cambios en producción.
+
+Con GCLOUD_PROJECT=demo-valora-veterinaria y FIRESTORE_EMULATOR_HOST apuntando al emulador local:
+
+```sh
+node scripts/migrate-veterinary-microchips.mjs --business=EMPRESA
+node scripts/migrate-veterinary-microchips.mjs --business=EMPRESA --apply
+```
+
+La primera orden solo informa. La segunda normaliza chips únicos y crea reservas faltantes en una transacción por paciente. No borra documentos ni sobrescribe reservas ajenas. Es repetible: los registros ya migrados salen como unchanged. duplicate lista los identificadores de pacientes en conflicto y no modifica ninguno del grupo; deben resolverse manualmente antes de habilitar escrituras. También resuelve manualmente invalid, reservation-conflict o changed-retry y repite la simulación hasta no tener conflictos.
+
+## 19. Verificación reproducible
+
+`npm run test:veterinary` ejecuta los siete smokes de modelos, la conversión de fotos, el empaquetado sin src, la migración y los cuatro smokes de Functions (pacientes, citas, atención/recepción y fotos). `npm run test:veterinary-concurrency` ejecuta veinte veces consecutivas el smoke de pacientes, cada vez en una empresa nueva; comprueba un solo ganador, already-exists para el perdedor, una reserva y un paciente con el chip. Se detiene en el primer fallo.
+
+El predeploy de firebase.json ejecuta `node scripts/package-veterinary-models.cjs`: limpia functions/veterinary-models antes de copiar los modelos de src. La prueba de empaquetado comprueba su carga sin src.
