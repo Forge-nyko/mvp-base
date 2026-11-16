@@ -42,15 +42,18 @@ async function guardarPacienteVeterinarioHandler(request, {db, HttpsError, Field
   const patientRef = businessRef.collection("pacientesVeterinarios").doc(id);
   const tutorRef = businessRef.collection("clientes").doc(tutorId);
 
+  const nextChip = payload.microchip;
+  const nextRef = nextChip ? chips.doc(nextChip) : null;
   return db.runTransaction(async (transaction) => {
-    const previous = await transaction.get(receipt);
+    const [previous, existing, tutor, reservation] = await transaction.getAll(
+        receipt, patientRef, tutorRef, ...(nextRef ? [nextRef] : []),
+    );
     if (previous.exists) {
       if (previous.get("fingerprint") !== fingerprint) {
         throw new HttpsError("already-exists", "El requestId ya se usó con otros datos.");
       }
       return previous.get("resultado");
     }
-    const existing = await transaction.get(patientRef);
     const currentVersion = existing.get("version") ?? 0;
     if (operacion === "crear" && existing.exists) {
       throw new HttpsError("already-exists", "Ya existe un paciente con este identificador.");
@@ -63,16 +66,12 @@ async function guardarPacienteVeterinarioHandler(request, {db, HttpsError, Field
       throw new HttpsError("aborted", "Otro usuario modificó el paciente. Revisa la ficha actualizada antes de guardar.");
     }
 
-    const tutor = await transaction.get(tutorRef);
     if (!tutor.exists || tutor.get("negocioId") !== businessId || tutor.get("estado") === "archivado") {
       throw new HttpsError("failed-precondition", "Selecciona un tutor activo de esta empresa.");
     }
     const oldChip = normalizeVeterinaryMicrochip(existing.get("microchip"));
-    const nextChip = payload.microchip;
-    const nextRef = nextChip ? chips.doc(nextChip) : null;
     const previousRef = oldChip && oldChip !== nextChip && /^[A-Z0-9]+$/.test(oldChip) ? chips.doc(oldChip) : null;
     const previousReservation = previousRef ? await transaction.get(previousRef) : null;
-    const reservation = nextRef ? await transaction.get(nextRef) : null;
     if (reservation?.exists && reservation.get("pacienteId") !== id) {
       throw new HttpsError("already-exists", "El microchip ya pertenece a otro paciente de esta empresa.");
     }

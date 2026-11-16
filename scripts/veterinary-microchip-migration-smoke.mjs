@@ -32,5 +32,28 @@ try {
   assert.equal((await migrateVeterinaryMicrochips(db, businessId, {apply: true})).find((row) => row.chip === "00AB").status, "unchanged");
   assert.deepEqual((await patients.get()).docs.map((doc) => doc.data()), before);
   assert.equal((await chips.get()).size, 2);
+  await patients.doc("invalid").set({negocioId: businessId, microchip: "00/invalid"});
+  const invalid = await migrateVeterinaryMicrochips(db, businessId, {apply: true});
+  assert.equal(invalid.find((row) => row.patientId === "invalid").status, "invalid");
+  assert.equal((await patients.doc("invalid").get()).get("microchip"), "00/invalid");
+  await patients.doc("changing").set({negocioId: businessId, microchip: "03-old"});
+  let injected = false;
+  const changingDb = {
+    collection: (...args) => db.collection(...args),
+    runTransaction: async (...args) => {
+      if (!injected) {
+        injected = true;
+        await patients.doc("changing").update({microchip: "03-new"});
+      }
+      return db.runTransaction(...args);
+    },
+  };
+  const changed = await migrateVeterinaryMicrochips(changingDb, businessId, {apply: true});
+  assert.equal(changed.find((row) => row.patientId === "changing").status, "changed-retry");
+  assert.equal((await patients.doc("changing").get()).get("microchip"), "03-new");
+  assert.equal((await chips.doc("03OLD").get()).exists, false);
+  assert.equal((await chips.doc("03NEW").get()).exists, false);
+  assert.equal((await migrateVeterinaryMicrochips(db, businessId, {apply: true})).find((row) => row.patientId === "changing").status, "applied");
+  assert.equal((await chips.doc("03NEW").get()).get("pacienteId"), "changing");
   console.log("VETERINARY_MICROCHIP_MIGRATION_SMOKE_OK");
 } finally { await app.delete(); }
