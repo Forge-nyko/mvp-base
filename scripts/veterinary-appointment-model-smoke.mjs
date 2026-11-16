@@ -340,3 +340,7 @@ assert.equal(
 console.log(
   "OK veterinary-appointment-model-smoke"
 );
+const localDate = {pacienteId: "p", tutorClienteId: "t", fecha: "2026-11-15", hora: "23:30", motivo: "Demo"};
+const instant = new Date("2026-11-16T01:30:00Z");
+assert.equal(getVeterinaryAppointmentFieldErrors(localDate, {now: instant, timeZone: "America/Santiago"}).fecha, undefined);
+assert.ok(getVeterinaryAppointmentFieldErrors(localDate, {now: instant, timeZone: "UTC"}).fecha);

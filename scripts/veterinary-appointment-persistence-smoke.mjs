@@ -57,9 +57,12 @@ try {
   const original = (await getDoc(winningRef)).data();
   assert.equal(original.tutorClienteId, "tutor-demo");
   await membership.update({rol: "ADMIN"});
+  await business.collection("citasVeterinarias").doc(winner).update({estado: "confirmada"});
   await save({citaId: winner, operacion: "reprogramar", cita: {...cita, hora: "11:30"}});
   const updated = (await getDoc(winningRef)).data();
   assert.equal(updated.hora, "11:30");
+  assert.equal(updated.estado, "confirmada");
+  assert.equal(updated.zonaHoraria, "America/Santiago");
   assert.ok(updated.creadoEn.isEqual(original.creadoEn));
   await assert.rejects(setDoc(winningRef, {estado: "cancelada"}, {merge: true}), {code: "permission-denied"});
   await save({citaId: "cita-liberada"});
