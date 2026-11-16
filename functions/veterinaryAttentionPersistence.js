@@ -16,8 +16,9 @@ async function guardarAtencionVeterinariaHandler(request, {db, HttpsError, Field
   const attentionRef = businessRef.collection("atencionesVeterinarias").doc(citaId);
 
   return db.runTransaction(async (tx) => {
-    const appointment = (await tx.get(appointmentRef)).data();
-    const existing = (await tx.get(attentionRef)).data();
+    const [appointmentSnapshot, attentionSnapshot] = await tx.getAll(appointmentRef, attentionRef);
+    const appointment = appointmentSnapshot.data();
+    const existing = attentionSnapshot.data();
     if (!appointment || appointment.negocioId !== businessId) {
       throw new HttpsError("not-found", "La cita ya no está disponible.");
     }
