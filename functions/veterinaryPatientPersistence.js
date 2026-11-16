@@ -77,11 +77,6 @@ async function guardarPacienteVeterinarioHandler(request, {db, HttpsError, Field
       throw new HttpsError("already-exists", "El microchip ya pertenece a otro paciente de esta empresa.");
     }
     if (nextRef && !reservation.exists) {
-      // Los pacientes del prototipo aún pueden tener un chip sin reserva.
-      const patients = await transaction.get(businessRef.collection("pacientesVeterinarios").where("microchip", "==", nextChip).select());
-      if (patients.docs.some((item) => item.id !== id)) {
-        throw new HttpsError("already-exists", "El microchip ya pertenece a otro paciente de esta empresa.");
-      }
       transaction.create(nextRef, {pacienteId: id});
     }
     if (previousReservation?.get("pacienteId") === id) transaction.delete(previousRef);

@@ -24,7 +24,7 @@ const db = admin.firestore();
 try {
   const {user} = await signInAnonymously(auth);
   const uid = user.uid;
-  const businessId = "clinica-ficticia";
+  const businessId = "clinica-pacientes-" + uid;
   const business = db.doc("negocios/" + businessId);
   const membership = db.doc("membresias/" + businessId + "__" + uid);
   await Promise.all([
@@ -87,8 +87,6 @@ try {
   const winner = concurrent.find(({status}) => status === "fulfilled").value.pacienteId;
   assert.equal((await business.collection("microchipsVeterinarios").doc("00XY").get()).get("pacienteId"), winner);
   assert.equal((await business.collection("pacientesVeterinarios").where("microchip", "==", "00XY").get()).size, 1);
-  await business.collection("pacientesVeterinarios").doc("legacy").set({microchip: "00LEGACY", negocioId: businessId});
-  await assert.rejects(save({requestId: "legacy-collision", pacienteId: "nuevo", paciente: {...paciente, microchip: "00-legacy"}}), {code: "already-exists"});
   console.log("VETERINARY_PATIENT_PERSISTENCE_SMOKE_OK");
 } finally {
   await deleteApp(app);
