@@ -24,7 +24,7 @@ function fileProblem(file) {
     return "Archivo incompatible. Selecciona una imagen JPEG, PNG o WebP.";
   }
   if (!file.size || file.size > 20 * 1024 * 1024) {
-    return "La foto debe tener contenido y pesar como máximo 20 MB.";
+    return "La foto debe tener contenido y pesar como máximo 20 MiB.";
   }
   return "";
 }

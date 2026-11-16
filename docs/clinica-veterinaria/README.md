@@ -260,7 +260,7 @@ git diff --check
 Resultados:
 
 - compilación general correcta;
-- modelos de dominio, empaquetado aislado sin src, migración y cuatro smokes de persistencia en emuladores; consultar la salida de cada revisión, no interpretar esta lista como una ejecución nueva.
+- modelos de dominio, empaquetado aislado sin src, cinco smokes en emuladores (migración, pacientes, citas, atención/recepción y fotos); consultar la salida de cada revisión, no interpretar esta lista como una ejecución nueva.
 - Firestore Rules correctas;
 - RBAC correcto;
 - servicio de Inventario correcto;
@@ -387,7 +387,7 @@ El número oficial de esta especificación es `027`.
 - Microchip: el modelo compartido elimina espacios y guiones y convierte a mayúsculas, conservando ceros iniciales (`00-ab` → `00AB`). La reserva por chip en `microchipsVeterinarios` es la única autoridad de unicidad por empresa; paciente, reserva y comprobante de requestId se guardan atómicamente. Cambiar el chip libera la reserva anterior del mismo paciente.
 - Ediciones simultáneas: una versión desactualizada se rechaza. Recarga la ficha y revisa los cambios antes de reenviar. Un reintento con el mismo requestId y los mismos datos devuelve el resultado previo antes de comprobar la versión.
 - Agenda: usa una zona de referencia según `paisCodigo` (por ejemplo CL: America/Santiago). No usa company.zonaHoraria. País ausente, desconocido u OTHER impide crear o reprogramar; configura un país admitido. En países con varias zonas, la referencia nacional no representa todas sus regiones. Reprogramar conserva el estado confirmado.
-- Fotos: entrada JPEG, PNG o WebP de hasta 20 MiB. El navegador convierte a JPEG, limita el lado mayor a 1800 píxeles y prueba calidad 0.82, 0.65 y 0.45 hasta quedar en 2 MiB. Si no cabe, pide reducir la imagen o elegir otra. Si la conversión falla o no produce JPEG, informa un error de conversión, separado del límite de tamaño. La Function valida la estructura JPEG. Hasta 12 fotos activas y 24 retiradas por atención; al llegar al límite de retiradas se bloquean nuevos retiros. La política de retención queda pendiente.
+- Fotos: entrada JPEG, PNG o WebP de hasta 20 MiB. El navegador convierte a JPEG, limita el lado mayor a 1800 píxeles y prueba calidad 0.82, 0.65 y 0.45 hasta quedar en 2 MiB. Si no cabe, pide reducir la imagen o elegir otra. Si la conversión falla o no produce JPEG, informa un error de conversión, separado del límite de tamaño. La Function valida la estructura JPEG. Hasta 12 fotos activas y 24 retiradas por atención; al retirar otra foto, la lista rota y conserva las últimas 24 entradas; los identificadores retirados se conservan en una subcolección para impedir su reutilización. Esto no borra los archivos ni define su retención. La política de retención queda pendiente.
 - Stock, perfil del trabajador y cambios al selector de tutor siguen pendientes de coordinación. Esta rama no descuenta stock.
 
 ## 18. Migración de microchips antiguos (antes de habilitar escrituras)
@@ -405,6 +405,6 @@ La primera orden solo informa. La segunda normaliza chips únicos y crea reserva
 
 ## 19. Verificación reproducible
 
-`npm run test:veterinary` ejecuta los siete smokes de modelos, la conversión de fotos, el empaquetado sin src, la migración y los cuatro smokes de Functions (pacientes, citas, atención/recepción y fotos). `npm run test:veterinary-concurrency` ejecuta veinte veces consecutivas el smoke de pacientes, cada vez en una empresa nueva; comprueba un solo ganador, already-exists para el perdedor, una reserva y un paciente con el chip. Se detiene en el primer fallo.
+`npm run test:veterinary` ejecuta los siete smokes de modelos, la conversión de fotos, el empaquetado sin src, los cinco smokes en emuladores (migración, pacientes, citas, atención/recepción y fotos). `npm run test:veterinary-concurrency` ejecuta veinte veces consecutivas tanto el smoke de pacientes como el de citas, cada uno en una empresa nueva; comprueba un solo ganador y already-exists para el perdedor al competir por chip o cupo. Se detiene en el primer fallo.
 
 El predeploy de firebase.json ejecuta `node scripts/package-veterinary-models.cjs`: limpia functions/veterinary-models antes de copiar los modelos de src. La prueba de empaquetado comprueba su carga sin src.
