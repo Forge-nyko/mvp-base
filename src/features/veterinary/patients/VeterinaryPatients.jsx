@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 import {Link, useNavigate, useParams} from "react-router-dom";
 import Button from "../../../components/ui/Button";
 import LoadingState from "../../../components/ui/LoadingState";
@@ -24,6 +24,8 @@ function PatientForm({businessId, countryCode, patient, tutors, onTutorCreated})
   const navigate = useNavigate();
   const [form, setForm] = useState(() => patient ?? {});
   const [tutorDialogOpen, setTutorDialogOpen] = useState(false);
+  const pendingWrite = useRef(null);
+  const [version] = useState(() => patient?.version ?? 0);
   const [newId] = useState(() => crypto.randomUUID());
   const [registrationDate] = useState(() => patient ? patient.creadoEn : new Date());
   const registeredAge = formatVeterinaryPatientAge(form.fechaNacimiento, registrationDate);
@@ -50,12 +52,19 @@ function PatientForm({businessId, countryCode, patient, tutors, onTutorCreated})
     setError("");
     try {
       const payload = buildVeterinaryPatientMutationPayload(form);
-      const id = await guardarPacienteVeterinario(businessId, patient?.id ?? newId, payload, patient ? "editar" : "crear");
+      const fingerprint = JSON.stringify(payload);
+      if (pendingWrite.current?.fingerprint !== fingerprint) {
+        pendingWrite.current = {fingerprint, requestId: crypto.randomUUID()};
+      }
+      const id = await guardarPacienteVeterinario(
+        businessId, patient?.id ?? newId, payload, patient ? "editar" : "crear",
+        pendingWrite.current.requestId, patient ? version : undefined
+      );
       navigate(patientPath(id), {replace: true});
     } catch (failure) {
       const code = String(failure?.code ?? "").replace(/^functions\//, "");
       setError(
-        ["veterinary-patient/invalid-data", "invalid-argument", "failed-precondition", "not-found"].includes(code)
+        ["veterinary-patient/invalid-data", "invalid-argument", "failed-precondition", "not-found", "already-exists", "aborted"].includes(code)
           ? failure.message
           : code === "permission-denied"
             ? "No tienes permisos para guardar pacientes en esta empresa."

@@ -182,7 +182,7 @@ export async function getVeterinaryAttention(
     ...snapshot.data(),
   };
 }
-export async function guardarPacienteVeterinario(businessId, pacienteId, paciente, operacion) {
+export async function guardarPacienteVeterinario(businessId, pacienteId, paciente, operacion, requestId, version) {
   assertClientWriteAllowed("guardar pacientes veterinarios");
   const callable = httpsCallable(getFirebaseFunctions(), "guardarPacienteVeterinario");
   const result = await callable({
@@ -190,6 +190,8 @@ export async function guardarPacienteVeterinario(businessId, pacienteId, pacient
     pacienteId,
     paciente,
     operacion,
+    requestId,
+    ...(version === undefined ? {} : {version}),
   });
   return result.data.pacienteId;
 }

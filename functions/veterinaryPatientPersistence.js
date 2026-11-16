@@ -1,5 +1,9 @@
 "use strict";
 
+const {createHash} = require("node:crypto");
+const hash = (value) => createHash("sha256").update(value).digest("hex");
+const normalizeChip = (value) => String(value ?? "").replace(/[\s-]+/g, "").toUpperCase();
+
 const {importVeterinaryModel} = require("./veterinaryModels");
 
 function documentId(value, HttpsError) {
@@ -14,9 +18,14 @@ async function guardarPacienteVeterinarioHandler(request, {db, HttpsError, Field
   const {uid, businessId, businessRef} = await requireBusinessAccess(
       request, {db, HttpsError}, {roles: ["OWNER", "ADMIN"], requiredVerticalModule: "veterinaria"},
   );
-  const {operacion, pacienteId, paciente} = request.data;
+  const {operacion, pacienteId, paciente, requestId, version} = request.data;
   if (!["crear", "editar"].includes(operacion) || !paciente || typeof paciente !== "object" || Array.isArray(paciente)) {
     throw new HttpsError("invalid-argument", "Selecciona una operación y completa los datos del paciente.");
+  }
+
+  const requestKey = documentId(requestId, HttpsError);
+  if (operacion === "editar" && (!Number.isSafeInteger(version) || version < 0)) {
+    throw new HttpsError("invalid-argument", "La versión del paciente es inválida.");
   }
 
   let payload;
@@ -27,26 +36,62 @@ async function guardarPacienteVeterinarioHandler(request, {db, HttpsError, Field
     throw new HttpsError("invalid-argument", error.message, error.fieldErrors);
   }
   const id = documentId(pacienteId, HttpsError);
+  payload.microchip = normalizeChip(payload.microchip);
+  if (!/^[A-Z0-9]*$/.test(payload.microchip)) {
+    throw new HttpsError("invalid-argument", "El microchip solo admite letras y números.");
+  }
+  const fingerprint = hash(JSON.stringify({operacion, id, version: operacion === "editar" ? version : null, payload}));
+  const receipt = businessRef.collection("solicitudesPacientesVeterinarios").doc(hash(JSON.stringify([uid, requestKey])));
+  const chips = businessRef.collection("microchipsVeterinarios");
   const tutorId = documentId(payload.tutorClienteId, HttpsError);
   const patientRef = businessRef.collection("pacientesVeterinarios").doc(id);
   const tutorRef = businessRef.collection("clientes").doc(tutorId);
 
   return db.runTransaction(async (transaction) => {
+    const previous = await transaction.get(receipt);
+    if (previous.exists) {
+      if (previous.get("fingerprint") !== fingerprint) {
+        throw new HttpsError("already-exists", "El requestId ya se usó con otros datos.");
+      }
+      return previous.get("resultado");
+    }
     const existing = await transaction.get(patientRef);
+    const currentVersion = existing.get("version") ?? 0;
     if (operacion === "crear" && existing.exists) {
-      if (existing.get("negocioId") === businessId && existing.get("creadoPorUid") === uid) return {pacienteId: id};
       throw new HttpsError("already-exists", "Ya existe un paciente con este identificador.");
     }
     if (operacion === "editar" && (!existing.exists || existing.get("negocioId") !== businessId)) {
       throw new HttpsError("not-found", "El paciente ya no está disponible.");
     }
 
+    if (operacion === "editar" && currentVersion !== version) {
+      throw new HttpsError("aborted", "Otro usuario modificó el paciente. Revisa la ficha actualizada antes de guardar.");
+    }
+
     const tutor = await transaction.get(tutorRef);
     if (!tutor.exists || tutor.get("negocioId") !== businessId || tutor.get("estado") === "archivado") {
       throw new HttpsError("failed-precondition", "Selecciona un tutor activo de esta empresa.");
     }
+    const oldChip = normalizeChip(existing.get("microchip"));
+    const nextChip = payload.microchip;
+    const nextRef = nextChip ? chips.doc(nextChip) : null;
+    const previousRef = oldChip && oldChip !== nextChip && /^[A-Z0-9]+$/.test(oldChip) ? chips.doc(oldChip) : null;
+    const previousReservation = previousRef ? await transaction.get(previousRef) : null;
+    const reservation = nextRef ? await transaction.get(nextRef) : null;
+    if (reservation?.exists && reservation.get("pacienteId") !== id) {
+      throw new HttpsError("already-exists", "El microchip ya pertenece a otro paciente de esta empresa.");
+    }
+    if (nextRef && !reservation.exists) {
+      // Los pacientes del prototipo aún pueden tener un chip sin reserva.
+      const patients = await transaction.get(businessRef.collection("pacientesVeterinarios").select("microchip"));
+      if (patients.docs.some((item) => item.id !== id && normalizeChip(item.get("microchip")) === nextChip)) {
+        throw new HttpsError("already-exists", "El microchip ya pertenece a otro paciente de esta empresa.");
+      }
+      transaction.create(nextRef, {pacienteId: id});
+    }
+    if (previousReservation?.get("pacienteId") === id) transaction.delete(previousRef);
     const timestamp = FieldValue.serverTimestamp();
-    const update = {...payload, actualizadoEn: timestamp, actualizadoPorUid: uid};
+    const update = {...payload, version: currentVersion + 1, actualizadoEn: timestamp, actualizadoPorUid: uid};
     if (operacion === "crear") {
       transaction.create(patientRef, {
         ...update, negocioId: businessId, estado: "activo", creadoEn: timestamp, creadoPorUid: uid,
@@ -54,7 +99,9 @@ async function guardarPacienteVeterinarioHandler(request, {db, HttpsError, Field
     } else {
       transaction.update(patientRef, update);
     }
-    return {pacienteId: id};
+    const resultado = {pacienteId: id};
+    transaction.create(receipt, {fingerprint, resultado, creadoEn: timestamp});
+    return resultado;
   });
 }
 

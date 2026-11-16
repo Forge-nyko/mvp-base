@@ -34,9 +34,9 @@ try {
     db.doc("negocios/otra-clinica/clientes/tutor-ajeno").set({negocioId: "otra-clinica", estado: "activo"}),
   ]);
   const pacienteId = "paciente-demo";
-  const paciente = {nombre: "Luna", especie: "Canina", tutorClienteId: "tutor-demo"};
+  const paciente = {microchip: "00-ab 12", nombre: "Luna", especie: "Canina", tutorClienteId: "tutor-demo"};
   const save = (patch = {}) => guardarPacienteVeterinarioHandler({
-    auth: {uid}, data: {businessId, pacienteId, paciente, operacion: "crear", ...patch},
+    auth: {uid}, data: {businessId, pacienteId, paciente, requestId: "crear-demo", operacion: "crear", ...patch},
   }, {db, HttpsError, FieldValue: admin.firestore.FieldValue, requireBusinessAccess: requireOperationalBusinessAccess});
   const ref = doc(clientDb, "negocios", businessId, "pacientesVeterinarios", pacienteId);
   await assert.rejects(save({businessId: "otra-clinica"}), {code: "permission-denied"});
@@ -48,20 +48,35 @@ try {
   assert.equal(original.nombre, "Luna");
   assert.equal(original.negocioId, businessId);
   assert.equal(original.creadoPorUid, uid);
-  await membership.update({rol: "ADMIN"});
-  await save({operacion: "editar", paciente: {...paciente, nombre: "Luna Demo", negocioId: "otra-clinica"}});
+  assert.equal(original.microchip, "00AB12");
+  await assert.rejects(save({requestId: "otro-paciente", pacienteId: "otro-paciente"}), {code: "already-exists"});
+  await assert.rejects(save({paciente: {...paciente, nombre: "Otro"}}), {code: "already-exists"});
+  const secondAdmin = await admin.auth().createUser({});
+  await db.doc("membresias/" + businessId + "__" + secondAdmin.uid).set({
+    uid: secondAdmin.uid, negocioId: businessId, estado: "activo", rol: "ADMIN",
+  });
+  const edit = {operacion: "editar", requestId: "edicion-demo", version: 1, paciente: {...paciente, microchip: "00-CD", nombre: "Luna Demo"}};
+  await save(edit);
+  await assert.rejects(guardarPacienteVeterinarioHandler({
+    auth: {uid: secondAdmin.uid}, data: {businessId, pacienteId, ...edit, requestId: "edicion-paralela"},
+  }, {db, HttpsError, FieldValue: admin.firestore.FieldValue, requireBusinessAccess: requireOperationalBusinessAccess}), {code: "aborted"});
+  assert.deepEqual(await save(edit), {pacienteId});
+  assert.equal((await business.collection("microchipsVeterinarios").doc("00AB12").get()).exists, false);
+  await save({requestId: "otro-paciente", pacienteId: "otro-paciente"});
+  await assert.rejects(save({...edit, version: 2, requestId: "edicion-falla", paciente}), {code: "already-exists"});
+  assert.equal((await business.collection("microchipsVeterinarios").doc("00CD").get()).get("pacienteId"), pacienteId);
   const updated = (await getDoc(ref)).data();
   assert.equal(updated.nombre, "Luna Demo");
   assert.equal(updated.negocioId, businessId);
   assert.ok(updated.creadoEn.isEqual(original.creadoEn));
   await assert.rejects(setDoc(ref, {nombre: "Cambio directo"}, {merge: true}), {code: "permission-denied"});
   await business.update({modulosHabilitados: []});
-  await assert.rejects(save({operacion: "editar"}), {code: "failed-precondition"});
+  await assert.rejects(save({operacion: "editar", version: 2, requestId: "edicion-denegada"}), {code: "failed-precondition"});
   await business.update({modulosHabilitados: ["veterinaria"], "verificacionEmpresa.estado": "NO_VERIFICADA"});
-  await assert.rejects(save({operacion: "editar"}), {code: "failed-precondition"});
+  await assert.rejects(save({operacion: "editar", version: 2, requestId: "edicion-denegada"}), {code: "failed-precondition"});
   await business.update({"verificacionEmpresa.estado": "VERIFICADA"});
   await membership.update({rol: "TECNICO"});
-  await assert.rejects(save({operacion: "editar"}), {code: "permission-denied"});
+  await assert.rejects(save({operacion: "editar", version: 2, requestId: "edicion-denegada"}), {code: "permission-denied"});
   console.log("VETERINARY_PATIENT_PERSISTENCE_SMOKE_OK");
 } finally {
   await deleteApp(app);
