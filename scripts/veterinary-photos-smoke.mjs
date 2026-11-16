@@ -49,6 +49,7 @@ try {
   const upload = {vista: "trasera", imagen};
   await assert.rejects(run("subir", {...upload, businessId: "otra-clinica"}), {code: "permission-denied"});
   await assert.rejects(run("subir", {...upload, imagen: "SG9sYQ=="}), {code: "invalid-argument"});
+  await assert.rejects(run("subir", {...upload, imagen: "/9gAAP/Z"}), {code: "invalid-argument"});
   await run("subir", upload);
   await run("subir", upload);
   assert.equal((await attentionRef.get()).get("fotosClinicas").length, 1);
@@ -71,12 +72,15 @@ try {
   assert.equal(photo.giro, 90);
   assert.deepEqual(photo.marcas, [mark]);
 
+  await attentionRef.update({fotosRetiradas: Array.from({length: 24}, (_, i) => ({fotoId: "retirada-" + i}))});
   await run("subir", {...upload, fotoId: "foto-equivocada"});
   await run("quitar", {fotoId: "foto-equivocada"});
   await run("quitar", {fotoId: "foto-equivocada"});
   assert.equal((await attentionRef.get()).get("fotosClinicas").length, 1);
   await assert.rejects(run("leer", {fotoId: "foto-equivocada"}), {code: "not-found"});
   await assert.rejects(run("subir", {...upload, fotoId: "foto-equivocada"}), {code: "failed-precondition"});
+  assert.equal((await attentionRef.get()).get("fotosRetiradas").length, 24);
+  await assert.rejects(run("subir", {...upload, fotoId: "retirada-0"}), {code: "failed-precondition"});
   await membership.update({rol: "TECNICO"});
   await assert.rejects(run("leer"), {code: "permission-denied"});
   await membership.update({rol: "ADMIN"});

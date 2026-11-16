@@ -342,7 +342,7 @@ se conservan en la atención como registro informativo, sin movimientos de stock
 ### Fotos clínicas y mapa corporal
 
 Durante la atención, abre **Fotos y mapa corporal de la mascota** y agrega
-hasta 12 fotos opcionales en formato JPEG, PNG o WebP. Cada archivo
+hasta 12 fotos opcionales. El navegador acepta archivos JPEG, PNG o WebP de hasta 20 MiB y convierte cada imagen a JPEG antes de enviarla. El servidor recibe únicamente JPEG y admite hasta 2 MiB por imagen convertida. Cada archivo
 seleccionado se agrega a la lista pendiente y el formulario avanza a la
 siguiente vista. Revisa la lista y pulsa **Subir todas las fotos**. Si
 una foto falla, queda pendiente para volver a intentar. **Detalle (opcional)**

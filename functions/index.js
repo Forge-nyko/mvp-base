@@ -3940,7 +3940,7 @@ exports.guardarRecepcionVeterinaria = onCall(
 const {fotosAtencionVeterinariaHandler} = require("./veterinaryAttentionPhotos");
 
 exports.fotosAtencionVeterinaria = onCall(
-  {maxInstances: 10, region: DEFAULT_FUNCTION_REGION},
+  {maxInstances: 10, concurrency: 4, memory: "256MiB", timeoutSeconds: 60, region: DEFAULT_FUNCTION_REGION},
   (request) => fotosAtencionVeterinariaHandler(request, {
     db,
     bucket: adminStorageBucket,

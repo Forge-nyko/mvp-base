@@ -2,6 +2,9 @@
 
 const {createHash} = require("node:crypto");
 
+const {isVeterinaryJpeg} = require("./veterinaryJpeg");
+
+const MAX_RETIRED = 24;
 const MAX_BYTES = 2 * 1024 * 1024;
 const MAX_PHOTOS = 12;
 const MAX_MARKS = 20;
@@ -33,6 +36,7 @@ async function fotosAtencionVeterinariaHandler(request, {db, bucket, HttpsError,
   }
   const attentionRef = businessRef.collection("atencionesVeterinarias").doc(atencionId);
   const file = bucket.file("negocios/" + businessId + "/atencionesVeterinarias/" + atencionId + "/fotos/" + fotoId + ".jpg");
+  const retiredRef = attentionRef.collection("fotosRetiradas").doc(fotoId);
   const photoFrom = (attention) => (attention.fotosClinicas ?? []).find((photo) => photo.fotoId === fotoId);
   const requireAttention = (snapshot, writable) => {
     const attention = snapshot.data();
@@ -56,12 +60,18 @@ async function fotosAtencionVeterinariaHandler(request, {db, bucket, HttpsError,
     await db.runTransaction(async (tx) => {
       const attention = requireAttention(await tx.get(attentionRef), true);
       const retired = attention.fotosRetiradas ?? [];
-      if (retired.some((photo) => photo.fotoId === fotoId)) return;
+      const tombstone = await tx.get(retiredRef);
+      if (tombstone.exists || retired.some((photo) => photo.fotoId === fotoId)) return;
       const photo = photoFrom(attention);
       if (!photo) throw new HttpsError("not-found", "La foto no está disponible.");
+      // Conserva los ID retirados aunque salgan del historial visible.
+      for (const previous of retired.slice(0, Math.max(0, retired.length - MAX_RETIRED + 1))) {
+        tx.set(attentionRef.collection("fotosRetiradas").doc(previous.fotoId), {retirada: true}, {merge: true});
+      }
+      tx.create(retiredRef, {retiradaEn: FieldValue.serverTimestamp(), retiradaPorUid: uid});
       tx.update(attentionRef, {
         fotosClinicas: attention.fotosClinicas.filter((item) => item.fotoId !== fotoId),
-        fotosRetiradas: [...retired, {...photo, retiradaEn: new Date(), retiradaPorUid: uid}],
+        fotosRetiradas: [...retired, {...photo, retiradaEn: new Date(), retiradaPorUid: uid}].slice(-MAX_RETIRED),
         actualizadoEn: FieldValue.serverTimestamp(),
         actualizadoPorUid: uid,
       });
@@ -95,13 +105,12 @@ async function fotosAtencionVeterinariaHandler(request, {db, bucket, HttpsError,
     throw new HttpsError("invalid-argument", "Selecciona una vista y una foto JPEG de hasta 2 MB.");
   }
   const bytes = Buffer.from(imagen, "base64");
-  if (bytes.length < 5 || bytes.length > MAX_BYTES || bytes[0] !== 255 || bytes[1] !== 216 ||
-      bytes[bytes.length - 2] !== 255 || bytes[bytes.length - 1] !== 217) {
+  if (bytes.length > MAX_BYTES || !isVeterinaryJpeg(bytes)) {
     throw new HttpsError("invalid-argument", "La imagen debe ser un JPEG válido de hasta 2 MB.");
   }
   const digest = createHash("sha256").update(bytes).digest("hex");
   const initial = requireAttention(await attentionRef.get(), true);
-  if (initial.fotosRetiradas?.some((photo) => photo.fotoId === fotoId)) {
+  if ((await retiredRef.get()).exists || initial.fotosRetiradas?.some((photo) => photo.fotoId === fotoId)) {
     throw new HttpsError("failed-precondition", "Esta foto ya fue retirada.");
   }
   const existing = photoFrom(initial);
@@ -132,7 +141,7 @@ async function fotosAtencionVeterinariaHandler(request, {db, bucket, HttpsError,
   await db.runTransaction(async (tx) => {
     const attention = requireAttention(await tx.get(attentionRef), true);
     if (photoFrom(attention)) return;
-    if (attention.fotosRetiradas?.some((photo) => photo.fotoId === fotoId)) {
+    if ((await tx.get(retiredRef)).exists || attention.fotosRetiradas?.some((photo) => photo.fotoId === fotoId)) {
       throw new HttpsError("failed-precondition", "Esta foto ya fue retirada.");
     }
     const photos = attention.fotosClinicas ?? [];
@@ -145,7 +154,7 @@ async function fotosAtencionVeterinariaHandler(request, {db, bucket, HttpsError,
   }).catch(async (error) => {
     if (created && ["not-found", "failed-precondition"].includes(error.code)) {
       const current = (await attentionRef.get()).data();
-      if (!current || (!photoFrom(current) && !current.fotosRetiradas?.some((photo) => photo.fotoId === fotoId))) {
+      if (!(await retiredRef.get()).exists && (!current || (!photoFrom(current) && !current.fotosRetiradas?.some((photo) => photo.fotoId === fotoId)))) {
         const [metadata] = await file.getMetadata();
         await file.delete({ifGenerationMatch: metadata.generation});
       }
