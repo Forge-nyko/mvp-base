@@ -77,6 +77,18 @@ try {
   await business.update({"verificacionEmpresa.estado": "VERIFICADA"});
   await membership.update({rol: "TECNICO"});
   await assert.rejects(save({operacion: "editar", version: 2, requestId: "edicion-denegada"}), {code: "permission-denied"});
+  await membership.update({rol: "OWNER"});
+  const concurrent = await Promise.allSettled([
+    save({requestId: "paralelo-a", pacienteId: "paralelo-a", paciente: {...paciente, microchip: "00-x y"}}),
+    save({requestId: "paralelo-b", pacienteId: "paralelo-b", paciente: {...paciente, microchip: "00XY"}}),
+  ]);
+  assert.equal(concurrent.filter(({status}) => status === "fulfilled").length, 1);
+  assert.equal(concurrent.find(({status}) => status === "rejected").reason.code, "already-exists");
+  const winner = concurrent.find(({status}) => status === "fulfilled").value.pacienteId;
+  assert.equal((await business.collection("microchipsVeterinarios").doc("00XY").get()).get("pacienteId"), winner);
+  assert.equal((await business.collection("pacientesVeterinarios").where("microchip", "==", "00XY").get()).size, 1);
+  await business.collection("pacientesVeterinarios").doc("legacy").set({microchip: "00LEGACY", negocioId: businessId});
+  await assert.rejects(save({requestId: "legacy-collision", pacienteId: "nuevo", paciente: {...paciente, microchip: "00-legacy"}}), {code: "already-exists"});
   console.log("VETERINARY_PATIENT_PERSISTENCE_SMOKE_OK");
 } finally {
   await deleteApp(app);

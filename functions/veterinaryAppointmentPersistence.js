@@ -6,7 +6,13 @@ const countryTimeZones = {
   CL: "America/Santiago", BO: "America/La_Paz", BR: "America/Sao_Paulo",
   PE: "America/Lima", AR: "America/Argentina/Buenos_Aires", CO: "America/Bogota",
   EC: "America/Guayaquil", PY: "America/Asuncion", UY: "America/Montevideo", MX: "America/Mexico_City",
+  OTHER: null, // El catálogo usa OTHER para una jurisdicción sin ubicación definida.
 };
+
+function resolveVeterinaryAppointmentTimeZone(countryCode) {
+  const code = String(countryCode ?? "").trim().toUpperCase();
+  return Object.hasOwn(countryTimeZones, code) ? countryTimeZones[code] : null;
+}
 
 function requireId(value, HttpsError) {
   if (typeof value !== "string" || !/^[a-zA-Z0-9_-]{1,120}$/.test(value)) {
@@ -32,7 +38,7 @@ async function guardarCitaVeterinariaHandler(request, {db, HttpsError, FieldValu
     throw new HttpsError("invalid-argument", "Selecciona una operación válida.");
   }
   const company = businessSnapshot.data();
-  const timeZone = company.zonaHoraria || company.timeZone || countryTimeZones[company.paisCodigo || "CL"];
+  const timeZone = resolveVeterinaryAppointmentTimeZone(company.paisCodigo);
   const id = requireId(citaId, HttpsError);
   const appointments = businessRef.collection("citasVeterinarias");
   const ref = appointments.doc(id);
@@ -81,7 +87,7 @@ async function guardarCitaVeterinariaHandler(request, {db, HttpsError, FieldValu
           {...cita, pacienteId: patientId, tutorClienteId: tutorId}, {timeZone},
       );
     } catch (error) {
-      if (error instanceof RangeError) throw new HttpsError("failed-precondition", "Configura una zona horaria válida para la empresa.");
+      if (error instanceof RangeError) throw new HttpsError("failed-precondition", "Configura un país con zona horaria definida para la empresa.");
       if (!error.fieldErrors) throw error;
       throw new HttpsError("invalid-argument", Object.values(error.fieldErrors)[0], error.fieldErrors);
     }
@@ -108,4 +114,4 @@ async function guardarCitaVeterinariaHandler(request, {db, HttpsError, FieldValu
   });
 }
 
-module.exports = {guardarCitaVeterinariaHandler};
+module.exports = {guardarCitaVeterinariaHandler, resolveVeterinaryAppointmentTimeZone};

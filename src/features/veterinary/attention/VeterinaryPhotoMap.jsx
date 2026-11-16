@@ -42,7 +42,18 @@ async function imageAsJpeg(file) {
     context.fillStyle = "white";
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", 0.82).split(",")[1];
+    for (const quality of [0.82, 0.65, 0.45]) {
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+      if (blob?.type === "image/jpeg" && blob.size <= 2 * 1024 * 1024) {
+        return await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result).split(",")[1]);
+          reader.onerror = () => reject(new Error("No se pudo preparar la foto para subirla."));
+          reader.readAsDataURL(blob);
+        });
+      }
+    }
+    throw new Error("El JPEG convertido supera los 2 MiB. Reduce el tamaño de la imagen o elige otra foto.");
   } finally {
     bitmap.close();
   }

@@ -2,7 +2,6 @@
 
 const {createHash} = require("node:crypto");
 const hash = (value) => createHash("sha256").update(value).digest("hex");
-const normalizeChip = (value) => String(value ?? "").replace(/[\s-]+/g, "").toUpperCase();
 
 const {importVeterinaryModel} = require("./veterinaryModels");
 
@@ -14,7 +13,7 @@ function documentId(value, HttpsError) {
 }
 
 async function guardarPacienteVeterinarioHandler(request, {db, HttpsError, FieldValue, requireBusinessAccess}) {
-  const {buildVeterinaryPatientMutationPayload} = await importVeterinaryModel("patientModel");
+  const {buildVeterinaryPatientMutationPayload, normalizeVeterinaryMicrochip} = await importVeterinaryModel("patientModel");
   const {uid, businessId, businessRef} = await requireBusinessAccess(
       request, {db, HttpsError}, {roles: ["OWNER", "ADMIN"], requiredVerticalModule: "veterinaria"},
   );
@@ -36,10 +35,6 @@ async function guardarPacienteVeterinarioHandler(request, {db, HttpsError, Field
     throw new HttpsError("invalid-argument", error.message, error.fieldErrors);
   }
   const id = documentId(pacienteId, HttpsError);
-  payload.microchip = normalizeChip(payload.microchip);
-  if (!/^[A-Z0-9]*$/.test(payload.microchip)) {
-    throw new HttpsError("invalid-argument", "El microchip solo admite letras y números.");
-  }
   const fingerprint = hash(JSON.stringify({operacion, id, version: operacion === "editar" ? version : null, payload}));
   const receipt = businessRef.collection("solicitudesPacientesVeterinarios").doc(hash(JSON.stringify([uid, requestKey])));
   const chips = businessRef.collection("microchipsVeterinarios");
@@ -72,7 +67,7 @@ async function guardarPacienteVeterinarioHandler(request, {db, HttpsError, Field
     if (!tutor.exists || tutor.get("negocioId") !== businessId || tutor.get("estado") === "archivado") {
       throw new HttpsError("failed-precondition", "Selecciona un tutor activo de esta empresa.");
     }
-    const oldChip = normalizeChip(existing.get("microchip"));
+    const oldChip = normalizeVeterinaryMicrochip(existing.get("microchip"));
     const nextChip = payload.microchip;
     const nextRef = nextChip ? chips.doc(nextChip) : null;
     const previousRef = oldChip && oldChip !== nextChip && /^[A-Z0-9]+$/.test(oldChip) ? chips.doc(oldChip) : null;
@@ -83,8 +78,8 @@ async function guardarPacienteVeterinarioHandler(request, {db, HttpsError, Field
     }
     if (nextRef && !reservation.exists) {
       // Los pacientes del prototipo aún pueden tener un chip sin reserva.
-      const patients = await transaction.get(businessRef.collection("pacientesVeterinarios").select("microchip"));
-      if (patients.docs.some((item) => item.id !== id && normalizeChip(item.get("microchip")) === nextChip)) {
+      const patients = await transaction.get(businessRef.collection("pacientesVeterinarios").where("microchip", "==", nextChip).select());
+      if (patients.docs.some((item) => item.id !== id)) {
         throw new HttpsError("already-exists", "El microchip ya pertenece a otro paciente de esta empresa.");
       }
       transaction.create(nextRef, {pacienteId: id});

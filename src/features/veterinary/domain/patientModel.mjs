@@ -1,3 +1,7 @@
+export function normalizeVeterinaryMicrochip(value) {
+  return String(value ?? "").replace(/[\s-]+/g, "").toUpperCase();
+}
+
 export const VETERINARY_PATIENT_STATUSES = Object.freeze([
   "activo",
   "inactivo",
@@ -215,6 +219,10 @@ export function getVeterinaryPatientFieldErrors(
     }
   );
 
+  if (!errors.microchip && !/^[A-Z0-9]*$/.test(normalizeVeterinaryMicrochip(normalized.microchip))) {
+    errors.microchip = "El microchip solo admite letras y números.";
+  }
+
   if (!errors.tutorClienteId && !normalized.tutorClienteId) {
     errors.tutorClienteId =
       "Selecciona un tutor registrado.";
@@ -332,12 +340,7 @@ export function buildVeterinaryPatientMutationPayload(
         "color"
       ),
 
-    microchip:
-      normalizeVeterinaryPatientText(
-        raw.microchip,
-        100,
-        "microchip"
-      ),
+    microchip: normalizeVeterinaryMicrochip(raw.microchip),
 
     alergias:
       normalizeVeterinaryPatientText(

@@ -283,3 +283,12 @@ No se ha definido una licencia open source para ValoraCloud en este
 repositorio. La titularidad y las condiciones de entrega a Bagner y a la
 universidad deben ser confirmadas por el propietario antes de publicar o
 redistribuir el código.
+
+## Clínica Veterinaria
+
+- **Pacientes.** El microchip es opcional. El modelo compartido elimina espacios y guiones, convierte a mayúsculas y conserva ceros iniciales. La reserva por empresa y chip y la escritura del paciente son atómicas. La búsqueda por igualdad contempla pacientes sin reserva que ya tienen el chip normalizado. Si se importan pacientes del prototipo anterior a la normalización, concilia duplicados y normaliza sus chips antes de habilitar escrituras.
+- **Edición.** Un reintento idéntico con el mismo `requestId` recupera el resultado previo. Una edición nueva con versión desactualizada muestra un conflicto y conserva el formulario. Revisa la ficha actual antes de volver a aplicar los cambios.
+- **Citas.** Fecha y hora son locales a la zona de referencia del país de la empresa. Se requiere un país con zona definida para agendar o reprogramar. Un país ausente o `OTHER` no aplica una zona por defecto.
+- **Fotos.** El navegador convierte JPEG, PNG y WebP a JPEG. Intenta bajar la calidad si supera 2 MiB y muestra un aviso si sigue excediendo el límite. El documento de la atención conserva hasta 24 entradas en `fotosRetiradas`. Este tope no define la retención del archivo.
+- **Pruebas.** `npm run test:veterinary` incluye las pruebas de modelos, el empaquetado sin `src` y los cuatro smokes en una sesión de emuladores. Por separado están disponibles `test:veterinary-patient-persistence`, `test:veterinary-appointment-persistence`, `test:veterinary-attention-persistence` y `test:veterinary-photos`.
+- **Empaquetado.** El predeploy de `firebase.json` ejecuta `node scripts/package-veterinary-models.cjs` antes del lint. El script limpia y vuelve a generar `functions/veterinary-models` desde los modelos de `src`.
