@@ -48,6 +48,13 @@ try {
   await assert.rejects(save({cita: {...cita, hora: "25:00"}}), {code: "invalid-argument"});
   await assert.rejects(setDoc(ref, {negocioId: businessId}), {code: "permission-denied"});
 
+  for (const country of [null, "OTHER"]) {
+    await business.update({paisCodigo: country ?? admin.firestore.FieldValue.delete()});
+    await assert.rejects(save(), {code: "failed-precondition"});
+    assert.equal((await business.collection("citasVeterinarias").doc(citaId).get()).exists, false);
+    assert.equal((await business.collection("cuposVeterinarios").get()).size, 0);
+  }
+  await business.update({paisCodigo: "CL"});
   const competing = await Promise.allSettled([save(), save({citaId: "cita-competidora"})]);
   assert.equal(competing.filter(({status}) => status === "fulfilled").length, 1);
   assert.equal(competing.find(({status}) => status === "rejected").reason.code, "already-exists");
@@ -58,6 +65,12 @@ try {
   assert.equal(original.tutorClienteId, "tutor-demo");
   await membership.update({rol: "ADMIN"});
   await business.collection("citasVeterinarias").doc(winner).update({estado: "confirmada"});
+  for (const country of [null, "OTHER"]) {
+    await business.update({paisCodigo: country ?? admin.firestore.FieldValue.delete()});
+    await assert.rejects(save({citaId: winner, operacion: "reprogramar", cita: {...cita, hora: "11:30"}}), {code: "failed-precondition"});
+    assert.equal((await getDoc(winningRef)).get("hora"), "10:30");
+  }
+  await business.update({paisCodigo: "CL"});
   await save({citaId: winner, operacion: "reprogramar", cita: {...cita, hora: "11:30"}});
   const updated = (await getDoc(winningRef)).data();
   assert.equal(updated.hora, "11:30");
