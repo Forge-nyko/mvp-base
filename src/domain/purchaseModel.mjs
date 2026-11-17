@@ -44,7 +44,7 @@ export function getPurchaseStockSemantics(raw = {}) {
   if (hasReception) {
     return {
       kind: "reception",
-      confirmationMessage: "El stock ya fue gestionado mediante la recepción. Confirmar esta compra sólo registra el documento económico.",
+      confirmationMessage: "El stock ya fue gestionado mediante la recepción. Confirmar esta compra solo registra el documento económico.",
       confirmationResultMessage: "Documento económico confirmado. El stock fue gestionado por la recepción.",
     };
   }

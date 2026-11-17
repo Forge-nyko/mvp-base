@@ -26,6 +26,8 @@ const FORBIDDEN = [
   "numero", "titulo", "identificacion", "devolucion", "credito",
   // Adjetivos: "una fecha válida", "no son válidos". El verbo "valida" no se usa en textos de pantalla.
   "valida", "validas", "valido", "validos", "invalida", "invalidas", "invalido", "invalidos",
+  // Al revés que las demás: la forma con tilde es la prohibida. Según la RAE, «solo» ya no lleva tilde.
+  "sólo",
 ];
 
 // Atributos cuyo valor lee la persona.
@@ -66,9 +68,24 @@ function findForbidden(text) {
     if (word === word.toUpperCase() && word.length > 1) continue; // constantes
     const lower = word.toLowerCase();
     if (FORBIDDEN.includes(lower)) found.add(word);
+    // Plural mal armado: "cotizaciónes", "sesiónes" (el plural de -ción/-sión es -ciones/-siones, sin tilde).
+    else if (MISSPELLED_PLURAL.test(word)) found.add(word);
   }
   return [...found];
 }
+
+const MISSPELLED_PLURAL = /(ci|si)ónes$/i;
+// Plural armado a mano en JSX o plantillas: la palabra termina en -ción/-sión y el plural se pega con una
+// expresión que aporta "es" (`cotización{n === 1 ? "" : "es"}`), que en pantalla queda "cotizaciónes". La
+// cadena literal "ciónes" no existe en el código, así que se detecta la forma que la arma.
+const ENDS_IN_SINGULAR = /(ci|si)[óo]n$/i;
+const containsEsLiteral = (path) => {
+  let found = false;
+  const check = (node) => { if (node.type === "StringLiteral" && node.value === "es") found = true; };
+  check(path.node);
+  path.traverse({StringLiteral(inner) { check(inner.node); }});
+  return found;
+};
 
 const slugLike = /^[a-z0-9_\-:/.#?=&[\]{}()]+$/;
 const cssLike = /__|--|^[#.][\w-]/; // clases BEM y selectores CSS
@@ -86,7 +103,20 @@ export function collectVisibleTextFindings(code, label = "fuente") {
     const words = findForbidden(visible);
     if (words.length) findings.push({label, line: node.loc.start.line, kind, words, text: text.trim().slice(0, 100)});
   };
+  const addHandBuiltPlural = (node, before) => findings.push({label, line: node.loc.start.line, kind: "plural", words: ["ción+es"], text: before.trim().slice(-60)});
   traverse(ast, {
+    JSXExpressionContainer(p) {
+      const siblings = p.parent.children || [];
+      const previous = siblings[siblings.indexOf(p.node) - 1];
+      if (previous?.type === "JSXText" && ENDS_IN_SINGULAR.test(previous.value) && p.get("expression").isExpression() && containsEsLiteral(p.get("expression"))) addHandBuiltPlural(p.node, previous.value);
+    },
+    TemplateLiteral(p) {
+      p.node.quasis.forEach((quasi, index) => {
+        const expression = p.get("expressions")[index];
+        const text = quasi.value.cooked ?? quasi.value.raw;
+        if (expression && /s/.test(text) && ENDS_IN_SINGULAR.test(text) && containsEsLiteral(expression)) addHandBuiltPlural(quasi, text);
+      });
+    },
     JSXText(p) {
       if (p.node.value.trim()) add(p.node, p.node.value, "jsx");
     },
@@ -128,6 +158,27 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     collectVisibleTextFindings('const a = <b aria-label="Abrir navegación">Cerrar sesión</b>; const x = "Proveedor histórico";', "muestra").length,
     0
   );
+
+  // 1b) Plurales de -ción/-sión: la forma escrita ("ciónes") y la armada a mano pegando "es" a la palabra.
+  const pluralSample = collectVisibleTextFindings(
+    'const a = "Hay 3 cotizaciónes"; const b = <span>{n} cotización{n === 1 ? "" : "es"}</span>; const c = `${n} sesión${n === 1 ? "" : "es"}`; const d = <p>Tres versiónes</p>;',
+    "muestra"
+  );
+  assert.deepEqual(pluralSample.map((entry) => entry.kind).sort(), ["plural", "plural", "jsx", "string"].sort(), "detecta el literal y las dos formas armadas a mano");
+  assert.deepEqual(
+    collectVisibleTextFindings('const a = <span>{n} cotización{n === 1 ? "" : "es"} y {n === 1 ? "cotización" : "cotizaciones"}</span>; const b = <b>{n} venta{n === 1 ? "" : "s"}</b>; const c = <i>Tres cotizaciones</i>;', "muestra").filter((entry) => entry.words[0] !== "ción+es"),
+    [],
+    "el plural correcto y las ventas no se marcan"
+  );
+  assert.equal(collectVisibleTextFindings('const a = <span>{n === 1 ? "cotización" : "cotizaciones"}</span>; const b = <b>{n} acción{n === 1 ? "" : "es"}</b>;', "muestra").filter((entry) => entry.kind === "plural").length, 1, "solo se marca la palabra con \"es\" pegado");
+
+  // 1c) «sólo» con tilde también es un error en pantalla (se escribe «solo»); un comentario no se marca.
+  const soloSample = collectVisibleTextFindings(
+    'const a = <p>Disponible sólo hoy</p>; const b = "Sólo el propietario"; const c = <i aria-label="Sólo lectura">x</i>; // sólo en un comentario',
+    "muestra"
+  );
+  assert.equal(soloSample.length, 3, "detecta «sólo» en texto JSX, cadena y atributo");
+  assert.equal(collectVisibleTextFindings('const a = <p>Disponible solo hoy</p>; const b = "Solo el propietario";', "muestra").length, 0, "«solo» sin tilde no se marca");
 
   // 2) Ningún archivo de src/ trae textos visibles sin tilde.
   const failures = [];

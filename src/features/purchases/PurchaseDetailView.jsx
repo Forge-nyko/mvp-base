@@ -94,7 +94,7 @@ export default function PurchaseDetailView({company, message, printable, purchas
         <header><div><span className="po-kicker">Inventario</span><h2>Trazabilidad de entradas</h2></div>{registeredAt && <small>Compra registrada {registeredAt}</small>}</header>
         {purchase.efectosInventario.length > 0
           ? <ul className="purchase-movement-list">{purchase.efectosInventario.map((effect) => <li key={effect.movimientoEntradaId}><strong title={effect.nombre}>{effect.nombre}</strong><span>Entrada: {effect.cantidad} {effect.unidad}</span><span>Origen: {purchase.recepcionNumero || "Recepción asociada"}</span>{purchase.estado === "revertida" && <em>Entrada compensada por reversión</em>}</li>)}</ul>
-          : <p className="purchase-empty-copy">Esta compra sólo contiene servicios o actividades; no generó entradas de stock.</p>}
+          : <p className="purchase-empty-copy">Esta compra solo contiene servicios o actividades; no generó entradas de stock.</p>}
         {purchase.estado === "revertida" && <div className="purchase-reversal-note"><strong>Compra revertida</strong><span>{[reversedAt, purchase.reversionMotivo].filter(Boolean).join(" · ")}</span></div>}
       </section>}
       {purchase.estado === "confirmada" && purchase.stockAplicado &&

@@ -269,7 +269,7 @@ export default function PurchaseDocumentImportDialog({
     onClose={close}
     eyebrow="Nueva compra"
     title="Importar factura"
-    description="El documento prepara un borrador editable. El stock sólo cambia al confirmar la compra."
+    description="El documento prepara un borrador editable. El stock solo cambia al confirmar la compra."
     size="large"
     footer={footer}
   >

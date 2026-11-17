@@ -318,7 +318,7 @@ function SendQuoteEmailModal({
             <span>
               {qaPublicUrl
                 ? "No se envió un correo real. Usa este enlace para revisar exactamente la propuesta que recibiría el cliente."
-                : "No se enviará un correo real. El destinatario se registrará sólo como dato de prueba."}
+                : "No se enviará un correo real. El destinatario se registrará solo como dato de prueba."}
             </span>
             {qaPublicUrl && (
               <div className="quote-email-dialog__qa-actions">

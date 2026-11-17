@@ -366,7 +366,7 @@ function InventoryImportDialog({
               )}
             </div>
             <p className="inventory-import-help">
-              Las advertencias permiten importar; los errores de campo bloquean sólo esa fila. Nada se guarda hasta confirmar la importación.
+              Las advertencias permiten importar; los errores de campo bloquean solo esa fila. Nada se guarda hasta confirmar la importación.
             </p>
             <div className="inventory-import-preview">
               {rows.map((row) => {

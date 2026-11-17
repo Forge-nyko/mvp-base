@@ -186,7 +186,7 @@ const inventoryManager = fs.readFileSync(new URL("../src/features/inventory/Inve
 const service = fs.readFileSync(new URL("../src/services/inventoryAiImportService.js", import.meta.url), "utf8");
 const backend = fs.readFileSync(new URL("../functions/purchasePersistence.js", import.meta.url), "utf8");
 assert.match(dialog, /context: "purchase"/);
-assert.match(dialog, /El stock sólo cambia al confirmar la compra/);
+assert.match(dialog, /El stock solo cambia al confirmar la compra/);
 assert.match(dialog, /const PURCHASE_DOCUMENT_ACCEPT = "\.pdf,\.jpg,\.jpeg,\.png,\.webp"/);
 assert.match(dialog, /accept=\{PURCHASE_DOCUMENT_ACCEPT\}/);
 assert.doesNotMatch(dialog, /ACCEPTED_INVENTORY_FILE_TYPES|CSV|XLS|XLSX|planilla/i);

@@ -127,7 +127,7 @@ export default function ReceptionDocumentImportDialog({businessId, onApply, onCl
     </Button>
   </> : null;
 
-  return <ResponsiveDialog open={open} onClose={close} eyebrow="Recepción" title="Importar factura o documento" description="El documento genera una propuesta editable. El inventario sólo cambia al confirmar la recepción." size="large" footer={footer}>
+  return <ResponsiveDialog open={open} onClose={close} eyebrow="Recepción" title="Importar factura o documento" description="El documento genera una propuesta editable. El inventario solo cambia al confirmar la recepción." size="large" footer={footer}>
     <div className="reception-import">
       <ol className="reception-import__steps" aria-label="Progreso de importación">
         {IMPORT_PHASES.map((phase, index) => <li key={phase} className={`${index < activePhase ? "is-complete" : ""}${index === activePhase ? " is-current" : ""}`} aria-current={index === activePhase ? "step" : undefined}><span>{index + 1}</span><strong>{phase}</strong></li>)}
