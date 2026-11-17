@@ -220,6 +220,21 @@ function TotalRow({ label, value, strong = false }) {
 
 // Colores solo de --color-document-*: el documento es papel blanco también en
 // modo oscuro. print-color-adjust conserva las bandas al imprimir.
+//
+// Impresión: lo impreso debe verse igual que esta vista previa.
+// - Una sola regla de página para la cotización: `@page quote` (A4, 14 mm), con nombre, y el documento la usa con
+//   `page: quote`. Así no compite con las reglas @page globales (globals.css y purchase-orders.css, que siguen
+//   gobernando Ventas, Compras y Órdenes de compra) ni depende del orden en que cargan los estilos.
+// - Mismo diseño que en pantalla: el documento se maqueta con el ancho del contenido de la vista previa (836 px: 920 px
+//   de la vista menos su relleno de 42 px por lado) y se reduce con `zoom` al ancho útil de la hoja (182 mm = 688 px:
+//   836 x 0,82 = 685 px). Con el ancho de la hoja a tamaño real, las columnas se apretaban y todo se reacomodaba.
+// - Fuente, color y fondo propios del documento: no dependen de lo que globals.css fija en html y body al imprimir. Con
+//   el tema oscuro de la app, la hoja se imprime como papel claro (color-scheme: light en la raíz solo mientras haya un
+//   documento de cotización): sin eso el navegador pintaba de oscuro los márgenes y el contenedor del historial.
+// - print-color-adjust: exact en todo el documento (bandas, encabezado de tabla y realce del TOTAL se imprimen aunque el
+//   navegador tenga desactivados los gráficos de fondo).
+// - Cortes de página: una fila de la tabla, los términos, los totales, el pie y los bloques con banda no se parten; el
+//   encabezado de la tabla se repite en cada página.
 const previewCss = `
 .quote-document-preview{--quote-navy:var(--color-document-navy);--quote-red:var(--color-document-red);--quote-ink:var(--color-document-ink);--quote-muted:var(--color-document-muted);--quote-border:var(--color-document-border);--quote-on-navy:var(--color-document-on-navy);background:var(--color-document-paper);border:1px solid var(--quote-border);color:var(--quote-ink);font:13px/1.5 Arial,Helvetica,sans-serif;margin:0 auto;max-width:920px;padding:38px 42px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .quote-document-preview p{margin:2px 0}
@@ -276,7 +291,16 @@ const previewCss = `
 .quote-document-preview footer strong{color:var(--quote-ink)}
 .quote-document-preview__empty{border:1px dashed var(--quote-muted);margin-top:24px;padding:18px;text-align:center}
 @media(max-width:720px){.quote-document-preview{padding:24px 20px}.quote-document-preview__header{grid-template-columns:1fr}.quote-document-preview__identity{text-align:left}.quote-document-preview__identity dl>div{justify-content:flex-start}.quote-document-preview__client-grid,.quote-document-preview__summary{grid-template-columns:1fr}.quote-document-preview__totals{justify-self:stretch;max-width:none}.quote-document-preview__signature-grid{grid-template-columns:1fr 1fr}.quote-document-preview__logo{max-width:200px}}
-@media print{@page{size:A4;margin:14mm}.quote-document-preview{border:0;max-width:none;padding:0}.quote-document-preview__table-wrap{overflow:visible}.quote-document-preview thead{display:table-header-group}.quote-document-preview tr,.quote-document-preview__summary{break-inside:avoid}}
+@page quote{size:A4;margin:14mm}
+@media print{
+html:root:has(.quote-document-preview){background:var(--color-document-paper);color-scheme:light;page:quote}
+.quote-document-preview{background:var(--color-document-paper);border:0;box-sizing:border-box;color:var(--quote-ink);font:13px/1.5 Arial,Helvetica,sans-serif;margin:0;max-width:none;padding:0;width:836px;zoom:.82}
+.quote-document-preview,.quote-document-preview *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.quote-document-preview__table-wrap{overflow:visible}
+.quote-document-preview thead{display:table-header-group}
+.quote-document-preview tr,.quote-document-preview__summary,.quote-document-preview__totals,.quote-document-preview__terms,.quote-document-preview footer{break-inside:avoid}
+.quote-document-preview__band,.quote-document-preview__scope h3{break-after:avoid}
+}
 `;
 
 export default QuotePrintView;

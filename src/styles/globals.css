@@ -252,6 +252,12 @@ td[align="right"] {
     padding: 0 !important;
   }
 
+  /* Detalle de la cotización en el historial: su contenedor tiene el fondo de panel del tema (oscuro en modo oscuro);
+     al imprimir, el papel es el del documento. Clase exclusiva de QuoteHistoryPage. */
+  .history-print-area {
+    background: transparent !important;
+  }
+
   .quote-print {
     border: 0 !important;
     box-sizing: border-box !important;

@@ -903,7 +903,48 @@ assert.match(sourceQuoteDocument, /showDiscount/);
 assert.match(sourceQuoteDocument, /buildQuoteTerms\(quote\.condiciones\)/);
 assert.match(sourceQuoteDocumentLayout, /Condiciones de pago/);
 assert.doesNotMatch(sourceQuoteDocument, /19%/);
-assert.match(sourceQuotePrintView, /@page\{size:A4/);
+// Impresión (Imprimir en el historial y en el enlace público): lo impreso se ve como la vista previa. Se comprueba sobre
+// el CSS del documento (previewCss), no sobre los comentarios del archivo.
+{
+  const css = sourceQuotePrintView.slice(sourceQuotePrintView.indexOf("const previewCss = `") + "const previewCss = `".length, sourceQuotePrintView.lastIndexOf("`;"));
+  const printBlock = css.slice(css.indexOf("@media print{"));
+  // Una sola regla @page para la cotización: con nombre (no compite con las globales de globals.css y purchase-orders.css,
+  // que siguen gobernando Ventas, Compras y Órdenes de compra), A4 y 14 mm, y el documento la usa con `page: quote`.
+  assert.equal((css.match(/@page/g) || []).length, 1, "una sola regla @page en el documento de cotización");
+  assert.match(css, /@page quote\{size:A4;margin:14mm\}/);
+  assert.match(printBlock, /html:root:has\(\.quote-document-preview\)\{[^}]*page:quote[^}]*\}/, "solo hay hoja nombrada mientras haya un documento de cotización");
+  assert.match(printBlock, /html:root:has\(\.quote-document-preview\)\{[^}]*color-scheme:light[^}]*\}/, "en tema oscuro la hoja sigue siendo papel claro");
+  assert.doesNotMatch(css.slice(0, css.indexOf("@media print{")), /@page\{/, "ninguna regla @page sin nombre");
+  // print-color-adjust: exact en el documento y en todo lo que contiene (bandas, encabezado de tabla y realce del TOTAL).
+  assert.match(css, /\.quote-document-preview\{[^}]*-webkit-print-color-adjust:exact;print-color-adjust:exact\}/);
+  assert.match(printBlock, /\.quote-document-preview,\.quote-document-preview \*\{-webkit-print-color-adjust:exact;print-color-adjust:exact\}/);
+  // Mismo diseño que la vista previa: se maqueta con el ancho del contenido de la vista (920 px menos el relleno de 42 px por
+  // lado) y se reduce con zoom al ancho útil de A4 con 14 mm de margen (182 mm).
+  const previewMaxWidth = Number(css.match(/\.quote-document-preview\{[^}]*max-width:(\d+)px/)[1]);
+  const previewSidePadding = Number(css.match(/\.quote-document-preview\{[^}]*padding:\d+px (\d+)px/)[1]);
+  const printWidth = Number(printBlock.match(/\.quote-document-preview\{[^}]*width:(\d+)px/)[1]);
+  const printZoom = Number(printBlock.match(/\.quote-document-preview\{[^}]*zoom:([\d.]+)/)[1]);
+  assert.equal(printWidth, previewMaxWidth - 2 * previewSidePadding, "se maqueta con el ancho del contenido de la vista previa");
+  assert.ok(printWidth * printZoom <= (210 - 2 * 14) / 25.4 * 96, "cabe en el ancho útil de A4 con 14 mm de margen");
+  assert.ok(printWidth * printZoom >= 0.98 * (210 - 2 * 14) / 25.4 * 96, "y lo aprovecha casi completo");
+  assert.match(printBlock, /\.quote-document-preview\{[^}]*max-width:none;padding:0;width:836px/);
+  // Fuente, color y fondo del documento, que no dependen de lo que globals.css fija en html y body al imprimir.
+  assert.match(printBlock, /\.quote-document-preview\{[^}]*color:var\(--quote-ink\);font:13px\/1\.5 Arial,Helvetica,sans-serif/);
+  assert.match(printBlock, /\.quote-document-preview\{[^}]*background:var\(--color-document-paper\)/);
+  // Cortes de página limpios: encabezado de tabla repetido; filas, términos, totales y pie sin partirse.
+  assert.match(printBlock, /\.quote-document-preview thead\{display:table-header-group\}/);
+  assert.match(printBlock, /\.quote-document-preview tr,[^{]*\.quote-document-preview__summary,[^{]*\.quote-document-preview__totals,[^{]*\.quote-document-preview__terms,[^{]*\.quote-document-preview footer\{break-inside:avoid\}/);
+  assert.match(printBlock, /\.quote-document-preview__band,\.quote-document-preview__scope h3\{break-after:avoid\}/);
+  // Lo compartido no cambió para los demás documentos: globals.css conserva su único @page (8 mm) y no habla del documento
+  // de cotización; solo se le agregó el contenedor exclusivo del detalle de cotización.
+  const globals = fs.readFileSync("src/styles/globals.css", "utf8");
+  assert.equal((globals.match(/@page/g) || []).length, 1); assert.match(globals, /@page \{\s+size: A4;\s+margin: 8mm;\s+\}/);
+  assert.doesNotMatch(globals, /quote-document-preview/);
+  assert.match(globals, /\.history-print-area \{\s+background: transparent !important;\s+\}/);
+  assert.equal(fs.readFileSync("src/pages/QuoteHistoryPage.jsx", "utf8").split("history-print-area").length - 1, 1, "history-print-area solo lo usa el detalle de cotización");
+  // Los textos de impresión (encabezado y pie) siguen siendo los de siempre.
+  assert.match(sourceQuotePrintView, /<span>Cotización<\/span>/); assert.match(sourceQuotePrintView, /QUOTE_FOOTER_QUESTION/); assert.match(sourceQuotePrintView, /QUOTE_FOOTER_THANKS/);
+}
 assert.match(sourceQuotePrintView, /showCode/);
 assert.match(sourceQuotePrintView, /showUnit/);
 assert.match(sourceQuotePrintView, /showDiscount/);
