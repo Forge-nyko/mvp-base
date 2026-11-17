@@ -139,6 +139,7 @@
     "test:disclosure": "node scripts/disclosure-smoke.mjs",
     "test:notice": "node scripts/notice-smoke.mjs",
     "test:notification-bell": "node scripts/notification-bell-smoke.mjs",
+    "test:invitations-loader": "node scripts/invitations-loader-smoke.mjs",
     "test:notification-rules": "firebase emulators:exec --only auth,firestore \"node scripts/notification-rules-smoke.mjs\"",
     "test:summary": "node scripts/financial-model-smoke.mjs",
     "seed:business-catalogs:emulator": "node scripts/seed-business-catalogs.mjs --emulator",

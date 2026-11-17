@@ -11,6 +11,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
+import {resolveEmulatorHosts} from "./lib/emulatorHosts.mjs";
 
 // Reglas de negocios/{id}/notificaciones con emuladores. La campana
 // (notificationService.js) escucha esa colección con onSnapshot. La regla de
@@ -29,6 +30,11 @@ const {getFirestore: getAdminFirestore, Timestamp} =
 
 const PROJECT_ID = "tesis-inventario-ia";
 
+// Hosts de los emuladores de esta corrida (variables de `firebase emulators:exec`), sin puertos de respaldo:
+// si falta alguna, aborta aquí, antes de crear ningún cliente, y nunca llega al emulador de QA. Imprime los
+// hosts usados. El cliente Admin toma FIRESTORE_EMULATOR_HOST del mismo entorno.
+const {AUTH, FIRESTORE} = await resolveEmulatorHosts({projectId: PROJECT_ID});
+
 async function client(label) {
   const app = initializeApp({
     apiKey: "demo-key",
@@ -37,8 +43,8 @@ async function client(label) {
   }, `notification-rules-${label}`);
   const auth = getAuth(app);
   const db = getFirestore(app);
-  connectAuthEmulator(auth, "http://127.0.0.1:9099", {disableWarnings: true});
-  connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  connectAuthEmulator(auth, `http://${AUTH.host}:${AUTH.port}`, {disableWarnings: true});
+  connectFirestoreEmulator(db, FIRESTORE.host, FIRESTORE.port);
   const credential = await signInAnonymously(auth);
   return {app, db, uid: credential.user.uid};
 }

@@ -81,6 +81,24 @@ assert.match(hookSource, /result\?\.mensaje/, "si la respuesta trae mensaje, se 
 assert.match(layout, /handleInvitationAccepted/, "el centro entra a la empresa tras aceptar");
 console.log("OK Centro, espera y onboarding: aceptar y rechazar, aviso y recarga de sesión");
 
+// --- Carga de invitaciones: tope de espera, una sola consulta y contador (la lógica de tiempos se prueba en
+// invitations-loader-smoke.mjs; aquí, que el hook, el servicio y la campana la usan) ---
+const hookCode = stripComments(hookSource);
+const serviceCode = stripComments(invitationService);
+const bellCode = stripComments(bellSource);
+assert.match(hookCode, /createInvitationsLoader\(\{[\s\S]*?fetchInvitations: listarMisInvitaciones/, "el hook carga con el cargador de tiempos propios");
+assert.match(hookCode, /useSyncExternalStore\(loader\.subscribe, loader\.getState/, "el estado sale del cargador");
+assert.match(hookCode, /return \(\) => loader\.cancel\(\)/, "al desmontar se cancela la consulta y sus temporizadores");
+assert.match(hookCode, /force: options\?\.force \?\? !silent/, "sin opciones, reload es una acción explícita (Reintentar) y abandona la pendiente");
+assert.match(hookCode, /loader\.removeInvitation\(invitation\.id\)/, "responder quita la invitación también de una consulta en vuelo");
+assert.doesNotMatch(hookCode, /sequenceRef/, "ya no hay secuencia que descarte la respuesta anterior");
+assert.match(bellCode, /reloadInvitations\(\{ force: false, maxAgeMs: INVITATIONS_LOAD_LIMITS\.FRESH_MS \}\)/, "abrir la campana reutiliza la consulta en curso y no consulta con datos de menos de 30 s");
+assert.match(serviceCode, /listarMisInvitaciones\(\{signal, timeoutMs = INVITATIONS_LOAD_LIMITS\.TIMEOUT_MS\} = \{\}\)/, "el servicio recibe la señal y el tope");
+assert.equal((serviceCode.match(/options\(\)\)/g) || []).length, 2, "las dos llamadas llevan el tiempo que queda como timeout del SDK");
+assert.match(serviceCode, /signal\?\.aborted/, "tras el corte no se encadena otro intento");
+assert.ok(serviceCode.indexOf("refreshTokenIfEmailVerified()") < serviceCode.lastIndexOf("stopIfCut();"), "se revisa el corte tras renovar el token y antes de la segunda llamada");
+console.log("OK carga: hook con cargador, apertura sin consultas repetidas y servicio con tope encadenado");
+
 const vite = await createServer({appType: "custom", logLevel: "silent", server: {middlewareMode: true}});
 try {
   const model = await vite.ssrLoadModule("/src/domain/teamInvitationModel.mjs");
@@ -117,6 +135,20 @@ try {
   assert.match(failed, /role="alert"/);
   assert.match(failed, /Reintentar/);
   assert.doesNotMatch(failed, /ui-skeleton/, "error: sin skeleton colgado");
+  // Lenta (más de 8 s): aviso de advertencia con Reintentar, sin esqueleto ni error.
+  const slowList = html({status: "slow"});
+  assert.match(slowList, /ui-notice--warning/, "lenta: aviso de advertencia");
+  assert.match(slowList, /La consulta de invitaciones está tardando\. Sigue intentando\.\.\./);
+  assert.match(slowList, /<button class="ui-button ui-button--secondary" type="button">[\s\S]*?<span class="ui-button__label">Reintentar<\/span><\/button>/, "lenta: Reintentar");
+  assert.equal(status(slowList), 1, "lenta: un solo role=status");
+  assert.match(slowList, /role="status"/);
+  assert.doesNotMatch(slowList, /role="alert"|ui-skeleton|Aceptar|No tienes invitaciones pendientes/, "lenta: ni error, ni esqueleto colgado, ni falso vacío");
+  clean(slowList, "lenta");
+  assert.equal((failed.match(/role="alert"/g) || []).length, 1, "error: un solo role=alert");
+  assert.match(failed, /No se pudieron cargar las invitaciones\./);
+  assert.doesNotMatch(failed, /ui-notice--warning|No tienes invitaciones pendientes/, "error: ni aviso de lentitud ni falso vacío");
+  const inboxSource = await read("src/components/InvitationsInbox.jsx");
+  assert.equal((inboxSource.match(/onClick=\{\(\) => onRetry\?\.\(\)\}/g) || []).length, 2, "Reintentar de lenta y de error llama a onRetry sin pasar el evento");
   const verify = html({requiresVerification: true});
   assert.match(verify, /Verifica tu correo para ver y responder tus invitaciones\./);
   assert.doesNotMatch(verify, /Aceptar/);
@@ -170,6 +202,24 @@ try {
   assert.match(loadingSection, /Invitaciones/, "cargando: la sección sigue visible");
   const failedSection = bell({invitations: {...base, status: "error"}});
   assert.match(failedSection, /No se pudieron cargar las invitaciones\./, "error: la sección sigue visible");
+  // Lenta o con error: la sección sigue visible, con Reintentar, y nunca suma al contador aunque el estado
+  // arrastre invitaciones viejas; los avisos sin leer siguen contando.
+  const slowBell = bell({invitations: {...base, status: "slow"}});
+  assert.match(slowBell, /Invitaciones/, "lenta: la sección sigue visible");
+  assert.match(slowBell, /La consulta de invitaciones está tardando/);
+  assert.match(slowBell, /Reintentar/);
+  assert.doesNotMatch(bell({showNotifications: false, invitations: {...base, status: "slow"}}), /Sin notificaciones/, "ADMIN con la consulta lenta: se ve el aviso, no el vacío");
+  assert.doesNotMatch(slowBell, /ui-badge-count/, "lenta: sin contador");
+  for (const stateName of ["loading", "slow", "error"]) {
+    const stale = bell({invitations: {...base, status: stateName, invitations: [mine]}});
+    assert.doesNotMatch(stale, /ui-badge-count/, `${stateName}: las invitaciones no cargadas no suman`);
+    assert.match(stale, /aria-label="Notificaciones"/, `${stateName}: etiqueta sin conteo`);
+    const withUnread = bell({unreadCount: 2, invitations: {...base, status: stateName, invitations: [mine]}});
+    assert.match(withUnread, /topbar-notifications-button__badge"[^>]*>2</, `${stateName}: los avisos sin leer siguen contando`);
+    assert.match(withUnread, /aria-label="Notificaciones, 2 sin leer"/);
+  }
+  const readyBell = bell({unreadCount: 2, invitations: {...base, invitations: [mine]}});
+  assert.match(readyBell, /topbar-notifications-button__badge"[^>]*>3</, "listas: avisos más invitaciones");
   const bothLoading = bell({subscription: {status: SUBSCRIPTION_STATUS.ERROR, synced: false}, invitations: {...base, status: "loading"}});
   assert.match(bothLoading, /ui-skeleton-cards/, "la carga de invitaciones es independiente del error de avisos");
   assert.match(bothLoading, /No se pudieron cargar las notificaciones\./);

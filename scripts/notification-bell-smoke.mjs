@@ -283,6 +283,7 @@ try {
   assert.equal(shouldShowInvitations(null), false);
   assert.equal(shouldShowInvitations(inv({})), false, "terminó bien, sin invitaciones y verificado: oculta");
   assert.equal(shouldShowInvitations(inv({ status: "loading" })), true, "cargando: visible");
+  assert.equal(shouldShowInvitations(inv({ status: "slow" })), true, "lenta: visible (con aviso y Reintentar)");
   assert.equal(shouldShowInvitations(inv({ status: "error" })), true, "error: visible");
   assert.equal(shouldShowInvitations(inv({ requiresVerification: true })), true, "correo sin verificar: visible");
   assert.equal(shouldShowInvitations(inv({ invitations: [{ id: "x" }] })), true, "con invitaciones: visible");
@@ -303,6 +304,7 @@ try {
   // Con algo que mostrar, el texto no aparece: cargando, error, correo sin verificar o invitaciones.
   for (const [name, extra] of [
     ["cargando", { status: "loading" }],
+    ["lenta", { status: "slow" }],
     ["error", { status: "error" }],
     ["correo sin verificar", { requiresVerification: true }],
     ["con invitaciones", { invitations: [{ id: "i1", negocioNombre: "Bagner", rolEtiqueta: "Técnico" }] }],

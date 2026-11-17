@@ -6,6 +6,7 @@ import Notice from "./ui/Notice";
 import InvitationsInbox from "./InvitationsInbox";
 import ResponsiveDialog from "./ui/ResponsiveDialog";
 import { SkeletonCards, SkeletonRegion } from "./ui/Skeleton";
+import { countLoadedInvitations } from "../domain/invitationsLoader.mjs";
 import { SUBSCRIPTION_STATUS } from "../domain/subscriptionStatus.mjs";
 import { INVITATION_VERIFY_EMAIL_MESSAGE } from "../domain/teamInvitationModel.mjs";
 import { formatRelativeTimestamp, formatTimestamp } from "../utils/formatters";
@@ -40,13 +41,14 @@ export function notificationIcon(type) {
   return NOTIFICATION_TYPE_ICONS[String(type || "").toUpperCase()] || Bell;
 }
 
-// La sección de invitaciones solo ocupa lugar si tiene algo que decir: cargando, un
-// error, el aviso de correo sin verificar o invitaciones pendientes. Terminó bien,
+// La sección de invitaciones solo ocupa lugar si tiene algo que decir: cargando (o
+// lenta), un error, el aviso de correo sin verificar o invitaciones pendientes. Terminó bien,
 // sin invitaciones y con el correo verificado: no se dibuja.
 export function shouldShowInvitations(invitations) {
   if (!invitations) return false;
   return (
     invitations.status === "loading" ||
+    invitations.status === "slow" ||
     invitations.status === "error" ||
     invitations.requiresVerification === true ||
     (invitations.invitations?.length || 0) > 0
@@ -73,7 +75,9 @@ function NotificationBellView({
   unreadCount,
   verification = null,
 }) {
-  const pendingInvitations = invitations?.invitations?.length || 0;
+  // Solo suman las invitaciones cargadas con éxito: cargando, lenta o con error valen 0 (los avisos sin
+  // leer siguen contando). Con datos ya cargados, un refresco no cambia el estado y el contador no parpadea.
+  const pendingInvitations = countLoadedInvitations(invitations);
   const totalUnread = unreadCount + pendingInvitations;
   const badgeLabel = formatBadgeCount(totalUnread);
   // Si la suscripción de avisos falló, el contador no puede mostrar "0" como si

@@ -1,4 +1,5 @@
 import React from "react";
+import { INVITATIONS_LOAD_LIMITS } from "../domain/invitationsLoader.mjs";
 import useMyInvitations from "../hooks/useMyInvitations";
 import useNotifications from "../hooks/useNotifications";
 import { sendVerificationEmail } from "../services/authService";
@@ -46,7 +47,9 @@ function NotificationBell({ businessId, role, onInvitationAccepted }) {
 
   const handleOpen = React.useCallback(() => {
     setOpen(true);
-    reloadInvitations({ silent: true });
+    // Reutiliza la consulta en curso; con datos de menos de 30 s no consulta; con datos más viejos refresca
+    // en segundo plano sin volver al esqueleto.
+    reloadInvitations({ force: false, maxAgeMs: INVITATIONS_LOAD_LIMITS.FRESH_MS });
   }, [reloadInvitations]);
 
   const handleResendVerification = React.useCallback(async () => {
