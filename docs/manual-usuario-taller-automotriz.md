@@ -136,8 +136,9 @@ Formatos ordinarios de patente según el país registrado para la empresa:
 | --- | --- |
 | Chile (`CL`) | `AAAA00`, `AAA00`, `AAAAA0`, `AAAA0`, `AA0000`, `AA000` |
 | Paraguay (`PY`) | `AAA000` y Mercosur `AAAA000` |
+| Otros países | Formato genérico alfanumérico de 5 a 8 caracteres, con al menos una letra y un número |
 
-Los espacios y guiones se eliminan y las letras se convierten a mayúsculas. Bolivia (`BO`) aún no tiene formatos habilitados; se incorporarán cuando se confirmen los ejemplos del cliente. El país se toma de la empresa, no del formulario del vehículo.
+Los espacios y guiones se eliminan y las letras se convierten a mayúsculas. Los países sin una tabla propia, incluida Bolivia (`BO`) mientras no existan ejemplos confirmados, usan el formato genérico. El país se toma de la empresa, no del formulario del vehículo.
 
 El año debe tener exactamente cuatro dígitos y estar entre 1900 y el año siguiente al actual. El límite superior avanza automáticamente cada año; por ejemplo, durante 2026 se acepta hasta 2027.
 

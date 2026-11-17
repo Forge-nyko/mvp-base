@@ -170,6 +170,8 @@ assert.match(navigation, /const to = `\$\{basePath\}\/\$\{path\}`/);
 assert.match(navigation, /pathname === to \|\| pathname\.startsWith\(`\$\{to\}\/`\)/);
 assert.match(layout, /item\.children/);
 assert.match(layout, /nav-module__items/);
+assert.match(layout, /: pathname === item\.to;/);
+assert.doesNotMatch(layout, /: pathname === item\.to \|\| pathname\.startsWith/);
 assert.match(layout, /idPrefix="desktop"/);
 assert.match(layout, /idPrefix="mobile"/);
 const layoutStyles = fs.readFileSync("src/styles/layout.css", "utf8");

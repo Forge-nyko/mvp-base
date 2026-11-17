@@ -28,6 +28,7 @@ export const VEHICLE_PLATE_PATTERNS_BY_COUNTRY = Object.freeze({
     /^[A-Z]{4}\d{3}$/,
   ]),
 });
+export const GENERIC_VEHICLE_PLATE_PATTERN = /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{5,8}$/;
 const TEXT_ONLY_PATTERN = /^\p{L}(?:[\p{L}\s.'-]*\p{L})?$/u;
 export const MIN_VEHICLE_YEAR = 1900;
 export const MAX_VEHICLE_YEAR = new Date().getFullYear() + 1;
@@ -54,9 +55,11 @@ export function normalizeVehiclePlate(value) {
 }
 
 export function isValidVehiclePlate(value, countryCode = "CL") {
-  return Boolean(VEHICLE_PLATE_PATTERNS_BY_COUNTRY[countryCode]?.some(
-    (pattern) => pattern.test(normalizeVehiclePlate(value))
-  ));
+  const normalized = normalizeVehiclePlate(value);
+  const patterns = VEHICLE_PLATE_PATTERNS_BY_COUNTRY[countryCode];
+  return patterns
+    ? patterns.some((pattern) => pattern.test(normalized))
+    : GENERIC_VEHICLE_PLATE_PATTERN.test(normalized);
 }
 
 export function isTextOnly(value) {

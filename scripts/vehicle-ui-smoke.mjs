@@ -52,7 +52,11 @@ assert.equal(isValidVehiclePlate("ABC123", "PY"), true);
 assert.equal(isValidVehiclePlate("ABCD123", "PY"), true);
 assert.equal(isValidVehiclePlate("ABC123", "CL"), false);
 assert.equal(isValidVehiclePlate("ABCD12", "PY"), false);
-assert.equal(isValidVehiclePlate("1234ABC", "BO"), false);
+assert.equal(isValidVehiclePlate("1234ABC", "BO"), true);
+assert.equal(isValidVehiclePlate("AB12C", "BO"), true);
+for (const plate of ["ABCD", "12345", "ABCDEFGHI", "123456789"]) {
+  assert.equal(isValidVehiclePlate(plate, "BO"), false);
+}
 assert.equal(normalizeVehiclePlate("abc-123"), "ABC123");
 for (const plate of ["12ABC", "12345ABC", "1234AB", "ABC1234", "1234AB1"]) {
   assert.equal(isValidVehiclePlate(plate), false);
@@ -78,6 +82,8 @@ assert.match(list, /Patente, VIN, marca o modelo/);
 assert.match(list, /listarVehiculos/);
 assert.match(list, /canReadClients \? listarClientes\(businessId\) : Promise\.resolve\(\[\]\)/);
 assert.match(list, /Restringido por permisos/);
+assert.match(list, /Propietario o Administrador pueden editar datos y cambiar propietarios/);
+assert.doesNotMatch(list, /OWNER o ADMIN/);
 const detail = fs.readFileSync("src/pages/VehicleDetailPage.jsx", "utf8");
 assert.match(detail, /Historial de órdenes de trabajo/);
 assert.match(detail, /listarOrdenesTrabajo/);
@@ -96,7 +102,7 @@ assert.match(form, /field\("vin", "VIN", \{optional: true/);
 assert.match(form, /<select/);
 assert.doesNotMatch(form, /<input[^>]+tipo/);
 assert.match(form, /normalizeVehiclePlate/);
-assert.match(form, /maxLength: 7/);
+assert.match(form, /maxLength: 8/);
 assert.match(form, /ABC123 o ABCD123/);
 assert.match(form, /keepTextOnlyInput/);
 assert.match(form, /keepVehicleYearInput/);

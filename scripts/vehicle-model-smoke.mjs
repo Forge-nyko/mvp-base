@@ -60,6 +60,7 @@ for (const plate of [
 assert.equal(normalizeVehiclePlate(" ab-cd 12 ", TestHttpsError), "ABCD12");
 assert.equal(normalizeVehiclePlate(" abc-123 ", TestHttpsError, "PY"), "ABC123");
 assert.equal(normalizeVehiclePlate(" abcd-123 ", TestHttpsError, "PY"), "ABCD123");
+assert.equal(normalizeVehiclePlate(" 12-34 abc ", TestHttpsError, "BO"), "1234ABC");
 for (const plate of ["ASDDD", "12ABC", "12345ABC", "1234AB", "ABC1234", "1234AB1"]) {
   assert.throws(
     () => normalizeVehiclePlate(plate, TestHttpsError),
@@ -68,7 +69,9 @@ for (const plate of ["ASDDD", "12ABC", "12345ABC", "1234AB", "ABC1234", "1234AB1
 }
 assert.throws(() => normalizeVehiclePlate("ABC123", TestHttpsError, "CL"), /patente/i);
 assert.throws(() => normalizeVehiclePlate("ABCD12", TestHttpsError, "PY"), /patente/i);
-assert.throws(() => normalizeVehiclePlate("ABCD12", TestHttpsError, "BO"), /patente/i);
+for (const plate of ["ABCD", "12345", "ABCDEFGHI", "123456789"]) {
+  assert.throws(() => normalizeVehiclePlate(plate, TestHttpsError, "BO"), /patente/i);
+}
 assert.equal(
   normalizeVehicleKey("", "El VIN", 80, TestHttpsError, true),
   null

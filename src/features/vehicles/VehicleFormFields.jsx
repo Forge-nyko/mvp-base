@@ -40,7 +40,7 @@ function VehicleFormFields({countryCode = "CL", errors = {}, onChange, values}) 
 
   return (
     <div className="vehicle-form-grid">
-      {field("patente", "Patente", {required: true, maxLength: 7, placeholder: countryCode === "PY" ? "Ej.: ABC123 o ABCD123" : "Ej.: ABCD12"})}
+      {field("patente", "Patente", {required: true, maxLength: 8, placeholder: countryCode === "PY" ? "Ej.: ABC123 o ABCD123" : countryCode === "CL" ? "Ej.: ABCD12" : "Ej.: ABC123"})}
       {field("vin", "VIN", {optional: true, maxLength: 80})}
       {field("marca", "Marca", {required: true})}
       {field("modelo", "Modelo", {required: true})}

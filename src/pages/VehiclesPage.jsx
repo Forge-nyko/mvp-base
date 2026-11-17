@@ -61,7 +61,7 @@ function VehiclesPage({businessId, role}) {
         <div className="erp-page-intro"><p>Consulta los vehículos registrados y su propietario actual en el negocio activo.</p></div>
         {canCreate && <Button icon={Plus} onClick={() => navigate("/taller/vehiculos/nuevo")}>Nuevo vehículo</Button>}
       </div>
-      {!canManage && <div className="vehicle-message vehicle-message--warning" role="status">{canCreate ? "Puedes consultar y registrar vehículos. OWNER o ADMIN pueden editar datos y cambiar propietarios." : "Tu perfil permite consultar vehículos, pero no registrarlos ni administrarlos."}</div>}
+      {!canManage && <div className="vehicle-message vehicle-message--warning" role="status">{canCreate ? "Puedes consultar y registrar vehículos. Propietario o Administrador pueden editar datos y cambiar propietarios." : "Tu perfil permite consultar vehículos, pero no registrarlos ni administrarlos."}</div>}
       {error && <div className="vehicle-message vehicle-message--error" role="alert"><span>{error}</span><Button variant="secondary" icon={RefreshCw} onClick={load}>Reintentar</Button></div>}
       <section className="erp-panel" aria-labelledby="vehicles-list-title">
         <div className="erp-panel-header"><div><h2 id="vehicles-list-title" className="erp-panel-title">Vehículos registrados</h2><p className="erp-secondary-text">{hasSearch ? `${visibleVehicles.length} de ${vehicles.length} vehículos` : `${vehicles.length} ${vehicles.length === 1 ? "vehículo" : "vehículos"}`}</p></div></div>
