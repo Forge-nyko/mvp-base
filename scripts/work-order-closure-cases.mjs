@@ -115,10 +115,10 @@ export async function testWorkOrderClosure({adminDb, businessId, otId, serviceId
   assert.ok(events.every((event) => event.actorUid && event.actorSnapshot?.nombre && event.fecha?.toDate() &&
     event.detalle.estadoAnterior && event.detalle.estado));
   assert.equal(events.find((event) => event.tipo === "vehiculo_entregado").detalle.plazaIdLiberada, activePlaza.id);
-  const visible = (await call(technician, "obtenerEventosCierreOT", {businessId, otId})).data.eventos;
+  const visible = (await call(admin, "obtenerEventosCierreOT", {businessId, otId})).data.eventos;
   assert.deepEqual(visible.map((event) => event.tipo), ["reparacion_finalizada", "vehiculo_entregado"]);
   assert.ok(visible.every((event) => Number.isSafeInteger(event.fecha) && event.actorNombre));
-  const timeline = (await call(technician, "obtenerHistorialOT", {businessId, otId})).data.eventos;
+  const timeline = (await call(admin, "obtenerHistorialOT", {businessId, otId})).data.eventos;
   assert.ok(timeline.some((event) => event.tipo === "ot_creada"));
   assert.ok(timeline.some((event) => event.tipo === "vehiculo_entregado"));
   assert.ok(timeline.every((event, index) => index === 0 ||

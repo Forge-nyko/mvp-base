@@ -276,10 +276,17 @@ export function getDefaultBusinessPath(access, options = {}) {
 }
 
 export function filterNavigationSections(sections, access, options = {}) {
+  const filterItem = (item) => {
+    if (!canAccessBusinessPath(access, item.to, options)) return null;
+    if (item.requiredPermission && !hasBusinessPermission(access, item.requiredPermission)) return null;
+    if (!Array.isArray(item.children)) return item;
+    const children = item.children.map(filterItem).filter(Boolean);
+    return children.length ? {...item, children} : null;
+  };
   return sections
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => canAccessBusinessPath(access, item.to, options)),
+      items: section.items.map(filterItem).filter(Boolean),
     }))
     .filter((section) => section.items.length > 0);
 }

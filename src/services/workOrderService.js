@@ -169,7 +169,7 @@ export async function listarServiciosOT(businessId, otId) {
 }
 
 export async function listarCatalogoTaller(businessId) {
-  assertCloudFunctionAllowed("consultar catálogo Core para Taller");
+  assertCloudFunctionAllowed("consultar catálogo de Inventario para Taller");
   const response = await httpsCallable(functions, "listarCatalogoTaller")({
     businessId: requireIdentifier(businessId, "El negocio activo"),
   });
@@ -229,7 +229,7 @@ export async function obtenerHistorialOT(businessId, otId) {
 export function agregarProductoOT(businessId, otId, servicioOtId, itemId, cantidad, requestId) {
   return diagnosisCall("agregarProductoOT", "planificar un producto", businessId, otId, {
     servicioOtId: requireIdentifier(servicioOtId, "El servicio de la OT"),
-    itemId: requireIdentifier(itemId, "El producto Core"), cantidad,
+    itemId: requireIdentifier(itemId, "El producto de Inventario"), cantidad,
     requestId: requireIdentifier(requestId, "La solicitud de producto"),
   });
 }

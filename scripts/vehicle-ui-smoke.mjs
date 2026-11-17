@@ -48,10 +48,12 @@ assert.equal(isValidVehiclePlate("ABCDE1"), true);
 assert.equal(isValidVehiclePlate("ABCD1"), true);
 assert.equal(isValidVehiclePlate("AB1234"), true);
 assert.equal(isValidVehiclePlate("AB123"), true);
-assert.equal(isValidVehiclePlate("123ABC"), true);
-assert.equal(isValidVehiclePlate("1234ABC"), true);
-assert.equal(isValidVehiclePlate("ABC123"), true);
-assert.equal(normalizeVehiclePlate("12-34 abc"), "1234ABC");
+assert.equal(isValidVehiclePlate("ABC123", "PY"), true);
+assert.equal(isValidVehiclePlate("ABCD123", "PY"), true);
+assert.equal(isValidVehiclePlate("ABC123", "CL"), false);
+assert.equal(isValidVehiclePlate("ABCD12", "PY"), false);
+assert.equal(isValidVehiclePlate("1234ABC", "BO"), false);
+assert.equal(normalizeVehiclePlate("abc-123"), "ABC123");
 for (const plate of ["12ABC", "12345ABC", "1234AB", "ABC1234", "1234AB1"]) {
   assert.equal(isValidVehiclePlate(plate), false);
 }
@@ -85,6 +87,9 @@ assert.doesNotMatch(detail, /Aún no hay una fuente de datos de órdenes de trab
 assert.match(detail, /cambiarPropietarioVehiculo/);
 assert.match(detail, /canReadClients \? listarClientes\(businessId\) : Promise\.resolve\(\[\]\)/);
 assert.match(detail, /La información del propietario está restringida para tu perfil/);
+assert.match(detail, /Propietario o Administrador pueden modificar esta ficha/);
+assert.match(detail, /\{canReadClients && <p className="erp-secondary-text">El cambio de propietario/);
+assert.doesNotMatch(detail, /OWNER o ADMIN/);
 assert.doesNotMatch(detail, /Ver clientes/);
 const form = fs.readFileSync("src/features/vehicles/VehicleFormFields.jsx", "utf8");
 assert.match(form, /field\("vin", "VIN", \{optional: true/);
@@ -92,7 +97,7 @@ assert.match(form, /<select/);
 assert.doesNotMatch(form, /<input[^>]+tipo/);
 assert.match(form, /normalizeVehiclePlate/);
 assert.match(form, /maxLength: 7/);
-assert.match(form, /ABCD12 o 1234ABC/);
+assert.match(form, /ABC123 o ABCD123/);
 assert.match(form, /keepTextOnlyInput/);
 assert.match(form, /keepVehicleYearInput/);
 assert.match(form, /inputMode="numeric"/);

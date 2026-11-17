@@ -16,8 +16,7 @@ const VEHICLE_TYPES = Object.freeze([
   "otro",
 ]);
 const VEHICLE_TYPE_SET = new Set(VEHICLE_TYPES);
-// Formatos ordinarios admitidos por país. La validación usa la unión porque
-// un taller puede recibir vehículos matriculados en otro país.
+// Los formatos se seleccionan usando el país del negocio autorizado.
 const VEHICLE_PLATE_PATTERNS_BY_COUNTRY = Object.freeze({
   CL: Object.freeze([
     /^[A-Z]{4}\d{2}$/,
@@ -27,15 +26,11 @@ const VEHICLE_PLATE_PATTERNS_BY_COUNTRY = Object.freeze({
     /^[A-Z]{2}\d{4}$/,
     /^[A-Z]{2}\d{3}$/,
   ]),
-  BO: Object.freeze([
-    /^\d{3}[A-Z]{3}$/,
-    /^\d{4}[A-Z]{3}$/,
+  PY: Object.freeze([
     /^[A-Z]{3}\d{3}$/,
+    /^[A-Z]{4}\d{3}$/,
   ]),
 });
-const PLATE_PATTERNS = Object.freeze(
-  Object.values(VEHICLE_PLATE_PATTERNS_BY_COUNTRY).flat()
-);
 const TEXT_ONLY_PATTERN = /^\p{L}(?:[\p{L}\s.'-]*\p{L})?$/u;
 const MIN_VEHICLE_YEAR = 1900;
 const VEHICLE_INPUT_FIELDS = new Set([
@@ -117,17 +112,18 @@ function normalizeVehicleKey(value, label, maxLength, HttpsError, optional) {
   return normalized;
 }
 
-function normalizeVehiclePlate(value, HttpsError) {
+function normalizeVehiclePlate(value, HttpsError, countryCode = "CL") {
   const raw = text(value, "La patente", 30, HttpsError, {required: true});
   if (!/^[A-Za-z0-9\s-]+$/.test(raw)) {
     fail(HttpsError, "invalid-argument", "La patente no tiene un formato válido.");
   }
   const normalized = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (!PLATE_PATTERNS.some((pattern) => pattern.test(normalized))) {
+  const patterns = VEHICLE_PLATE_PATTERNS_BY_COUNTRY[countryCode];
+  if (!patterns || !patterns.some((pattern) => pattern.test(normalized))) {
     fail(
       HttpsError,
       "invalid-argument",
-      "La patente debe usar un formato válido de Chile o Bolivia (patente ordinaria)."
+      `La patente debe usar un formato válido para ${countryCode}.`
     );
   }
   return normalized;
@@ -162,7 +158,7 @@ function normalizeVehicleYear(value, HttpsError) {
   return value;
 }
 
-function normalizeVehicleInput(raw, HttpsError, {includeOwner = true} = {}) {
+function normalizeVehicleInput(raw, HttpsError, {includeOwner = true, countryCode = "CL"} = {}) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     fail(
       HttpsError,
@@ -193,7 +189,7 @@ function normalizeVehicleInput(raw, HttpsError, {includeOwner = true} = {}) {
     ...(includeOwner ? {
       clienteId: identifier(raw.clienteId, "El cliente", HttpsError),
     } : {}),
-    patente: normalizeVehiclePlate(raw.patente, HttpsError),
+    patente: normalizeVehiclePlate(raw.patente, HttpsError, countryCode),
     vin: normalizeVehicleKey(raw.vin, "El VIN", 80, HttpsError, true),
     marca: textOnly(raw.marca, "La marca", 120, HttpsError),
     modelo: text(raw.modelo, "El modelo", 120, HttpsError, {required: true}),
@@ -312,7 +308,8 @@ async function crearVehiculoHandler(request, dependencies) {
   const context = await requireCreationAccess(request, dependencies);
   const normalized = normalizeVehicleInput(
     request?.data?.vehiculo,
-    HttpsError
+    HttpsError,
+    {countryCode: context.businessSnapshot.data()?.paisCodigo || "CL"}
   );
   const requestId = requestIdentifier(request?.data?.requestId, HttpsError);
   const inputSignature = signature(normalized);
@@ -412,7 +409,7 @@ async function actualizarVehiculoHandler(request, dependencies) {
   const normalized = normalizeVehicleInput(
     request?.data?.vehiculo,
     HttpsError,
-    {includeOwner: false}
+    {includeOwner: false, countryCode: context.businessSnapshot.data()?.paisCodigo || "CL"}
   );
   const vehicleRef = context.businessRef.collection("vehiculos").doc(vehiculoId);
 

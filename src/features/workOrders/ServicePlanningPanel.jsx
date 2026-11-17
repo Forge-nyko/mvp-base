@@ -85,7 +85,7 @@ export default function ServicePlanningPanel({
     event.preventDefault();
     if (busy) return;
     if (!serviceDraft.itemId || !serviceDraft.responsableUid) {
-      setError("Selecciona un Servicio Core y un responsable."); return;
+      setError("Selecciona un servicio de Inventario y un responsable."); return;
     }
     setBusy(true); setError("");
     try {
@@ -114,7 +114,7 @@ export default function ServicePlanningPanel({
     if (busy) return;
     const quantity = Number(productDraft.cantidad);
     if (!productDraft.itemId || !Number.isInteger(quantity) || quantity <= 0) {
-      setError("Selecciona un Producto Core e ingresa una cantidad entera positiva."); return;
+      setError("Selecciona un producto de Inventario e ingresa una cantidad entera positiva."); return;
     }
     setBusy(true); setError("");
     try {
@@ -211,9 +211,9 @@ export default function ServicePlanningPanel({
     {notice && <div className="vehicle-message" role="status">{notice}</div>}
 
     {editingService !== null && <form className="vehicle-form work-order-diagnosis-form" onSubmit={saveService} noValidate>
-      <h3>{editingService === "new" ? "Agregar Servicio Core" : "Editar servicio"}</h3>
+      <h3>{editingService === "new" ? "Agregar servicio" : "Editar servicio"}</h3>
       <div className="work-order-reception-grid">
-        <label className="erp-field"><span className="erp-field__label">Servicio Core *</span>
+        <label className="erp-field"><span className="erp-field__label">Servicio de Inventario *</span>
           <select className="erp-control" value={serviceDraft.itemId} disabled={busy || loading} onChange={(event) => setServiceDraft((current) => ({...current, itemId: event.target.value}))}>
             <option value="">Selecciona un servicio</option>
             {serviceOptions.map((item) => <option key={item.itemId} value={item.itemId}>{item.codigoInterno ? `${item.codigoInterno} · ` : ""}{item.nombre}</option>)}
@@ -226,7 +226,7 @@ export default function ServicePlanningPanel({
           </select>
         </label>
       </div>
-      {!serviceOptions.length && !loading && <p className="erp-secondary-text">No hay servicios activos en Inventario Core.</p>}
+      {!serviceOptions.length && !loading && <p className="erp-secondary-text">No hay servicios activos en Inventario.</p>}
       <p className="erp-secondary-text">Valor Servicio: {priceLabel(itemById(serviceDraft.itemId)?.precioEfectivo, order.moneda)}</p>
       <div className="vehicle-form-actions"><Button type="button" variant="secondary" disabled={busy} onClick={() => setEditingService(null)}>Cancelar</Button><Button type="submit" icon={Save} disabled={busy || loading || Boolean(loadError)}>{busy ? "Guardando..." : "Guardar servicio"}</Button></div>
     </form>}
@@ -238,17 +238,17 @@ export default function ServicePlanningPanel({
         const products = Array.isArray(service.productos) ? service.productos : [];
         const canEditServicePlanning = canOperate && service.estado === "pendiente" && editingService === null;
         return <article className="erp-record-card" key={service.servicioOtId}>
-          <header className="erp-record-card__header"><div><h3 className="erp-record-card__title">{(frozen ? service.servicioSnapshot?.nombre : item?.nombre) || "Servicio Core no disponible"}</h3><p className="erp-record-card__subtitle">Responsable: {personName(service.responsableUid)} · Valor: {priceLabel(currentPrice(service, item), order.moneda)}</p></div><StatusBadge variant={service.estado === "completado" ? "success" : service.estado === "en_progreso" ? "warning" : "neutral"}>{SERVICE_LABELS[service.estado] || service.estado}</StatusBadge></header>
+          <header className="erp-record-card__header"><div><h3 className="erp-record-card__title">{(frozen ? service.servicioSnapshot?.nombre : item?.nombre) || "Servicio no disponible"}</h3><p className="erp-record-card__subtitle">Responsable: {personName(service.responsableUid)} · Valor: {priceLabel(currentPrice(service, item), order.moneda)}</p></div><StatusBadge variant={service.estado === "completado" ? "success" : service.estado === "en_progreso" ? "warning" : "neutral"}>{SERVICE_LABELS[service.estado] || service.estado}</StatusBadge></header>
           {canEditServicePlanning && <div className="vehicle-form-actions"><Button type="button" variant="secondary" onClick={() => startService(service)}>Editar servicio</Button><Button type="button" icon={Plus} onClick={() => startProduct(service.servicioOtId)}>Agregar producto</Button><Button type="button" variant="secondary" onClick={() => setRemoveServiceTarget(service)}>Eliminar servicio</Button></div>}
           {canExecute && editingService === null && productServiceId === null && <div className="vehicle-form-actions">
             {service.estado === "pendiente" && <Button type="button" disabled={busy} onClick={() => prepareExecution(service, "iniciar")}>Iniciar servicio</Button>}
             {service.estado === "en_progreso" && <Button type="button" disabled={busy} onClick={() => prepareExecution(service, "completar")}>Completar servicio</Button>}
           </div>}
           {productServiceId === service.servicioOtId && <form className="vehicle-form work-order-diagnosis-form" onSubmit={saveProduct} noValidate>
-            <h4>Producto Core planificado</h4><div className="work-order-reception-grid">
+            <h4>Producto planificado</h4><div className="work-order-reception-grid">
               <label className="erp-field"><span className="erp-field__label">Producto *</span><select className="erp-control" value={productDraft.itemId} disabled={busy || loading} onChange={(event) => setProductDraft((current) => ({...current, itemId: event.target.value}))}><option value="">Selecciona un producto</option>{productOptions.map((product) => <option key={product.itemId} value={product.itemId}>{product.codigoInterno ? `${product.codigoInterno} · ` : ""}{product.nombre} · Stock: {product.stock}</option>)}</select></label>
               <label className="erp-field"><span className="erp-field__label">Cantidad *</span><input className="erp-control" type="number" min="1" step="1" value={productDraft.cantidad} disabled={busy} onChange={(event) => setProductDraft((current) => ({...current, cantidad: event.target.value}))} /></label>
-            </div><p className="erp-secondary-text">Stock actual Core: {itemById(productDraft.itemId)?.stock ?? "—"} · Precio Core vigente: {priceLabel(itemById(productDraft.itemId)?.precioEfectivo, order.moneda)}</p>
+            </div><p className="erp-secondary-text">Stock actual: {itemById(productDraft.itemId)?.stock ?? "—"} · Precio vigente: {priceLabel(itemById(productDraft.itemId)?.precioEfectivo, order.moneda)}</p>
             <div className="vehicle-form-actions"><Button type="button" variant="secondary" disabled={busy} onClick={() => setProductServiceId(null)}>Cancelar</Button><Button type="submit" icon={Save} disabled={busy || loading || Boolean(loadError)}>{busy ? "Guardando..." : "Agregar a planificación"}</Button></div>
           </form>}
           {!products.length ? <p className="erp-secondary-text">Sin productos planificados.</p> :
@@ -259,7 +259,7 @@ export default function ServicePlanningPanel({
                 quantityEdit?.productoOtId === product.productoOtId;
               const core = itemById(product.itemId);
               return <tr key={product.productoOtId}>
-                <td>{(frozen ? product.productoSnapshot?.nombre : core?.nombre) || "Producto Core no disponible"}</td>
+                <td>{(frozen ? product.productoSnapshot?.nombre : core?.nombre) || "Producto no disponible"}</td>
                 <td>{editing ? <input className="erp-control work-order-products-table__quantity"
                   aria-label="Cantidad" type="number" min="1" step="1" value={quantityEdit.cantidad}
                   onChange={(event) => setQuantityEdit((current) => ({...current, cantidad: event.target.value}))} /> : product.cantidad}</td>
@@ -275,7 +275,7 @@ export default function ServicePlanningPanel({
         </article>;
       })}
     </div>
-    <ResponsiveDialog open={Boolean(removeTarget)} onClose={() => !busy && setRemoveTarget(null)} size="small" eyebrow="Taller" title="Eliminar producto planificado" description="Se quitará de este ServicioOT. El stock de Inventario Core no cambiará." footer={<><Button type="button" variant="secondary" disabled={busy} onClick={() => setRemoveTarget(null)}>Volver</Button><Button type="button" disabled={busy} onClick={removeProduct}>{busy ? "Eliminando..." : "Eliminar producto"}</Button></>}><p>¿Confirmas que deseas quitar este producto de la planificación?</p></ResponsiveDialog>
+    <ResponsiveDialog open={Boolean(removeTarget)} onClose={() => !busy && setRemoveTarget(null)} size="small" eyebrow="Taller" title="Eliminar producto planificado" description="Se quitará de este servicio. El stock de Inventario no cambiará." footer={<><Button type="button" variant="secondary" disabled={busy} onClick={() => setRemoveTarget(null)}>Volver</Button><Button type="button" disabled={busy} onClick={removeProduct}>{busy ? "Eliminando..." : "Eliminar producto"}</Button></>}><p>¿Confirmas que deseas quitar este producto de la planificación?</p></ResponsiveDialog>
     <ResponsiveDialog open={Boolean(removeServiceTarget)} onClose={() => !busy && setRemoveServiceTarget(null)} size="small" eyebrow="Taller" title="Eliminar servicio" description="Se quitarán el servicio y sus productos planificados del alcance de la OT." footer={<><Button type="button" variant="secondary" disabled={busy} onClick={() => setRemoveServiceTarget(null)}>Volver</Button><Button type="button" disabled={busy} onClick={removeService}>{busy ? "Eliminando..." : "Eliminar servicio"}</Button></>}><p>Solo es posible eliminar servicios pendientes. Si la OT estaba aprobada, deberá enviarse nuevamente a aprobación.</p></ResponsiveDialog>
     <ResponsiveDialog open={Boolean(executionTarget)} onClose={() => !busy && setExecutionTarget(null)} size="small" eyebrow="Taller"
       title={executionTarget?.action === "iniciar" ? "Iniciar servicio" : "Completar servicio"}

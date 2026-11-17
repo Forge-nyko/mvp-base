@@ -308,7 +308,29 @@ try {
   assert.ok(initialHistory[0].actorNombre);
   assert.deepEqual(initialHistory[0].detalle, {estado: "ingresada", estadoAprobacion: "pendiente"});
   assert.ok(!Object.keys(initialHistory[0].detalle).some((key) => /precio|costo|alcance/i.test(key)));
-  console.log("OK historial OT: evento de creación autoritativo y DTO sin datos económicos internos");
+  const adminHistory = (await callable(admin, "obtenerHistorialOT")({businessId, otId})).data.eventos;
+  assert.equal(adminHistory.length, 1);
+  await expectCallableError(
+    "TECNICO no consulta el historial de gestión",
+    () => callable(technician, "obtenerHistorialOT")({businessId, otId}),
+    ["permission-denied"]
+  );
+  await expectCallableError(
+    "MEMBER no consulta el historial de gestión",
+    () => callable(member, "obtenerHistorialOT")({businessId, otId}),
+    ["permission-denied"]
+  );
+  await expectCallableError(
+    "TECNICO no consulta los eventos de cierre de gestión",
+    () => callable(technician, "obtenerEventosCierreOT")({businessId, otId}),
+    ["permission-denied"]
+  );
+  await expectCallableError(
+    "MEMBER no consulta los eventos de cierre de gestión",
+    () => callable(member, "obtenerEventosCierreOT")({businessId, otId}),
+    ["permission-denied"]
+  );
+  console.log("OK historial OT: solo OWNER y ADMIN reciben eventos de gestión");
   assert.equal(stored.estadoAprobacion, "pendiente");
   assert.equal(stored.plazaId, null);
   assert.equal(stored.moneda, "CLP");

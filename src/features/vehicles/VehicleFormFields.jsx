@@ -23,7 +23,7 @@ function VehicleField({children, error, field, label, optional = false, required
   );
 }
 
-function VehicleFormFields({errors = {}, onChange, values}) {
+function VehicleFormFields({countryCode = "CL", errors = {}, onChange, values}) {
   const field = (name, label, options = {}) => (
     <VehicleField key={name} field={name} label={label} error={errors[name]} {...options}>
       <input className="erp-control" value={values[name]} maxLength={options.maxLength || 120} placeholder={options.placeholder}
@@ -40,7 +40,7 @@ function VehicleFormFields({errors = {}, onChange, values}) {
 
   return (
     <div className="vehicle-form-grid">
-      {field("patente", "Patente", {required: true, maxLength: 7, placeholder: "Ej.: ABCD12 o 1234ABC"})}
+      {field("patente", "Patente", {required: true, maxLength: 7, placeholder: countryCode === "PY" ? "Ej.: ABC123 o ABCD123" : "Ej.: ABCD12"})}
       {field("vin", "VIN", {optional: true, maxLength: 80})}
       {field("marca", "Marca", {required: true})}
       {field("modelo", "Modelo", {required: true})}

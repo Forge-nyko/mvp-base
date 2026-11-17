@@ -13,7 +13,7 @@ Esta sección sirve para cualquier persona que ingresa al módulo y necesita ent
 Taller permite:
 
 - consultar vehículos asociados a Clientes del Core;
-- consultar OTs, su estado, aprobación, Plaza e historial;
+- consultar OTs, su estado, aprobación y Plaza; `OWNER` y `ADMIN` también pueden revisar su historial de gestión;
 - registrar y mantener vehículos cuando el rol lo permite;
 - documentar recepción, diagnósticos, servicios y productos planificados;
 - aprobar, ejecutar, finalizar y entregar una OT según los permisos del rol;
@@ -25,10 +25,10 @@ Los datos se mantienen separados por empresa. La empresa activa solo determina e
 
 | Rol | Acceso principal |
 | --- | --- |
-| `OWNER` | Consulta, crea y opera Vehículos y OTs; aprueba o rechaza alcances; administra Plazas. |
-| `ADMIN` | Tiene las mismas capacidades operacionales de Taller que `OWNER`. |
-| `TECNICO` | Consulta, registra Vehículos y OTs y realiza la operación técnica. No administra Plazas ni aprueba alcances. |
-| `MEMBER` | Consulta y opera OTs existentes. No crea Vehículos u OTs, no administra Plazas ni aprueba alcances. Si usa un perfil personalizado, ese perfil también debe incluir Taller. |
+| `OWNER` | Consulta, crea y opera Vehículos y OTs; revisa el historial de gestión; aprueba o rechaza alcances; administra Plazas. |
+| `ADMIN` | Tiene las mismas capacidades operacionales de Taller que `OWNER`, incluido el historial de gestión. |
+| `TECNICO` | Consulta, registra Vehículos y OTs y realiza la operación técnica. No ve el historial de gestión, no administra Plazas ni aprueba alcances. |
+| `MEMBER` | Consulta y opera OTs existentes. No ve el historial de gestión, no crea Vehículos u OTs, no administra Plazas ni aprueba alcances. Si usa un perfil personalizado, ese perfil también debe incluir Taller. |
 | `VENTAS`, `COMPRAS`, `FINANZAS` | No tienen permisos de Taller. |
 | Superadministrador de plataforma | Habilita o deshabilita Taller para una empresa. Ese privilegio no concede por sí solo acceso a la operación diaria. |
 
@@ -44,14 +44,14 @@ Antes de entrar, comprueba que:
 4. Seleccionaste la empresa correcta como empresa activa.
 5. Tu rol o perfil tiene acceso al módulo.
 
-Cuando está habilitado, Taller aparece en la sección **Módulos** de la navegación. Al entrar se abre el listado de Órdenes de Trabajo.
+Cuando está habilitado, Taller aparece como un grupo en la sección **Módulos** de la navegación con accesos a **Órdenes de trabajo** y **Vehículos**. **Plazas** solo aparece para `OWNER` y `ADMIN`. Si otro perfil intenta abrir directamente `/taller/plazas`, la pantalla muestra un aviso de acceso restringido y no carga los datos administrativos.
 
 ### 1.4 Consultar información
 
 - **Vehículos:** busca por patente, VIN, marca o modelo.
 - **Órdenes de Trabajo:** busca y filtra por estado y aprobación.
 - **Plazas:** consulta su estado administrativo y ocupación calculada.
-- **Historial:** revisa eventos persistidos de una OT; no se editan directamente.
+- **Historial:** `OWNER` y `ADMIN` revisan eventos persistidos de una OT; no se editan directamente. `TECNICO` y `MEMBER` no ven esta pestaña.
 - **Ficha del vehículo:** consulta datos técnicos y las OTs anteriores.
 
 La identificación y el contacto del propietario en la ficha del Vehículo están restringidos a `OWNER` y `ADMIN`. Para `TECNICO` y `MEMBER`, la interfaz muestra: **“La información del propietario está restringida para tu perfil”**.
@@ -129,6 +129,15 @@ Disponible para `OWNER`, `ADMIN` y `TECNICO`.
 5. Selecciona **Guardar vehículo**.
 
 La patente es obligatoria y única dentro de la empresa. El VIN es opcional; cuando se informa también debe ser único dentro de la empresa.
+
+Formatos ordinarios de patente según el país registrado para la empresa:
+
+| País | Formatos aceptados (A = letra, 0 = dígito) |
+| --- | --- |
+| Chile (`CL`) | `AAAA00`, `AAA00`, `AAAAA0`, `AAAA0`, `AA0000`, `AA000` |
+| Paraguay (`PY`) | `AAA000` y Mercosur `AAAA000` |
+
+Los espacios y guiones se eliminan y las letras se convierten a mayúsculas. Bolivia (`BO`) aún no tiene formatos habilitados; se incorporarán cuando se confirmen los ejemplos del cliente. El país se toma de la empresa, no del formulario del vehículo.
 
 El año debe tener exactamente cuatro dígitos y estar entre 1900 y el año siguiente al actual. El límite superior avanza automáticamente cada año; por ejemplo, durante 2026 se acepta hasta 2027.
 
@@ -213,9 +222,9 @@ Las acciones quedan registradas en el historial.
 
 La entrega cierra la OT. Una OT cerrada no se reabre.
 
-### 2.10 Cancelar y consultar historial
+### 2.10 Cancelar una OT
 
-- Usa **Historial** para revisar los eventos persistidos de la OT.
+- `OWNER` y `ADMIN` pueden usar **Historial** para revisar los eventos persistidos de la OT. La pestaña no está disponible para `TECNICO` ni `MEMBER`.
 - La ficha del Vehículo muestra sus OTs anteriores.
 - La cancelación solo está disponible antes de entrar en reparación.
 - Una OT cancelada no se elimina ni se reabre; una nueva visita requiere otra OT.
@@ -230,7 +239,7 @@ La entrega cierra la OT. Una OT cerrada no se reabre.
 - Revisa el alcance antes de enviarlo a aprobación.
 - No interpretes Productos planificados como reserva o consumo.
 - No escribas contraseñas, claves, tokens ni datos sensibles en observaciones.
-- Usa el historial para auditar; no intentes corregir eliminando registros.
+- Informa las correcciones a `OWNER` o `ADMIN`; el historial de gestión no se modifica ni elimina.
 
 ## 3. Administrador
 
@@ -277,6 +286,8 @@ Esta tarea corresponde a `OWNER` o `ADMIN`.
 3. Escribe un nombre descriptivo, por ejemplo, “Plaza 1”.
 4. Selecciona **Crear Plaza**.
 5. Repite para cada ubicación física.
+
+El menú de Taller también incluye accesos directos a **Órdenes de trabajo** y **Vehículos**. **Plazas** solo aparece para `OWNER` y `ADMIN`.
 
 Una Plaza puede estar activa o inactiva. **Disponible** y **En uso** se calculan desde las OTs activas; no se editan manualmente. Una Plaza en uso no puede asignarse simultáneamente a otra OT activa.
 

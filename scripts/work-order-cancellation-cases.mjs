@@ -32,9 +32,9 @@ export async function testWorkOrderCancellation({adminDb, businessId, owner, tec
   assert.equal(cancellation.detalle.estadoAnterior, "ingresada");
   assert.equal(cancellation.detalle.estado, "cancelada");
   assert.ok(cancellation.actorUid === owner.uid && cancellation.actorSnapshot?.nombre && cancellation.fecha?.toDate());
-  const visible = await call(technician, "obtenerHistorialOT", {otId: entered.otId});
+  const visible = await call(owner, "obtenerHistorialOT", {otId: entered.otId});
   assert.ok(visible.eventos.some((event) => event.tipo === "ot_cancelada" && event.actorNombre));
-  const closureEvents = await call(technician, "obtenerEventosCierreOT", {otId: entered.otId});
+  const closureEvents = await call(owner, "obtenerEventosCierreOT", {otId: entered.otId});
   assert.deepEqual(closureEvents.eventos.map((event) => event.tipo), ["ot_cancelada"]);
   await expectCallableError("cancelada es terminal", () => call(owner, "cancelarOT",
     {otId: entered.otId, requestId: id(), expectedActualizadoEn: cancelledStored.actualizadoEn.toMillis()}),

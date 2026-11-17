@@ -15,7 +15,6 @@ import {
   WORK_ORDER_APPROVAL_STATUSES,
   WORK_ORDER_STATUSES,
 } from "../domain/workOrderModel.mjs";
-import {listarClientes} from "../services/clientService";
 import {listarVehiculos} from "../services/vehicleService";
 import {listarPlazasTaller} from "../services/workshopPlazaService";
 import {
@@ -40,16 +39,11 @@ function vehicleLabel(vehicle) {
   return vehicle ? `${vehicle.marca} ${vehicle.modelo}` : "Vehículo no disponible";
 }
 
-function clientLabel(order, clientsById) {
-  return clientsById.get(order.clienteId)?.nombreRazonSocial || order.clienteId || "Cliente no disponible";
-}
-
 export default function WorkOrdersPage({businessId, role}) {
   const location = useLocation();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [vehiclesById, setVehiclesById] = useState(new Map());
-  const [clientsById, setClientsById] = useState(new Map());
   const [plazasById, setPlazasById] = useState(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -59,29 +53,25 @@ export default function WorkOrdersPage({businessId, role}) {
 
   const canManage = hasBusinessPermission(role, BUSINESS_PERMISSIONS.TALLER_MANAGE);
   const canCreate = hasBusinessPermission(role, BUSINESS_PERMISSIONS.TALLER_CREATE);
-  const canReadClients = hasBusinessPermission(role, BUSINESS_PERMISSIONS.TALLER_MANAGE);
-
   const load = useCallback(async () => {
     if (!businessId) return;
     setLoading(true);
     setError("");
     try {
-      const [orderItems, vehicleItems, clientItems, plazaItems] = await Promise.all([
+      const [orderItems, vehicleItems, plazaItems] = await Promise.all([
         listarOrdenesTrabajo(businessId),
         listarVehiculos(businessId),
-        canReadClients ? listarClientes(businessId) : Promise.resolve([]),
         listarPlazasTaller(businessId),
       ]);
       setOrders(orderItems);
       setVehiclesById(new Map(vehicleItems.map((item) => [item.vehiculoId, item])));
-      setClientsById(new Map(clientItems.map((item) => [item.clienteId, item])));
       setPlazasById(new Map(plazaItems.map((item) => [item.plazaId, item])));
     } catch (loadError) {
       setError(getWorkOrderErrorMessage(loadError));
     } finally {
       setLoading(false);
     }
-  }, [businessId, canReadClients]);
+  }, [businessId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -110,8 +100,8 @@ export default function WorkOrdersPage({businessId, role}) {
         <label className="erp-field"><span className="erp-field__label">Aprobación</span><select className="erp-control" value={approval} onChange={(event) => setApproval(event.target.value)}><option value="todos">Todos</option>{WORK_ORDER_APPROVAL_STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
       </div>
       {loading ? <LoadingState variant="section" label="Cargando órdenes de trabajo..." /> : !error && visibleOrders.length === 0 ? <div className="erp-empty-state"><AppIcon icon={Wrench} size={28} /><h3>{orders.length ? "No hay coincidencias" : "Aún no hay órdenes de trabajo"}</h3><p>{orders.length ? "Prueba con otros filtros o términos de búsqueda." : canCreate ? "Crea la primera OT desde un vehículo registrado." : "Todavía no existen órdenes para consultar."}</p>{!orders.length && canCreate && <Button type="button" icon={FilePlus2} onClick={() => navigate("/taller/ordenes/nueva")}>Crear primera OT</Button>}</div> : !error && <>
-        <div className="erp-table-region erp-desktop-only"><table className="erp-table"><thead><tr><th>Número OT</th><th>Patente</th><th>Vehículo</th><th>Cliente histórico</th><th>Estado</th><th>Aprobación</th><th>Plaza</th><th>Actualización</th></tr></thead><tbody>{visibleOrders.map((order) => { const vehicle = vehiclesById.get(order.vehiculoId); return <tr key={order.otId}><td><Link className="vehicle-link" to={`/taller/ordenes/${order.otId}`}>{order.numeroOT}</Link></td><td>{vehicle?.patente || "No disponible"}</td><td>{vehicleLabel(vehicle)}</td><td>{clientLabel(order, clientsById)}</td><td><OrderStatus order={order} /></td><td><ApprovalStatus order={order} /></td><td>{plazasById.get(order.plazaId)?.nombre || "Sin asignar"}</td><td>{formatDate(order.actualizadoEn)}</td></tr>; })}</tbody></table></div>
-        <div className="erp-card-list erp-mobile-only">{visibleOrders.map((order) => { const vehicle = vehiclesById.get(order.vehiculoId); return <article className="erp-record-card" key={order.otId}><header className="erp-record-card__header"><div><h3 className="erp-record-card__title"><Link className="vehicle-link" to={`/taller/ordenes/${order.otId}`}>{order.numeroOT}</Link></h3><p className="erp-record-card__subtitle">{vehicle?.patente || "Patente no disponible"} · {vehicleLabel(vehicle)}</p></div><OrderStatus order={order} /></header><dl className="erp-meta-grid"><div className="erp-meta erp-meta--wide"><dt className="erp-meta__label">Cliente histórico</dt><dd className="erp-meta__value">{clientLabel(order, clientsById)}</dd></div><div className="erp-meta"><dt className="erp-meta__label">Aprobación</dt><dd className="erp-meta__value"><ApprovalStatus order={order} /></dd></div><div className="erp-meta"><dt className="erp-meta__label">Plaza</dt><dd className="erp-meta__value">{plazasById.get(order.plazaId)?.nombre || "Sin asignar"}</dd></div><div className="erp-meta"><dt className="erp-meta__label">Actualización</dt><dd className="erp-meta__value">{formatDate(order.actualizadoEn)}</dd></div></dl></article>; })}</div>
+        <div className="erp-table-region erp-desktop-only"><table className="erp-table"><thead><tr><th>Número OT</th><th>Patente</th><th>Vehículo</th><th>Estado</th><th>Aprobación</th><th>Plaza</th><th>Actualización</th></tr></thead><tbody>{visibleOrders.map((order) => { const vehicle = vehiclesById.get(order.vehiculoId); return <tr key={order.otId}><td><Link className="vehicle-link" to={`/taller/ordenes/${order.otId}`}>{order.numeroOT}</Link></td><td>{vehicle?.patente || "No disponible"}</td><td>{vehicleLabel(vehicle)}</td><td><OrderStatus order={order} /></td><td><ApprovalStatus order={order} /></td><td>{plazasById.get(order.plazaId)?.nombre || "Sin asignar"}</td><td>{formatDate(order.actualizadoEn)}</td></tr>; })}</tbody></table></div>
+        <div className="erp-card-list erp-mobile-only">{visibleOrders.map((order) => { const vehicle = vehiclesById.get(order.vehiculoId); return <article className="erp-record-card" key={order.otId}><header className="erp-record-card__header"><div><h3 className="erp-record-card__title"><Link className="vehicle-link" to={`/taller/ordenes/${order.otId}`}>{order.numeroOT}</Link></h3><p className="erp-record-card__subtitle">{vehicle?.patente || "Patente no disponible"} · {vehicleLabel(vehicle)}</p></div><OrderStatus order={order} /></header><dl className="erp-meta-grid"><div className="erp-meta"><dt className="erp-meta__label">Aprobación</dt><dd className="erp-meta__value"><ApprovalStatus order={order} /></dd></div><div className="erp-meta"><dt className="erp-meta__label">Plaza</dt><dd className="erp-meta__value">{plazasById.get(order.plazaId)?.nombre || "Sin asignar"}</dd></div><div className="erp-meta"><dt className="erp-meta__label">Actualización</dt><dd className="erp-meta__value">{formatDate(order.actualizadoEn)}</dd></div></dl></article>; })}</div>
       </>}
     </section>
   </main>;

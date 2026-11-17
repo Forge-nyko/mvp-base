@@ -389,44 +389,16 @@ try {
   });
   assert.equal(nextModelYear.data.vehiculo.anio, maximumVehicleYear);
   console.log("OK año: exige 4 dígitos y rango dinámico 1900–año siguiente");
-  const bolivianVehicle = await callable(owner, "crearVehiculo")({
-    businessId,
-    requestId: `vehicle-bolivia-${RUN_ID}`,
-    vehiculo: vehiclePayload({
-      patente: "12-34 abc",
-      vin: `VIN-BOLIVIA-${RUN_ID}`,
-    }),
-  });
-  assert.equal(bolivianVehicle.data.vehiculo.patente, "1234ABC");
-  const bolivianCurrentVehicle = await callable(owner, "crearVehiculo")({
-    businessId,
-    requestId: `vehicle-bolivia-current-${RUN_ID}`,
-    vehiculo: vehiclePayload({
-      patente: "123 abc",
-      vin: `VIN-BOLIVIA-CURRENT-${RUN_ID}`,
-    }),
-  });
-  assert.equal(bolivianCurrentVehicle.data.vehiculo.patente, "123ABC");
-  const bolivianPreviousVehicle = await callable(owner, "crearVehiculo")({
-    businessId,
-    requestId: `vehicle-bolivia-previous-${RUN_ID}`,
-    vehiculo: vehiclePayload({
-      patente: "abc-123",
-      vin: `VIN-BOLIVIA-PREVIOUS-${RUN_ID}`,
-    }),
-  });
-  assert.equal(bolivianPreviousVehicle.data.vehiculo.patente, "ABC123");
   for (const [label, patente] of [
-    ["patente boliviana con dos dígitos", "12ABC"],
-    ["patente boliviana con cinco dígitos", "12345ABC"],
-    ["patente boliviana con dos letras", "1234AB"],
-    ["patente boliviana con sufijo alfanumérico", "1234AB1"],
+    ["patente boliviana en empresa chilena", "1234ABC"],
+    ["patente paraguaya en empresa chilena", "ABC123"],
+    ["patente paraguaya Mercosur en empresa chilena", "ABCD123"],
   ]) {
     await expectCallableError(
       label,
       () => callable(owner, "crearVehiculo")({
         businessId,
-        requestId: `vehicle-invalid-bolivia-${patente}-${RUN_ID}`,
+        requestId: `vehicle-invalid-country-${patente}-${RUN_ID}`,
         vehiculo: vehiclePayload({
           patente,
           vin: `VIN-INVALID-${patente}-${RUN_ID}`,
@@ -436,7 +408,7 @@ try {
       /patente/i
     );
   }
-  console.log("OK patentes: Chile conserva sus formatos y Bolivia acepta PTA, moto y placa anterior normalizadas");
+  console.log("OK patentes: la empresa chilena rechaza formatos de otros países");
   await expectCallableError(
     "cliente con negocioId inconsistente",
     () => callable(owner, "crearVehiculo")({

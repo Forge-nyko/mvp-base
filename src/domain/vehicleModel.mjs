@@ -23,15 +23,11 @@ export const VEHICLE_PLATE_PATTERNS_BY_COUNTRY = Object.freeze({
     /^[A-Z]{2}\d{4}$/,
     /^[A-Z]{2}\d{3}$/,
   ]),
-  BO: Object.freeze([
-    /^\d{3}[A-Z]{3}$/,
-    /^\d{4}[A-Z]{3}$/,
+  PY: Object.freeze([
     /^[A-Z]{3}\d{3}$/,
+    /^[A-Z]{4}\d{3}$/,
   ]),
 });
-const PLATE_PATTERNS = Object.freeze(
-  Object.values(VEHICLE_PLATE_PATTERNS_BY_COUNTRY).flat()
-);
 const TEXT_ONLY_PATTERN = /^\p{L}(?:[\p{L}\s.'-]*\p{L})?$/u;
 export const MIN_VEHICLE_YEAR = 1900;
 export const MAX_VEHICLE_YEAR = new Date().getFullYear() + 1;
@@ -57,8 +53,10 @@ export function normalizeVehiclePlate(value) {
   return normalizedText(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
-export function isValidVehiclePlate(value) {
-  return PLATE_PATTERNS.some((pattern) => pattern.test(normalizeVehiclePlate(value)));
+export function isValidVehiclePlate(value, countryCode = "CL") {
+  return Boolean(VEHICLE_PLATE_PATTERNS_BY_COUNTRY[countryCode]?.some(
+    (pattern) => pattern.test(normalizeVehiclePlate(value))
+  ));
 }
 
 export function isTextOnly(value) {
@@ -106,7 +104,7 @@ export function buildVehicleMutationPayload(raw = {}) {
   };
 }
 
-export function getVehicleFieldErrors(raw = {}, {requiresOwner = false} = {}) {
+export function getVehicleFieldErrors(raw = {}, {requiresOwner = false, countryCode = "CL"} = {}) {
   const errors = {};
   for (const [field, message] of REQUIRED_FIELDS) {
     if (!normalizedText(raw[field])) errors[field] = message;
@@ -114,8 +112,8 @@ export function getVehicleFieldErrors(raw = {}, {requiresOwner = false} = {}) {
   if (requiresOwner && !normalizedText(raw.clienteId)) {
     errors.clienteId = "Selecciona un cliente propietario.";
   }
-  if (normalizedText(raw.patente) && !isValidVehiclePlate(raw.patente)) {
-    errors.patente = "Ingresa una patente válida de Chile o Bolivia (formato ordinario).";
+  if (normalizedText(raw.patente) && !isValidVehiclePlate(raw.patente, countryCode)) {
+    errors.patente = `Ingresa una patente válida para ${countryCode}.`;
   }
   if (normalizedText(raw.marca) && !isTextOnly(raw.marca)) {
     errors.marca = "La marca solo puede contener texto.";

@@ -96,7 +96,7 @@ export async function testWorkOrderEndToEnd({adminDb, businessId, owner, technic
   assert.equal(listed.size, 1);
   assert.equal(listed.docs[0].data().clienteId, clienteId);
   assert.equal(listed.docs[0].data().estado, "cerrada");
-  const history = (await call(technician, "obtenerHistorialOT", {otId})).eventos;
+  const history = (await call(owner, "obtenerHistorialOT", {otId})).eventos;
   for (const type of ["ot_creada", "recepcion_registrada", "plaza_asignada", "diagnostico_creado",
     "diagnostico_completado", "servicio_ot_creado", "producto_ot_agregar", "ot_enviada_aprobacion", "ot_aprobada",
     "servicio_ot_iniciado", "servicio_ot_completado",

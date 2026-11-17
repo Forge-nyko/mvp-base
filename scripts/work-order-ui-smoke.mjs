@@ -15,7 +15,6 @@ for (const column of [
   "Número OT",
   "Patente",
   "Vehículo",
-  "Cliente histórico",
   "Estado",
   "Aprobación",
   "Plaza",
@@ -25,8 +24,7 @@ for (const column of [
 }
 assert.match(list, /matchesWorkOrderSearch/);
 assert.match(list, /listarOrdenesTrabajo/);
-assert.match(list, /order\.clienteId/);
-assert.doesNotMatch(list, /vehicle\.clienteId.*Cliente histórico/);
+assert.doesNotMatch(list, /Cliente histórico|listarClientes|clientsById/);
 
 const creation = fs.readFileSync("src/pages/NewWorkOrderPage.jsx", "utf8");
 assert.match(creation, /normalizeVehiclePlate/);
@@ -52,7 +50,6 @@ for (const section of [
   assert.match(detail, new RegExp(section));
 }
 assert.match(detail, /obtenerOrdenTrabajo/);
-assert.match(detail, /order\.clienteId/);
 assert.match(detail, /order\.plazaId/);
 assert.match(detail, /getWorkOrderStatusLabel/);
 assert.match(detail, /getWorkOrderApprovalLabel/);
@@ -66,6 +63,7 @@ assert.match(detail, /<ServicePlanningPanel/);
 assert.match(detail, /<ApprovalPanel/);
 assert.match(detail, /<WorkOrderPlazaControl/);
 assert.match(detail, /listarPlazasTaller/);
+assert.match(detail, /plazas\.find\(\(plaza\) => plaza\.plazaId === order\.plazaId\)\?\.nombre \|\| "Sin asignar"/);
 assert.match(detail, /Finalizar orden de trabajo/);
 assert.match(detail, /Registrar entrega/);
 assert.match(detail, /Cancelar OT/);
@@ -73,6 +71,10 @@ assert.match(detail, /beginClosure\("cancelar"\)/);
 assert.match(detail, /allServicesCompleted/);
 assert.match(detail, /ejecutarCierreOT/);
 assert.match(detail, /obtenerHistorialOT/);
+assert.match(detail, /const canManage = hasBusinessPermission\(role, BUSINESS_PERMISSIONS\.TALLER_MANAGE\)/);
+assert.match(detail, /DETAIL_SECTIONS\.filter\(\(section\) => section\.id !== "historial"\)/);
+assert.match(detail, /canManage && activeSection === "historial"/);
+assert.doesNotMatch(detail, /Cliente histórico|listarClientes|clientLabel/);
 assert.match(detail, /work-order-history-list/);
 assert.match(detail, /getWorkOrderHistoryEventLabel/);
 assert.match(detail, /getWorkOrderHistoryDetail/);
@@ -90,6 +92,11 @@ for (const text of ["Nombre", "Estado", "Ocupación actual", "OT asignada", "Veh
 }
 assert.match(plazasPage, /deriveWorkshopPlazaOccupancy/);
 assert.match(plazasPage, /canManageWorkshopPlazas/);
+assert.match(plazasPage, /if \(canManage\) load\(\)/);
+assert.match(plazasPage, /if \(!canManage\)/);
+assert.match(plazasPage, /El acceso a Plazas está restringido para tu perfil/);
+assert.match(plazasPage, /Propietario o Administrador pueden administrar esta sección/);
+assert.doesNotMatch(plazasPage, /OWNER o ADMIN/);
 assert.match(plazasPage, /erp-table/);
 assert.match(plazasPage, /erp-card-list erp-mobile-only/);
 assert.doesNotMatch(plazasPage, /setDoc|updateDoc|estado:\s*["'](?:ocupada|disponible)["']/);
@@ -123,7 +130,7 @@ assert.doesNotMatch(planningPanel, /getInventoryItems/);
 assert.match(planningPanel, /tipoItem === "servicio"/);
 assert.match(planningPanel, /tipoItem === "producto"/);
 assert.match(planningPanel, /cantidad planificada/i);
-assert.match(planningPanel, /Stock actual Core/);
+assert.match(planningPanel, /Stock actual:/);
 assert.match(planningPanel, /Valor Servicio/);
 assert.match(planningPanel, /Iniciar servicio/);
 assert.match(planningPanel, /Completar servicio/);
@@ -137,7 +144,7 @@ assert.match(planningPanel, /service\.estado === "pendiente"/);
 assert.match(planningPanel, /service\.estado === "en_progreso"/);
 assert.match(planningPanel, /order\.estado === "en_reparacion" && order\.estadoAprobacion === "aprobada"/);
 assert.doesNotMatch(planningPanel, /Productos planificados/);
-assert.doesNotMatch(planningPanel, /<th>Stock actual Core<\/th>/);
+assert.doesNotMatch(planningPanel, /<th>Stock actual<\/th>/);
 assert.match(planningPanel, /type="number" min="1" step="1"/);
 assert.doesNotMatch(planningPanel, /type="number"[^>]*precio/);
 assert.match(planningPanel, /className="erp-table work-order-products-table"/);
@@ -153,5 +160,20 @@ assert.match(tallerStyles, /\.work-order-products-table__quantity/);
 assert.doesNotMatch(tallerStyles, /\.work-order-material-history/);
 assert.doesNotMatch(interiorStyles, /\.work-order-products-table__quantity/);
 assert.doesNotMatch(detail, /value=\{order\.estado\}/);
+const navigation = fs.readFileSync("src/app/navigation.js", "utf8");
+const layout = fs.readFileSync("src/layout/AppLayout.jsx", "utf8");
+for (const path of ["ordenes", "vehiculos", "plazas"]) {
+  assert.ok(navigation.includes(`path: "${path}"`));
+}
+assert.match(navigation, /requiredPermission: BUSINESS_PERMISSIONS\.TALLER_MANAGE/);
+assert.match(navigation, /const to = `\$\{basePath\}\/\$\{path\}`/);
+assert.match(navigation, /pathname === to \|\| pathname\.startsWith\(`\$\{to\}\/`\)/);
+assert.match(layout, /item\.children/);
+assert.match(layout, /nav-module__items/);
+assert.match(layout, /idPrefix="desktop"/);
+assert.match(layout, /idPrefix="mobile"/);
+const layoutStyles = fs.readFileSync("src/styles/layout.css", "utf8");
+assert.match(layoutStyles, /\.nav-module__label[\s\S]*font-size: var\(--font-size-xs\)/);
+assert.match(layoutStyles, /\.nav-module__label[\s\S]*color: var\(--color-text-muted\)/);
 console.log("OK UI OT: rutas, listado real, selección por patente y reutilización de Vehículos");
 console.log("WORK_ORDER_UI_SMOKE_OK");

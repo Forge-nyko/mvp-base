@@ -181,10 +181,39 @@ assert.equal(getDefaultBusinessPath("OWNER", {enabledModules: ["aterrizaje"], re
 assert.equal(getDefaultBusinessPath({role: "OWNER"}, {enabledModules: ["aterrizaje"], registry: landingRegistry}), "/reportes");
 assert.equal(getDefaultBusinessPath({role: "VENTAS"}, {registry: landingRegistry}), "/cotizaciones");
 // Menú: el ítem vertical solo aparece habilitado.
-const verticalMenu = [{label: "Modulos", items: [{to: "/clientes"}, {to: "/ventas"}]}];
+const verticalMenu = [{label: "Modulos", items: [{
+  to: "/clientes",
+  children: [
+    {to: "/clientes/listado"},
+    {to: "/clientes/administracion", requiredPermission: P.CLIENTS_WRITE},
+  ],
+}, {to: "/ventas"}]}];
 const menuTargets = (options) => filterNavigationSections(verticalMenu, {role: "OWNER"}, options).flatMap((section) => section.items.map((item) => item.to));
 assert.deepEqual(menuTargets(withoutModule), ["/ventas"]);
 assert.deepEqual(menuTargets(withModule), ["/clientes", "/ventas"]);
+const ownerNestedTargets = filterNavigationSections(verticalMenu, {role: "OWNER"}, withModule)[0].items[0].children.map((item) => item.to);
+const technicianNestedTargets = filterNavigationSections(verticalMenu, {role: "TECNICO"}, withModule);
+assert.deepEqual(ownerNestedTargets, ["/clientes/listado", "/clientes/administracion"]);
+assert.deepEqual(technicianNestedTargets, [], "sin acceso al padre no se filtran hijos aislados");
+const readOnlyNestedTargets = filterNavigationSections(verticalMenu, {role: "VENTAS"}, withModule)[0].items[0].children.map((item) => item.to);
+assert.deepEqual(readOnlyNestedTargets, ["/clientes/listado", "/clientes/administracion"], "VENTAS conserva clients.write");
+const memberNestedTargets = filterNavigationSections(verticalMenu, {role: "MEMBER"}, withModule)[0].items[0].children.map((item) => item.to);
+assert.deepEqual(memberNestedTargets, ["/clientes/listado"], "requiredPermission oculta acciones de administración");
+const tallerMenu = [{label: "Módulos", items: [{
+  to: "/taller",
+  children: [
+    {to: "/taller/ordenes"},
+    {to: "/taller/vehiculos"},
+    {to: "/taller/plazas", requiredPermission: P.TALLER_MANAGE},
+  ],
+}]}];
+const tallerMenuOptions = getBusinessPathOptions({modulosHabilitados: ["taller"]});
+const tallerTargetsFor = (role) => filterNavigationSections(tallerMenu, {role}, tallerMenuOptions)[0]
+  .items[0].children.map((item) => item.to);
+assert.deepEqual(tallerTargetsFor("OWNER"), ["/taller/ordenes", "/taller/vehiculos", "/taller/plazas"]);
+assert.deepEqual(tallerTargetsFor("ADMIN"), ["/taller/ordenes", "/taller/vehiculos", "/taller/plazas"]);
+assert.deepEqual(tallerTargetsFor("TECNICO"), ["/taller/ordenes", "/taller/vehiculos"]);
+assert.deepEqual(tallerTargetsFor("MEMBER"), ["/taller/ordenes", "/taller/vehiculos"]);
 // Con el registro real, las opciones conservan solo los verticales conocidos
 // que vienen habilitados en la sesion.
 assert.deepEqual(getBusinessPathOptions({modulosHabilitados: ["taller"]}), {enabledModules: ["taller"]});

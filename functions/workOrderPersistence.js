@@ -1253,7 +1253,7 @@ const registrarEntregaOTHandler = (request, deps) => transitionWorkOrderClosure(
 const cancelarOTHandler = (request, deps) => transitionWorkOrderClosure(request, deps, "cancelar");
 
 async function obtenerEventosCierreOTHandler(request, dependencies) {
-  const context = await requireTallerAccess(request, dependencies, "read");
+  const context = await requireTallerAccess(request, dependencies, "manage");
   const otId = identifier(request?.data?.otId, "La orden de trabajo", dependencies.HttpsError);
   const orderRef = context.businessRef.collection("ordenesTrabajo").doc(otId);
   assertStoredWorkOrder(await orderRef.get(), context.businessId, dependencies.HttpsError);
@@ -1281,7 +1281,7 @@ function historyEventDetail(type, detail = {}) {
 }
 
 async function obtenerHistorialOTHandler(request, dependencies) {
-  const context = await requireTallerAccess(request, dependencies, "read");
+  const context = await requireTallerAccess(request, dependencies, "manage");
   const otId = identifier(request?.data?.otId, "La orden de trabajo", dependencies.HttpsError);
   const orderRef = context.businessRef.collection("ordenesTrabajo").doc(otId);
   assertStoredWorkOrder(await orderRef.get(), context.businessId, dependencies.HttpsError);
