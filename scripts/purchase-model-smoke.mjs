@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import {assertSkipLinkHiddenInPrint} from "./lib/printCss.mjs";
 import {createRequire} from "node:module";
 import {
   adaptStoredPurchase,
@@ -435,6 +436,10 @@ assert.equal(shouldReconcilePurchaseConfirmation({code: "already-exists"}), fals
 assert.doesNotMatch(purchaseDetail, />\s*\{effect\.movimientoEntradaId\}/);
 assert.doesNotMatch(purchaseDetail, />\s*\{effect\.movimientoReversionId\}/);
 assert.match(purchasePrint, /po-document-preview/);
+// Impresión de la compra: el componente no trae CSS responsivo propio (su CSS vive en purchases.css y purchase-orders.css) y el
+// enlace "Saltar al contenido principal" queda oculto al imprimir con la regla global.
+assert.doesNotMatch(purchasePrint, /@media|@container|<style/, "PurchasePrintView no trae reglas responsivas propias");
+assertSkipLinkHiddenInPrint(fs.readFileSync(new URL("../src/styles/globals.css", import.meta.url), "utf8"), fs.readFileSync(new URL("../src/components/ui/SkipLink.jsx", import.meta.url), "utf8"));
 assert.match(purchasePrint, /Documento asociado/);
 assert.match(purchasePrint, /Unidad \/ naturaleza/);
 assert.match(purchasePrint, /Orden de compra/);

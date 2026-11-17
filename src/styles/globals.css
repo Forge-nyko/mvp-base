@@ -226,9 +226,12 @@ td[align="right"] {
     line-height: 1.25;
   }
 
+  /* .skip-link es el enlace de accesibilidad de pantalla ("Saltar al contenido principal"): es position: fixed y, en un
+     documento de varias hojas, se imprimía en todas menos la última. No pertenece a ningún documento. */
   .sidebar,
   .topbar,
-  .no-print {
+  .no-print,
+  .skip-link {
     display: none !important;
   }
 

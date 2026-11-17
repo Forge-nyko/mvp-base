@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import {assertSkipLinkHiddenInPrint} from "./lib/printCss.mjs";
 import {createRequire} from "node:module";
 import path from "node:path";
 import {
@@ -754,6 +755,10 @@ assert.match(printViewSource, /showUnit/);
 assert.match(printViewSource, /showDiscount/);
 assert.match(printViewSource, /Condiciones de pago/);
 assert.doesNotMatch(printViewSource, /19%/);
+// Impresión de la orden de compra: sin CSS responsivo propio en el componente y con el enlace "Saltar al contenido principal"
+// oculto al imprimir por la regla global.
+assert.doesNotMatch(printViewSource, /@media|@container|<style/, "PurchaseOrderPrintView no trae reglas responsivas propias");
+assertSkipLinkHiddenInPrint(fs.readFileSync("src/styles/globals.css", "utf8"), fs.readFileSync("src/components/ui/SkipLink.jsx", "utf8"));
 assert.doesNotMatch(printViewSource, /getDoc|getDocs|onSnapshot|listarProveedores/);
 assert.match(documentSource, /ORDEN DE COMPRA/);
 assert.match(documentSource, /showCode/);

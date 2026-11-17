@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {createRequire} from "node:module";
 import path from "node:path";
+import {assertNoWidthQueriesInPrint, assertSkipLinkHiddenInPrint} from "./lib/printCss.mjs";
 import {
   adaptStoredQuote,
   buildQuoteMutationPayload,
@@ -935,6 +936,24 @@ assert.doesNotMatch(sourceQuoteDocument, /19%/);
   assert.match(printBlock, /\.quote-document-preview thead\{display:table-header-group\}/);
   assert.match(printBlock, /\.quote-document-preview tr,[^{]*\.quote-document-preview__summary,[^{]*\.quote-document-preview__totals,[^{]*\.quote-document-preview__terms,[^{]*\.quote-document-preview footer\{break-inside:avoid\}/);
   assert.match(printBlock, /\.quote-document-preview__band,\.quote-document-preview__scope h3\{break-after:avoid\}/);
+  // Ninguna regla responsiva del documento aplica al imprimir. En impresión el navegador evalúa los @media (max-width) con
+  // el ancho útil de la hoja (A4 con 14 mm de margen = 688 px), no con el de la ventana, y `zoom` no lo cambia: un
+  // @media(max-width:720px) sin restringir al medio apilaba el encabezado, el cliente y los totales y mandaba el pie a una
+  // segunda hoja. Todo @media del documento es `print` o va como `screen and (...)`, y no hay @container.
+  const {screenBlocks} = assertNoWidthQueriesInPrint(css, "cotización");
+  const screenCss = screenBlocks.map((block) => block.body).join("");
+  assert.match(screenCss, /\.quote-document-preview__header\{grid-template-columns:1fr\}/, "el apilado del encabezado solo existe en pantalla");
+  assert.match(screenCss, /\.quote-document-preview__client-grid,\.quote-document-preview__summary\{grid-template-columns:1fr\}/, "el apilado del cliente y los totales solo existe en pantalla");
+  // El diseño de escritorio es el de base, y es el que queda al imprimir: número a la derecha y cliente en dos columnas.
+  const baseCss = css.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, "");
+  assert.match(baseCss, /\.quote-document-preview__header\{[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(250px,\.5fr\)/, "base: logo a la izquierda y número a la derecha");
+  assert.match(baseCss, /\.quote-document-preview__identity\{text-align:right\}/, "base: identidad alineada a la derecha");
+  assert.match(baseCss, /\.quote-document-preview__client-grid\{[^}]*grid-template-columns:1fr 1fr/, "base: cliente en dos columnas");
+  assert.doesNotMatch(printBlock, /grid-template-columns/, "al imprimir no se redefinen las columnas: queda el diseño de base");
+  // El enlace "Saltar al contenido principal" no se imprime: lo oculta la regla global de globals.css (@media print), la misma
+  // para todos los documentos, y el CSS del documento de cotización ya no lleva una regla propia.
+  assertSkipLinkHiddenInPrint(fs.readFileSync("src/styles/globals.css", "utf8"), fs.readFileSync("src/components/ui/SkipLink.jsx", "utf8"));
+  assert.doesNotMatch(css, /skip-link/, "la regla del enlace vive en globals.css, no en el documento");
   // Lo compartido no cambió para los demás documentos: globals.css conserva su único @page (8 mm) y no habla del documento
   // de cotización; solo se le agregó el contenedor exclusivo del detalle de cotización.
   const globals = fs.readFileSync("src/styles/globals.css", "utf8");

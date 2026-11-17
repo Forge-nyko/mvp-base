@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import {assertNoWidthQueriesInPrint, assertSkipLinkHiddenInPrint} from "./lib/printCss.mjs";
 import {createRequire} from "node:module";
 import {
   adaptStoredSale,
@@ -214,6 +215,22 @@ assert.match(salePrint, /getSaleStatusLabel/);
 assert.match(salePrint, /CubeIcon/);
 assert.match(salePrint, /sale-document-preview__header/);
 assert.match(salePrint, /sale-document-preview__info-grid/);
+// Impresión de la venta: ninguna regla responsiva por ancho aplica al imprimir (el navegador evalúa los @media con el ancho útil
+// de la hoja, 688 px en A4 con 14 mm). Antes el @media(max-width:720px) apilaba el encabezado y las dos columnas de
+// información. Ahora va como `screen and (...)` y el diseño de escritorio es el que se imprime.
+{
+  const saleCss = salePrint.slice(salePrint.indexOf("const saleDocumentCss = `") + "const saleDocumentCss = `".length, salePrint.lastIndexOf("`;"));
+  const {screenBlocks, printBlock: salePrintBlock} = assertNoWidthQueriesInPrint(saleCss, "venta");
+  const screenCss = screenBlocks.map((block) => block.body).join("");
+  assert.match(screenCss, /\.sale-document-preview__header\{display:grid\}/, "el apilado del encabezado solo existe en pantalla");
+  assert.match(screenCss, /\.sale-document-preview__info-grid\{grid-template-columns:1fr\}/, "el apilado de la información solo existe en pantalla");
+  const baseCss = saleCss.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, "");
+  assert.match(baseCss, /\.sale-document-preview__header\{[^}]*display:flex[^}]*justify-content:space-between/, "base: encabezado en fila, con el número a la derecha");
+  assert.match(baseCss, /\.sale-document-preview__meta\{[^}]*text-align:right/, "base: datos de la venta alineados a la derecha");
+  assert.match(baseCss, /\.sale-document-preview__info-grid\{[^}]*grid-template-columns:1fr 1fr/, "base: cliente y datos de venta en dos columnas");
+  assert.doesNotMatch(salePrintBlock.body, /grid-template-columns|display:grid/, "al imprimir no se redefinen las columnas: queda el diseño de base");
+  assertSkipLinkHiddenInPrint(fs.readFileSync(new URL("../src/styles/globals.css", import.meta.url), "utf8"), fs.readFileSync(new URL("../src/components/ui/SkipLink.jsx", import.meta.url), "utf8"));
+}
 assert.match(salePage, /Editar condiciones/);
 assert.match(salePage, /Motivo de cancelación/);
 assert.match(salePage, /cancelReason\.trim\(\)\.length < 3/);

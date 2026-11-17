@@ -228,6 +228,14 @@ function TotalRow({ label, value, strong = false }) {
 // - Mismo diseño que en pantalla: el documento se maqueta con el ancho del contenido de la vista previa (836 px: 920 px
 //   de la vista menos su relleno de 42 px por lado) y se reduce con `zoom` al ancho útil de la hoja (182 mm = 688 px:
 //   836 x 0,82 = 685 px). Con el ancho de la hoja a tamaño real, las columnas se apretaban y todo se reacomodaba.
+// - El diseño ancho no depende del ancho del viewport. Al imprimir, el navegador evalúa los @media (max-width) con el ancho
+//   útil de la hoja (A4 menos 14 mm por lado = 182 mm = 688 px), no con el de la ventana, y `zoom` no lo cambia: el bloque
+//   responsivo de pantalla (max-width: 720px) se activaba y apilaba el encabezado, el cliente y los totales, y el pie caía
+//   solo a una segunda hoja. Por eso ese bloque es `@media screen and (...)`: en impresión nunca aplica y el documento
+//   conserva siempre el diseño de escritorio de la vista previa. Una regla responsiva nueva de este documento debe ir
+//   también bajo `screen` (la prueba quote-model-smoke lo exige) y no se usan @container.
+// - El enlace "Saltar al contenido principal" (.skip-link) se oculta al imprimir con una regla global en globals.css
+//   (@media print), igual que la barra lateral y la superior: no es parte de ningún documento.
 // - Fuente, color y fondo propios del documento: no dependen de lo que globals.css fija en html y body al imprimir. Con
 //   el tema oscuro de la app, la hoja se imprime como papel claro (color-scheme: light en la raíz solo mientras haya un
 //   documento de cotización): sin eso el navegador pintaba de oscuro los márgenes y el contenedor del historial.
@@ -290,7 +298,7 @@ const previewCss = `
 .quote-document-preview footer{border-top:1px solid var(--quote-border);color:var(--quote-muted);display:grid;font-size:11px;gap:2px;justify-items:center;margin-top:34px;padding-top:12px;text-align:center}
 .quote-document-preview footer strong{color:var(--quote-ink)}
 .quote-document-preview__empty{border:1px dashed var(--quote-muted);margin-top:24px;padding:18px;text-align:center}
-@media(max-width:720px){.quote-document-preview{padding:24px 20px}.quote-document-preview__header{grid-template-columns:1fr}.quote-document-preview__identity{text-align:left}.quote-document-preview__identity dl>div{justify-content:flex-start}.quote-document-preview__client-grid,.quote-document-preview__summary{grid-template-columns:1fr}.quote-document-preview__totals{justify-self:stretch;max-width:none}.quote-document-preview__signature-grid{grid-template-columns:1fr 1fr}.quote-document-preview__logo{max-width:200px}}
+@media screen and (max-width:720px){.quote-document-preview{padding:24px 20px}.quote-document-preview__header{grid-template-columns:1fr}.quote-document-preview__identity{text-align:left}.quote-document-preview__identity dl>div{justify-content:flex-start}.quote-document-preview__client-grid,.quote-document-preview__summary{grid-template-columns:1fr}.quote-document-preview__totals{justify-self:stretch;max-width:none}.quote-document-preview__signature-grid{grid-template-columns:1fr 1fr}.quote-document-preview__logo{max-width:200px}}
 @page quote{size:A4;margin:14mm}
 @media print{
 html:root:has(.quote-document-preview){background:var(--color-document-paper);color-scheme:light;page:quote}
