@@ -10,13 +10,13 @@ import {ResultBadge} from "./WorkClosedProjects.jsx";
 //   :131-137; el neto lo calcula la Venta en functions/salePersistence.js:138-141).
 // - Costos: materiales de la venta con costo disponible (:107, :139-141), salidas del proyecto
 //   menos devoluciones (:142-145), horas hombre vigentes (:146-148) y gastos vigentes, directos
-//   e indirectos (:103, :149-152); los gastos de tipo Material se dejan fuera cuando el proyecto
-//   ya tiene materiales de inventario (:108-110).
+//   e indirectos (:103, :149-152); los gastos de tipo Material sin documento se dejan fuera cuando el proyecto
+//   ya tiene materiales de inventario; con documento (tipoDocumento) siempre suman (:108-113).
 // - Resultado: ingresos menos costos, solo con una venta confirmada (:175-178).
 // - Margen: resultado dividido por los ingresos, solo con ingresos mayores que cero (:179).
 export const WORK_BALANCE_HELP = Object.freeze({
-  ingresos: "Suma de las ventas confirmadas de este proyecto, sin IVA. Las ventas que aún no están confirmadas no cuentan.",
-  costos: "Suma de los materiales (los de la venta y los que se usaron en el proyecto, menos las devoluciones), las horas hombre y los gastos, directos e indirectos. No incluye los registros anulados, los materiales de la venta sin costo disponible ni los gastos de tipo Material cuando el proyecto ya tiene materiales de inventario.",
+  ingresos: "Suma de las ventas confirmadas de este trabajo, sin IVA. Las ventas que aún no están confirmadas no cuentan.",
+  costos: "Suma de los materiales (los de la venta y los que se usaron en el trabajo, menos las devoluciones), las horas y los gastos, directos e indirectos. No incluye los registros anulados, los materiales de la venta sin costo disponible ni los gastos de tipo Material sin documento cuando el trabajo ya tiene materiales de inventario (con boleta o factura sí suman).",
   resultado: "Ingresos menos costos. Solo se calcula cuando hay una venta confirmada.",
   margen: "Resultado dividido por los ingresos, en porcentaje. Solo se calcula cuando hay ingresos.",
 });
@@ -28,6 +28,17 @@ export function getExcludedMaterialExpense(balance) {
   if (!balance || balance.estado === "INCONSISTENTE_MONEDA") return null;
   const amount = Number(balance.gastosMaterialExcluido);
   return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+// Cifra sin dato de una tarjeta del balance (Ingresos, Resultado, Margen): un guion y, debajo, una línea
+// chica con el motivo. No inventa un valor: solo explica por qué no hay.
+export function BalanceEmptyValue({reason}) {
+  return (
+    <>
+      <span className="works-balance-empty"><span aria-hidden="true">—</span><span className="sr-only">Sin dato</span></span>
+      <small className="works-balance-reason">{reason}</small>
+    </>
+  );
 }
 
 // Resultado del proyecto con "Ganó" / "Perdió" (misma insignia y misma regla que la vista

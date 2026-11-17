@@ -1,5 +1,6 @@
 import React from "react";
 import AppIcon from "../../components/ui/AppIcon";
+import Notice from "../../components/ui/Notice";
 import {formatMoney} from "../../utils/formatters.js";
 
 // Piezas visuales del diálogo de costos (Gastos, Horas hombre y Materiales).
@@ -18,6 +19,13 @@ export function getCurrencySymbol(currency, locale = "es-CL") {
   } catch {
     return String(currency || "");
   }
+}
+
+// Error del backend dentro del formulario o del diálogo (el aviso de la página queda detrás del diálogo).
+// Recibe el `noticeRef` de useWorkFormSubmit para llevarle el foco; sin error no dibuja nada.
+export function WorkFormError({error, noticeRef, title}) {
+  if (!error) return null;
+  return <div className="works-form-notice" ref={noticeRef} tabIndex={-1}><Notice variant="error" title={title}>{error}</Notice></div>;
 }
 
 export function CostField({children, className = "", label, optional = false}) {

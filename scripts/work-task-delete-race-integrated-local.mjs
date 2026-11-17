@@ -4,6 +4,7 @@ import {deleteApp, initializeApp} from "firebase/app";
 import {connectAuthEmulator, createUserWithEmailAndPassword, getAuth} from "firebase/auth";
 import {connectFirestoreEmulator, getFirestore, terminate} from "firebase/firestore";
 import {connectFunctionsEmulator, getFunctions, httpsCallable} from "firebase/functions";
+import {resolveEmulatorHosts} from "./lib/emulatorHosts.mjs";
 
 // SPEC 028 §4.2: eliminar tareas, contra Auth + Firestore + Functions reales de los emuladores (nunca
 // Firebase real). Mismo arnés que work-additional-integrated-local.mjs. Tres partes:
@@ -32,8 +33,8 @@ import {connectFunctionsEmulator, getFunctions, httpsCallable} from "firebase/fu
 const PROJECT_ID = "tesis-inventario-ia";
 const RUN_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 const ROUNDS_PER_KIND = Math.max(2, Number(process.env.WORK_TASK_DELETE_RACE_ROUNDS || 6));
-process.env.FIRESTORE_EMULATOR_HOST ||= "127.0.0.1:8080";
-process.env.GCLOUD_PROJECT ||= PROJECT_ID;
+// Sin puertos por defecto (scripts/lib/emulatorHosts.mjs): los hosts salen de `firebase emulators:exec`; si falta alguno, aborta.
+const {AUTH, FIRESTORE, FUNCTIONS} = await resolveEmulatorHosts({projectId: PROJECT_ID, functions: true});
 const requireFromFunctions = createRequire(new URL("../functions/package.json", import.meta.url));
 const {deleteApp: deleteAdminApp, initializeApp: initializeAdminApp} = requireFromFunctions("firebase-admin/app");
 const {getFirestore: getAdminFirestore} = requireFromFunctions("firebase-admin/firestore");
@@ -41,8 +42,8 @@ const {getFirestore: getAdminFirestore} = requireFromFunctions("firebase-admin/f
 function createClientApp(name) {
   const app = initializeApp({apiKey: "demo-key", authDomain: `${PROJECT_ID}.firebaseapp.com`, projectId: PROJECT_ID, appId: `wkdel-${name}-${RUN_ID}`}, `wkdel-${name}-${RUN_ID}`);
   const auth = getAuth(app); const db = getFirestore(app); const functions = getFunctions(app, "us-central1");
-  connectAuthEmulator(auth, "http://127.0.0.1:9099", {disableWarnings: true});
-  connectFirestoreEmulator(db, "127.0.0.1", 8080); connectFunctionsEmulator(functions, "127.0.0.1", 5001);
+  connectAuthEmulator(auth, `http://${AUTH.host}:${AUTH.port}`, {disableWarnings: true});
+  connectFirestoreEmulator(db, FIRESTORE.host, FIRESTORE.port); connectFunctionsEmulator(functions, FUNCTIONS.host, FUNCTIONS.port);
   return {app, auth, db, functions};
 }
 async function authenticate(client, label) {
@@ -142,7 +143,7 @@ try {
   await expectCallableError("tarea ya eliminada", () => removeTask(owner, cleanTask), ["not-found"], "No se encontró la tarea.");
   console.log("OK parte 1: ADMIN elimina una tarea limpia (v2); contador, evento e idempotencia correctos");
 
-  const blockedKinds = [["gasto", "gastos"], ["horas", "horas hombre"], ["adicional", "adicionales"], ["material", "materiales"]];
+  const blockedKinds = [["gasto", "gastos"], ["horas", "horas"], ["adicional", "adicionales"], ["material", "materiales"]];
   for (const [kind, label] of blockedKinds) {
     const taskId = await createTask(`Con ${label}`);
     await costCalls[kind](taskId);
@@ -161,7 +162,7 @@ try {
   await costCalls.gasto(manyTask); await costCalls.material(manyTask);
   await callable(owner, "documentarTareaTrabajo")({businessId, trabajoId: workId, tareaId: manyTask, texto: "Avance registrado.", requestId: requestId("document")});
   await expectCallableError("varias causas en un solo mensaje, en orden fijo", () => removeTask(owner, manyTask), ["failed-precondition"], BLOCKED("gastos, materiales y documentación"));
-  console.log("OK parte 1: gastos, horas hombre, adicionales, materiales (también anulados) y documentación bloquean con su mensaje");
+  console.log("OK parte 1: gastos, horas, adicionales, materiales (también anulados) y documentación bloquean con su mensaje");
 
   const completedTask = await createTask("Completada");
   await callable(owner, "cambiarEstadoTareaTrabajo")({businessId, trabajoId: workId, tareaId: completedTask, estado: "completada", requestId: requestId("complete")});

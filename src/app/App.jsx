@@ -405,6 +405,7 @@ function AppRoutes({
               key={businessId}
               businessId={businessId}
               currentUserUid={usuario?.uid}
+              countryCode={activeBusiness?.paisCodigo}
               currencyCode={activeBusiness?.monedaCodigo}
               role={activeBusiness?.role}
             />

@@ -1,7 +1,7 @@
 import React from "react";
-import {Plus, Trash2} from "lucide-react";
-import AppIcon from "../../components/ui/AppIcon";
+import {Plus} from "lucide-react";
 import Button from "../../components/ui/Button";
+import MoreActionsMenu from "../../components/ui/MoreActionsMenu";
 import StatusBadge from "../../components/ui/StatusBadge";
 import {getTaskProgress, getWorkCostSummary, getWorkHistoricalPersonIdentity, getWorkPersonShort, getWorkTaskDeletionState, groupWorkTasksByBoardColumn} from "../../domain/workModel.mjs";
 import {formatDate, formatMoney} from "../../utils/formatters.js";
@@ -13,9 +13,10 @@ import useBusinessFormat from "../../hooks/useBusinessFormat";
 // etiqueta y motivo. La tarjeta es solo un resumen (título, responsable,
 // subtareas, costo asignado y espera); al hacer clic llama a `onOpenTask(task)`
 // y el detalle y las acciones viven en WorkTaskPanel. Con `onDeleteTask` (solo
-// gestión y proyecto abierto) cada tarjeta suma un basurero en su esquina; queda
-// deshabilitado, con el motivo como tooltip, si la tarea tiene costos o
-// documentación o está completada.
+// gestión y proyecto abierto) cada tarjeta suma un menú "⋯" en su esquina con
+// "Eliminar tarea" (la página pide confirmación antes de borrar); la opción queda
+// deshabilitada si la tarea tiene costos o documentación o está completada, y el
+// motivo se lee en el panel de la tarea.
 // Presentacional/controlado: recibe exclusivamente `tasks` ya acotadas al
 // Proyecto actual (el arreglo visibleTasks que arma WorkProjectBoard). No define
 // ninguna mutación propia, no hace ninguna consulta remota y no recibe ningún
@@ -28,21 +29,21 @@ function responsableLabel(task, members) {
   return task.responsableUid ? getWorkHistoricalPersonIdentity(task.responsableSnapshot, task.responsableUid, members, "Usuario sin identificar") : "";
 }
 
-// Hermano del botón de la tarjeta (un botón dentro de otro no es HTML válido). Deshabilitado con
-// aria-disabled y no con `disabled` para que siga enfocable y su tooltip (el motivo) se pueda leer.
-function TaskDeleteButton({costs, onDeleteTask, task}) {
+// Hermano del botón de la tarjeta (un botón dentro de otro no es HTML válido). El menú es el
+// MoreActionsMenu compartido (teclado, Escape y foco incluidos); su única opción abre el diálogo de
+// confirmación y queda deshabilitada si la tarea no se puede eliminar.
+function TaskCardMenu({costs, onDeleteTask, task}) {
   const deletion = getWorkTaskDeletionState(task, costs);
   return (
-    <button
-      type="button"
-      className="works-task-card__delete"
-      aria-label="Eliminar tarea"
-      aria-disabled={deletion.canDelete ? undefined : "true"}
-      title={deletion.canDelete ? "Eliminar tarea" : deletion.reason}
-      onClick={(event) => { event.stopPropagation(); if (deletion.canDelete) onDeleteTask(task); }}
-    >
-      <AppIcon icon={Trash2} size={16} />
-    </button>
+    <div className="works-task-card__menu">
+      <MoreActionsMenu
+        iconOnly
+        label="Más acciones de la tarea"
+        menuLabel={`Acciones de ${task.titulo}`}
+        triggerClassName="works-task-card__menu-trigger"
+        actions={[{label: "Eliminar tarea", disabled: !deletion.canDelete, onSelect: () => onDeleteTask(task)}]}
+      />
+    </div>
   );
 }
 
@@ -79,7 +80,7 @@ function TaskCard({costs, currency, members, onDeleteTask, onOpenTask, task}) {
           </span>
         )}
       </button>
-      {onDeleteTask && <TaskDeleteButton costs={costs} onDeleteTask={onDeleteTask} task={task} />}
+      {onDeleteTask && <TaskCardMenu costs={costs} onDeleteTask={onDeleteTask} task={task} />}
     </div>
   );
 }

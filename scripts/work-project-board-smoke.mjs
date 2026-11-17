@@ -47,7 +47,7 @@ const works = [
   {id: "w1", numero: "TRB-2026-0002", titulo: "Red oficina", estado: "en_progreso", tareasTotal: 2, tareasCompletadas: 1, progresoPct: 50, clienteSnapshot: {nombreRazonSocial: "Cliente SA"}},
   {id: "w0", numero: "TRB-2026-0001", titulo: "Cámaras", estado: "completado", tareasTotal: 1, tareasCompletadas: 1, progresoPct: 100},
 ];
-const baseActions = Object.fromEntries(["createTask", "assignTask", "changeTaskState", "addSubtask", "toggleSubtask", "renameSubtask", "removeSubtask", "addDocumentation", "removeTask"].map((name) => [name, async () => true]));
+const baseActions = Object.fromEntries(["createTask", "assignTask", "changeTaskState", "addSubtask", "toggleSubtask", "renameSubtask", "removeSubtask", "addDocumentation", "annulDocumentation", "removeTask"].map((name) => [name, async () => true]));
 
 const vite = await createServer({appType: "custom", logLevel: "silent", server: {middlewareMode: true}});
 try {
@@ -92,7 +92,7 @@ try {
   // Todo lo demás sale de la tarjeta: va en el panel.
   assert.doesNotMatch(withTasks, /Canalizar|Pasar cable|Pasar cable por el cielo falso|Nueva subtarea|Documentación|<select[^>]*aria-label|Responsable de|Cambiar estado de|Creada/, "subtareas, descripción, documentación y selectores ya no están en la tarjeta");
   assert.doesNotMatch(withTasks, /<progress[^>]*aria-label="Avance de Coordinar visita"/, "sin subtareas no hay barra");
-  assert.equal((withTasks.match(/Gastos, HH y materiales/g) || []).length, 1, "el botón de costos por tarea vive en el panel; en el tablero solo queda el de General");
+  assert.equal((withTasks.match(/Gastos, horas y materiales/g) || []).length, 1, "el botón de costos por tarea vive en el panel; en el tablero solo queda el de General");
   assert.doesNotMatch(withTasks, /works-board-card|Cerrar proyecto|Confirmar subtareas pendientes/, "ni tarjetas de proyectos ni funciones de la etapa C");
   assert.match(withTasks, /aria-haspopup="dialog"/, "la tarjeta es un botón que abre el panel");
   console.log("OK tres columnas, En espera dentro de En curso y tarjeta compacta");
@@ -125,12 +125,12 @@ try {
     const fullTask = task({id: "t1", titulo: "Tender cableado", estado: "en_progreso", modeloTareaVersion: 1, responsableUid: "u1", responsableSnapshot: {correo: "owner@example.cl"}, descripcion: "Pasar cable por el cielo falso", subtareas: [{id: "s1", titulo: "Canalizar", completada: true}, {id: "s2", titulo: "Pasar cable", completada: false}], documentacion: [{id: "d1", texto: "Foto del tramo", autorUid: "u1", creadoEn: "2026-08-02T10:00:00.000Z"}]});
     const panelProps = {actions: {}, canManage: true, canOperate: () => true, costs: {expenses: [], labor: [], materials: []}, currency: "CLP", members: [{uid: "u1", nombre: "", correo: "owner@example.cl"}], onClose: () => {}, onOpenCosts: () => {}, onRequestTaskState: () => {}, processing: "", task: fullTask, terminal: false};
     const panel = renderToStaticMarkup(React.createElement(WorkTaskPanel, panelProps));
-    assert.match(panel, /role="dialog"/); assert.match(panel, /works-task-panel-layer/); assert.match(panel, /Tender cableado/);
+    assert.match(panel, /role="dialog"/); assert.match(panel, /responsive-dialog--medium works-task-panel/, "ResponsiveDialog de tamaño medio, sin panel lateral propio"); assert.match(panel, /Tender cableado/);
     assert.match(panel, /Pasar cable por el cielo falso/, "descripción");
-    assert.match(panel, />Responsable<\/span><select/); assert.match(panel, /owner@example\.cl/, "selector de responsable con identidad");
-    assert.match(panel, /Completar Canalizar/); assert.match(panel, /Nueva subtarea de Tender cableado/, "subtareas: marcar y agregar");
-    assert.match(panel, /Documentación \(1\)/); assert.match(panel, /Foto del tramo/);
-    assert.match(panel, /Gastos, HH y materiales/); assert.match(panel, /Costo asignado/, "costos");
+    assert.match(panel, />Responsable<\/span><select/); assert.match(panel, /owner@example\.cl/, "selector de responsable con identidad (sin nombre, el correo hace de nombre)");
+    assert.match(panel, /Completar Canalizar/); assert.match(panel, /<span class="erp-field__label">Nueva subtarea<\/span>/, "subtareas: marcar y agregar, con etiqueta visible");
+    assert.match(panel, /<h3>Documentación<span class="works-task-panel__count">1<\/span><\/h3>/); assert.match(panel, /Foto del tramo/);
+    assert.match(panel, /Gastos, horas y materiales/); assert.match(panel, /Costo asignado/, "costos");
     assert.match(panel, />Estado<\/span><select/); assert.match(panel, /<option value="en_espera">En espera<\/option>/, "selector de estado");
     assert.match(panel, /Tarea legacy/, "etiqueta de tarea legacy");
     // Solo lectura: proyecto terminado.
@@ -167,14 +167,13 @@ try {
     assert.match(busy.split("<button").find((chunk) => chunk.includes("Volver")), /disabled/, "Volver se deshabilita mientras se procesa");
     console.log("OK diálogo de eliminar: nombre de la tarea, sin texto de confirmación, error del backend dentro y carga en el botón");
 
-    // Basurero en las tarjetas: gestión y proyecto abierto; deshabilitado si la tarea tiene costos.
+    // Menú ⋯ en las tarjetas (reemplaza a la papelera): gestión y proyecto abierto; su única opción, Eliminar tarea, se deshabilita si la tarea tiene costos (ver works-model-smoke).
     const deletable = render({detail: {tareas: [task({id: "t1", titulo: "Libre"}), task({id: "t2", titulo: "Con gasto"})]}, costs: {expenses: [{id: "g1", tareaId: "t2", estado: "anulado", monto: 1, categoria: "OTRO"}], labor: [], materials: [], additionals: []}});
-    assert.equal((deletable.match(/class="works-task-card__delete"/g) || []).length, 2, "una por tarjeta");
-    assert.equal((deletable.match(/aria-disabled="true"/g) || []).length, 1, "solo la tarea con un gasto anulado queda deshabilitada");
-    assert.match(deletable, /registros de gastos\. Los registros anulados también cuentan\./);
-    assert.doesNotMatch(render({canManage: false, canOperate: () => true, detail: {tareas: [task({id: "t1", responsableUid: "u1"})]}}), /works-task-card__delete|Eliminar/, "sin gestión no hay basurero");
-    assert.doesNotMatch(render({terminal: true, detail: {tareas: [task({id: "t1"})]}}), /works-task-card__delete|Eliminar/, "con el proyecto terminado no hay basurero");
-    console.log("OK basurero del tablero: solo con gestión y proyecto abierto, deshabilitado con costos");
+    assert.equal((deletable.match(/class="works-task-card__menu-trigger"/g) || []).length, 2, "un menú ⋯ por tarjeta");
+    assert.doesNotMatch(deletable, /works-task-card__delete|Trash2|lucide-trash/, "la papelera roja ya no está en la tarjeta");
+    assert.doesNotMatch(render({canManage: false, canOperate: () => true, detail: {tareas: [task({id: "t1", responsableUid: "u1"})]}}), /works-task-card__menu|Eliminar/, "sin gestión no hay menú de eliminar");
+    assert.doesNotMatch(render({terminal: true, detail: {tareas: [task({id: "t1"})]}}), /works-task-card__menu|Eliminar/, "con el proyecto terminado no hay menú de eliminar");
+    console.log("OK menú ⋯ del tablero: solo con gestión y proyecto abierto");
   }
 
   // Vista Cerrados: lista, permisos de lo monetario, y error separado del vacío.
@@ -214,9 +213,9 @@ try {
     assert.equal((loadingBalances.match(/role="status"/g) || []).length, 1, "un solo role=status"); assert.match(loadingBalances, /Cableado bodega/, "la lista no espera a los balances");
     const failedBalances = renderClosed({balancesError: "No se pudo cargar el balance de 1 proyecto."});
     assert.match(failedBalances, /role="alert"/); assert.match(failedBalances, /Reintentar/); assert.match(failedBalances, /Cableado bodega/, "el error de balances no tapa la lista");
-    assert.doesNotMatch(failedBalances, /Aún no hay proyectos cerrados/, "un error nunca se muestra como vacío");
+    assert.doesNotMatch(failedBalances, /Aún no hay trabajos cerrados/, "un error nunca se muestra como vacío");
     const emptyClosed = renderClosed({works: [closedWorks[3]]});
-    assert.match(emptyClosed, /Aún no hay proyectos cerrados/); assert.doesNotMatch(emptyClosed, /role="alert"|Reintentar/, "el vacío real no muestra error ni Reintentar");
+    assert.match(emptyClosed, /Aún no hay trabajos cerrados/); assert.doesNotMatch(emptyClosed, /role="alert"|Reintentar/, "el vacío real no muestra error ni Reintentar");
     assert.doesNotMatch(emptyClosed, /ui-skeleton/, "un vacío real nunca muestra skeleton");
 
     // Solo los 20 cierres más recientes cargan balance; los demás no piden ni muestran importes.
@@ -231,7 +230,7 @@ try {
   // camino): aquí se prueban sus piezas y abajo, por texto fuente, su conexión.
   {
     const {default: WorkInfoTip} = await vite.ssrLoadModule("/src/features/works/WorkInfoTip.jsx");
-    const {WORK_BALANCE_HELP, WorkBalanceResult, getExcludedMaterialExpense} = await vite.ssrLoadModule("/src/features/works/WorkBalanceParts.jsx");
+    const {BalanceEmptyValue, WORK_BALANCE_HELP, WorkBalanceResult, getExcludedMaterialExpense} = await vite.ssrLoadModule("/src/features/works/WorkBalanceParts.jsx");
     const {adaptWorkBalance, getWorkClosedResultKind} = await import("../src/domain/workModel.mjs");
     const money = (value) => (value == null ? "No disponible" : new Intl.NumberFormat("es-CL", {style: "currency", currency: "CLP"}).format(value));
 
@@ -248,7 +247,7 @@ try {
     // Textos: cada cifra con su explicación, sin jerga.
     assert.deepEqual(Object.keys(WORK_BALANCE_HELP), ["ingresos", "costos", "resultado", "margen"]);
     assert.match(WORK_BALANCE_HELP.ingresos, /ventas confirmadas/); assert.match(WORK_BALANCE_HELP.ingresos, /sin IVA/);
-    assert.match(WORK_BALANCE_HELP.costos, /materiales/); assert.match(WORK_BALANCE_HELP.costos, /horas hombre/); assert.match(WORK_BALANCE_HELP.costos, /gastos/);
+    assert.match(WORK_BALANCE_HELP.costos, /materiales/); assert.match(WORK_BALANCE_HELP.costos, /las horas y los gastos/); assert.match(WORK_BALANCE_HELP.costos, /gastos/);
     assert.match(WORK_BALANCE_HELP.costos, /No incluye los registros anulados/); assert.match(WORK_BALANCE_HELP.costos, /gastos de tipo Material/);
     assert.match(WORK_BALANCE_HELP.resultado, /Ingresos menos costos/); assert.match(WORK_BALANCE_HELP.margen, /Resultado dividido por los ingresos/);
     for (const text of Object.values(WORK_BALANCE_HELP)) assert.doesNotMatch(text, /autoritativ|valorizad|snapshot/i, "sin jerga");
@@ -265,6 +264,10 @@ try {
     const partial = result(null, "PARCIAL_SIN_VENTA");
     assert.equal(partial, "No disponible", "sin venta confirmada no se inventa un resultado"); assert.doesNotMatch(partial, /works-balance-result/);
     assert.equal(getWorkClosedResultKind({estado: "COMPLETO", resultado: 200000}), "gano", "misma regla que Cerrados");
+    // Sin dato (Ingresos, Resultado, Margen): guion y, debajo, el motivo en letra chica.
+    const emptyValue = renderToStaticMarkup(React.createElement(BalanceEmptyValue, {reason: "Aún no hay una venta confirmada."}));
+    assert.match(emptyValue, /<span aria-hidden="true">—<\/span>/); assert.match(emptyValue, /<small class="works-balance-reason">Aún no hay una venta confirmada\.<\/small>/);
+    assert.doesNotMatch(emptyValue, /Sin ingreso confirmado|No disponible/, "el texto grande de antes ya no se muestra");
 
     // Gastos Material excluidos: solo se informa el monto que ya entrega el backend; si no llega, no hay aviso.
     assert.equal(adaptWorkBalance({estado: "COMPLETO", gastosMaterialExcluido: 150000}).gastosMaterialExcluido, 150000, "el campo llega a la pantalla");
@@ -280,7 +283,7 @@ try {
   const loading = render({loading: true});
   assert.match(loading, /Cargando tablero/); assert.doesNotMatch(loading, /works-task-board__column/);
   assert.equal((loading.match(/role="status"/g) || []).length, 1, "un solo role=status");
-  const failed = render({error: "No se pudo cargar el tablero del proyecto."});
+  const failed = render({error: "No se pudo cargar el tablero del trabajo."});
   assert.match(failed, /role="alert"/); assert.match(failed, /Reintentar/); assert.doesNotMatch(failed, /Aún no hay tareas|works-task-board__column|<strong>General<\/strong>/, "un fallo nunca se muestra como vacío");
   const empty = render();
   assert.match(empty, /Aún no hay tareas\./); assert.match(empty, /<strong>General<\/strong>/);
@@ -296,13 +299,13 @@ for (const [fn, name] of [["agregarTareaTrabajo", "task-create"], ["asignarTarea
   assert.match(page, new RegExp(`${fn}\\(businessId, boardWorkId,[^\\n]*createWorkTaskRequestId\\("${name}"\\)`), `${fn} con requestId ${name}`);
 }
 assert.match(page, /cambiarEstadoTareaTrabajo\(businessId, boardWorkId, task\.id, estado,/);
-assert.match(page, /const runBoardAction = \(key, action\) => runWorkAction\(boardWorkId, key, action\);/);
+assert.match(page, /const runBoardAction = \(key, action, options\) => runWorkAction\(boardWorkId, key, action, options\);/);
 // Costos: los mismos formularios, acotados a la tarea (tareaId ya asociado).
 assert.match(page, /<MaterialsSection key=\{`materials-\$\{boardWorkId\}-\$\{scope\}`\}[^>]*taskId=\{scope\}/);
 assert.match(page, /<FinancialSection key=\{`costs-\$\{section\}-\$\{boardWorkId\}-\$\{scope\}`\}[^>]*taskId=\{scope\}/);
-// Costos con pestañas (Tabs ya existente): Gastos, Horas hombre y Materiales; mismos formularios, cada uno en su pestaña.
+// Costos con pestañas (Tabs ya existente): Gastos, Horas y Materiales; mismos formularios, cada uno en su pestaña.
 assert.match(board, /import \{TabPanel, Tabs\} from "\.\.\/\.\.\/components\/ui\/Tabs"/);
-assert.match(board, /\{id: "gastos", label: "Gastos"\},\s*\{id: "horas", label: "Horas hombre"\},\s*\{id: "materiales", label: "Materiales"\}/);
+assert.match(board, /\{id: "gastos", label: "Gastos"\},\s*\{id: "horas", label: "Horas"\},\s*\{id: "materiales", label: "Materiales"\}/);
 assert.match(board, /<Tabs className="works-cost-tabs" idPrefix="work-costs"[^>]*tabs=\{COST_TABS\}/); assert.match(board, /renderCosts\(costTarget\.scope, tab\.id\)/);
 assert.match(page, /const renderBoardCosts = \(scope, section\) => section === "materiales"/);
 assert.match(page, /part=\{section === "horas" \? "labor" : "expenses"\}/);
@@ -310,14 +313,15 @@ assert.match(page, /\{\(!part \|\| part === "expenses"\) && <section>/); assert.
 assert.doesNotMatch(page, /Cada salida congela su costo\. Las devoluciones conservan|Estas salidas sí generan un movimiento nuevo|sin balance final|El total se calcula en backend/, "textos explicativos condensados a una línea");
 // Panel y formulario corto cableados a las mismas acciones.
 assert.match(board, /<WorkTaskCreateDialog [\s\S]{0,200}onSubmit=\{actions\.createTask\}/);
-assert.match(board, /<WorkTaskPanel[\s\S]{0,400}task=\{selectedTask\}/);
+assert.match(board, /<WorkTaskPanel[\s\S]{0,700}task=\{selectedTask\}/);
 for (const source of [board, await readFile(new URL("../src/features/works/WorkTaskPanel.jsx", import.meta.url), "utf8"), await readFile(new URL("../src/features/works/WorkTaskCreateDialog.jsx", import.meta.url), "utf8")]) assert.doesNotMatch(source, /from ["'].*(workService|firebase)|httpsCallable|getDocs/);
 assert.match(page, /const fixedTaskId = scoped && !orphanScope \? taskId : "";/);
 assert.match(page, /canRegister = \(canManage \|\| \["TECNICO", "MEMBER"\]\.includes\(role\)\) && !orphanScope/, "Sin tarea asignada es solo lectura");
 assert.match(page, /\{!scoped && <TaskCostSelect/);
-assert.match(page, /registrarGastoTrabajo\(businessId, workId, payload, createWorkCostRequestId\("expense-create"\)\)/);
-assert.match(page, /registrarHorasHombreTrabajo\(businessId, workId, payload, createWorkCostRequestId\("labor-create"\)\)/);
-assert.match(page, /registrarSalidaMaterialTrabajo\(businessId, workId, draft, createWorkCostRequestId\("material-exit"\)\)/);
+// Gasto, horas y salida de material usan el requestId estable de useWorkFormSubmit (prefijos expense-create, labor-create, material-exit).
+assert.match(page, /registrarGastoTrabajo\(businessId, workId, payload, requestId\)/); assert.match(page, /useWorkFormSubmit\(\{prefix: "expense-create"\}\)/);
+assert.match(page, /registrarHorasHombreTrabajo\(businessId, workId, payload, requestId\)/); assert.match(page, /useWorkFormSubmit\(\{prefix: "labor-create"\}\)/);
+assert.match(page, /registrarSalidaMaterialTrabajo\(businessId, workId, draft, requestId\)/); assert.match(page, /useWorkFormSubmit\(\{prefix: "material-exit"\}\)/);
 // Ficha: botón al tablero y deep link de la ficha intacto.
 assert.match(page, /onClick=\{\(\) => openWorkBoard\(selectedWork\)\}>Trabajar en el tablero</);
 assert.match(page, /const openWorkBoard = \(work\) => \{ setSelectedWork\(null\); selectBoardWork\(work\.id\); \};/);
@@ -332,22 +336,33 @@ for (const [name, source] of [["tablero", board], ["panel", taskPanelSource], ["
 assert.doesNotMatch(page + board + taskPanelSource, /removeLegacy/, "la acción ya no es solo para tareas legacy");
 assert.match(board, /onDeleteTask=\{canManage && !terminal \? requestDelete : undefined\}/, "el basurero solo llega con gestión y proyecto abierto");
 assert.match(board, /onRequestDelete=\{requestDelete\}/, "el panel pide confirmar con el mismo flujo");
-assert.match(board, /<WorkTaskDeleteDialog error=\{deleteError\} onClose=\{closeDelete\} onConfirm=\{confirmDelete\} processing=\{processing\} task=\{canManage && !terminal \? deletingTask : null\} \/>/);
-assert.match(board, /actions\.removeTask\(deletingTask, \(failure\) => setDeleteError\(failure\?\.message \|\| "No se pudo eliminar la tarea\."\)\)\.then\(\(success\) => \{ if \(success\) closeDelete\(\); \}\)/, "el diálogo solo se cierra si la acción se aplicó: si el backend la rechaza, queda abierto con el mensaje");
+assert.match(board, /<WorkTaskDeleteDialog error=\{deleteForm\.error\} onClose=\{closeDelete\} onConfirm=\{confirmDelete\} processing=\{processing\} task=\{canManage && !terminal \? deletingTask : null\} \/>/);
+assert.match(board, /useWorkFormSubmit\(\{prefix: "task-delete"\}\)/, "eliminar tarea: requestId estable en los reintentos (useWorkFormSubmit)");
+assert.match(board, /deleteForm\.submit\(\{taskId: deletingTask\.id\}, \(requestId, onError\) => actions\.removeTask\(deletingTask, \{onError, requestId\}\)\)\.then\(\(success\) => \{ if \(success\) closeDelete\(\); \}\)/, "el diálogo solo se cierra si la acción se aplicó: si el backend la rechaza, queda abierto con el mensaje y el reintento reutiliza el requestId");
 assert.match(taskPanelSource, /const showDelete = canManage && !terminal;/); assert.match(taskPanelSource, /onClick=\{\(\) => onRequestDelete\(task\)\}/);
 assert.match(page, /const runWorkAction = async \(workId, key, action, \{onError\} = \{\}\) => \{/);
 assert.match(page, /if \(onError\) onError\(actionError\); else setError\(actionError\.message \|\| "No se pudo actualizar el trabajo\."\);/, "sin onError el comportamiento de siempre: aviso de la página");
-assert.match(page, /removeTask: \(task, onError\) => runWorkAction\(boardWorkId, `task-delete-\$\{task\.id\}`, \(\) => eliminarTareaTrabajo\(businessId, boardWorkId, task\.id, createWorkTaskRequestId\("task-delete"\)\), \{onError\}\)/);
+assert.match(page, /removeTask: \(task, \{requestId, onError\} = \{\}\) => runWorkAction\(boardWorkId, `task-delete-\$\{task\.id\}`, \(\) => eliminarTareaTrabajo\(businessId, boardWorkId, task\.id, requestId \|\| createWorkTaskRequestId\("task-delete"\)\), \{onError\}\)/, "eliminar tarea: usa el requestId que entrega el diálogo (estable en reintentos)");
+assert.match(page, /createTask: \(task, \{requestId, onError\} = \{\}\) => runBoardAction\("task-new", \(\) => agregarTareaTrabajo\(businessId, boardWorkId, task, requestId \|\| createWorkTaskRequestId\("task-create"\)\), \{onError\}\)/, "crear tarea: requestId estable y error dentro del diálogo");
+assert.match(page, /annulDocumentation: \(task, entry, motivo, \{requestId, onError\} = \{\}\) => runBoardAction\(`task-document-annul-\$\{entry\.id\}`, \(\) => anularDocumentacionTareaTrabajo\(businessId, boardWorkId, task\.id, entry\.id, motivo, requestId \|\| createWorkTaskRequestId\("task-document-annul"\)\), \{onError\}\)/, "anular comentario: callable nuevo con requestId y error dentro de su diálogo");
+// Anular un comentario: el tablero guarda { task, entry }, abre su diálogo y le entrega la acción de la página.
+assert.match(board, /onRequestAnnulDocumentation=\{\(task, entry\) => setAnnulTarget\(\{task, entry\}\)\}/);
+assert.match(board, /<WorkTaskDocumentationAnnulDialog entry=\{canManage && !terminal \? annulTarget\?\.entry : null\} onAnnul=\{\(motivo, options\) => actions\.annulDocumentation\(annulTarget\.task, annulTarget\.entry, motivo, options\)\} onClose=\{\(\) => setAnnulTarget\(null\)\} processing=\{processing\} processingKey=\{annulKey\} \/>/, "solo con gestión y proyecto abierto");
+const annulDialogSource = await readFile(new URL("../src/features/works/WorkTaskDocumentationAnnulDialog.jsx", import.meta.url), "utf8");
+assert.doesNotMatch(annulDialogSource, /anularDocumentacionTareaTrabajo|from ["'].*(workService|firebase)|httpsCallable/, "el diálogo de anular es presentacional");
 assert.match(page, /costs=\{\{expenses: boardDetail\.gastos, labor: boardDetail\.horasHombre, materials: boardDetail\.materiales, additionals: boardDetail\.adicionales\}\}/, "los adicionales también cuentan para explicar el bloqueo");
 // Balance de la ficha (T1-T3): conexión en la página y piezas sin imports de otro feature.
-assert.match(page, /import \{WORK_BALANCE_HELP, WorkBalanceResult, getExcludedMaterialExpense\} from "\.\.\/features\/works\/WorkBalanceParts\.jsx";/);
+assert.match(page, /import \{BalanceEmptyValue, WORK_BALANCE_HELP, WorkBalanceResult, getExcludedMaterialExpense\} from "\.\.\/features\/works\/WorkBalanceParts\.jsx";/);
 assert.match(page, /import WorkInfoTip from "\.\.\/features\/works\/WorkInfoTip\.jsx";/);
 assert.match(page, /<dt><span>Ingresos<\/span><WorkInfoTip label="Qué incluye Ingresos">\{WORK_BALANCE_HELP\.ingresos\}<\/WorkInfoTip><\/dt>/);
 assert.match(page, /<dt><span>Costos<\/span><WorkInfoTip label="Qué incluye Costos">\{WORK_BALANCE_HELP\.costos\}<\/WorkInfoTip><\/dt>/);
-assert.match(page, /<dt><span>Resultado<\/span><WorkInfoTip label="Cómo se calcula el Resultado">\{WORK_BALANCE_HELP\.resultado\}<\/WorkInfoTip><\/dt><dd><WorkBalanceResult balance=\{balance\} money=\{money\} \/><\/dd>/);
+assert.match(page, /<dt><span>Resultado<\/span><WorkInfoTip label="Cómo se calcula el Resultado">\{WORK_BALANCE_HELP\.resultado\}<\/WorkInfoTip><\/dt><dd>\{getWorkClosedResultKind\(balance\) === "no_disponible" \? <BalanceEmptyValue reason="Requiere una venta confirmada\." \/> : <WorkBalanceResult balance=\{balance\} money=\{money\} \/>\}<\/dd>/, "Resultado sin dato: guion y motivo, no «No disponible»");
+assert.match(page, /<dd>\{balance\.valorComercial == null \? <BalanceEmptyValue reason="Aún no hay una venta confirmada\." \/> : money\(balance\.valorComercial\)\}<\/dd>/, "Ingresos sin dato: guion y motivo, no «Sin ingreso confirmado» en grande");
+assert.match(page, /<dd>\{balance\.rentabilidadPct == null \? <BalanceEmptyValue reason=\{balance\.valorComercial == null \? "Requiere una venta confirmada\." : "Los ingresos son cero\."\} \/> : `/, "Margen sin dato: guion y motivo según haya o no ingresos");
+assert.doesNotMatch(page, /"Sin ingreso confirmado"|"No disponible" : `/, "las tarjetas ya no muestran el texto grande sin dato");
 assert.match(page, /<dt><span>Margen<\/span><WorkInfoTip label="Cómo se calcula el Margen">\{WORK_BALANCE_HELP\.margen\}<\/WorkInfoTip><\/dt>/);
 assert.match(page, /const excludedMaterialExpense = getExcludedMaterialExpense\(balance\);/);
-assert.match(page, /\{excludedMaterialExpense != null && <p className="works-message works-message--warning">Hay \{money\(excludedMaterialExpense\)\} en gastos de tipo Material que no suman al balance porque el proyecto ya tiene materiales de inventario\.<\/p>\}/);
+assert.match(page, /\{excludedMaterialExpense != null && <p className="works-message works-message--warning">Hay \{money\(excludedMaterialExpense\)\} en gastos de tipo Material sin documento que no suman al balance porque el trabajo ya tiene materiales de inventario\.<\/p>\}/);
 assert.doesNotMatch(page, /Calculando desde fuentes autoritativas|Consumo neto valorizado/, "sin jerga en la ficha");
 const balancePartsSource = await readFile(new URL("../src/features/works/WorkBalanceParts.jsx", import.meta.url), "utf8");
 const infoTipSource = await readFile(new URL("../src/features/works/WorkInfoTip.jsx", import.meta.url), "utf8");

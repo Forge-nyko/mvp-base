@@ -12,12 +12,12 @@
 .works-search-control { align-items: center; display: flex; position: relative; }
 .works-search-control .app-icon { color: var(--color-text-muted); left: var(--space-3); pointer-events: none; position: absolute; }
 .works-search-control input { padding-left: 40px; }
-.works-table { min-width: 980px; }
 .works-link { background: transparent; border: 0; color: var(--color-text-default); cursor: pointer; display: grid; gap: 2px; padding: 0; text-align: left; }
 .works-link strong, .works-number { color: var(--color-brand-800); font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); }
 .works-link span { color: var(--color-text-strong); font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); }
 .works-row-actions, .works-card-actions, .works-detail-actions { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.works-row-actions button { background: var(--color-surface-panel); border: 1px solid var(--color-border-control); border-radius: var(--radius-sm); color: var(--color-text-default); cursor: pointer; font-size: var(--font-size-xs); padding: .35rem .55rem; }
+.works-row-actions { flex-wrap: nowrap; gap: var(--space-1); }
+.works-row-actions__view { background: var(--color-surface-panel); border: 1px solid var(--color-border-control); border-radius: var(--radius-sm); color: var(--color-text-default); cursor: pointer; font-size: var(--font-size-xs); min-height: 38px; padding: .35rem .6rem; }
 .works-priority { border-radius: var(--radius-pill); display: inline-flex; font-size: 11px; font-weight: var(--font-weight-bold); padding: 3px 8px; white-space: nowrap; }
 .works-priority--baja { background: #f1f5f9; color: #475569; }
 .works-priority--normal { background: var(--color-info-50); color: var(--color-info-700); }
@@ -48,9 +48,15 @@
 .works-field--wide { grid-column: 1 / -1; }
 .works-form textarea { resize: vertical; }
 .works-form option[value="cancelado"]:not(:checked) { display: none; }
+.works-form-help { color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: var(--line-height-default); margin: 0; }
 .works-field-optional { color: var(--color-text-muted); font-size: 11px; font-weight: var(--font-weight-medium); margin-left: var(--space-2); }
 .works-field-error { color: var(--color-danger-700); font-size: var(--font-size-xs); }
-.works-form-automatic-note { border-top: 1px solid var(--color-border-subtle); color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: var(--line-height-default); margin: 0; padding-top: var(--space-3); }
+/* Error del backend dentro de un formulario o diálogo (Notice) y mensajes de campo en rejillas de formulario. */
+.works-form-notice { grid-column: 1 / -1; justify-self: stretch; }
+.works-form-notice:focus-visible { border-radius: var(--radius-md); outline: var(--focus-outline); outline-offset: var(--space-1); }
+.works-annul-form > .works-field-error, .works-task-document-form > .works-field-error, .works-note-form > .works-field-error, .works-subtask-create > .works-field-error { grid-column: 1 / -1; justify-self: start; }
+/* Nota fija en el pie del diálogo, sobre los botones (el pie se parte en dos líneas). */
+.works-form-automatic-note { color: var(--color-text-muted); flex: 1 0 100%; font-size: var(--font-size-xs); line-height: var(--line-height-default); margin: 0; text-align: left; }
 .works-participants { border: 0; margin: 0; padding: 0; }
 .works-participants legend { color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-2); }
 .works-participants > div { display: flex; flex-wrap: wrap; gap: var(--space-2); }
@@ -157,9 +163,10 @@
 .works-subtask-list > div { align-items: center; display: grid; gap: var(--space-2); grid-template-columns: auto minmax(0, 1fr) auto; }
 .works-subtask-list > div.is-complete input[type="text"] { background: var(--color-surface-panel); color: var(--color-text-muted); text-decoration: line-through; }
 .works-subtask-list > div > div { align-items: center; display: flex; gap: var(--space-1); }
+.works-subtask-list > div > .works-field-error { grid-column: 2 / -1; }
 .works-subtask-list button:not(.ui-button) { background: transparent; border: 0; color: var(--color-danger-700); cursor: pointer; padding: var(--space-1); }
 .works-subtask-create { display: grid; gap: var(--space-2); grid-template-columns: minmax(0, 1fr) auto; }
-.works-wait-reason { background: #fff7ed; border-radius: var(--radius-sm); color: #9a3412 !important; display: block; font-size: var(--font-size-xs); margin: 0; overflow-wrap: anywhere; padding: var(--space-2); }
+.works-wait-reason { background: var(--color-warning-50); border-radius: var(--radius-sm); color: var(--color-warning-800) !important; display: block; font-size: var(--font-size-xs); margin: 0; overflow-wrap: anywhere; padding: var(--space-2); }
 .works-alert-chip { background: var(--color-danger-50); border-radius: var(--radius-pill); color: var(--color-danger-700); font-size: 11px; font-weight: var(--font-weight-bold); justify-self: start; padding: 4px 8px; }
 .works-task-documentation > summary { color: var(--color-text-muted); cursor: pointer; font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); }
 .works-task-board { align-items: start; display: grid; gap: var(--space-3); grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -295,8 +302,8 @@
     color: #a9b6f0;
   }
 
-  /* .works-priority--alta, .works-task-state--en_espera y
-     .works-wait-reason coinciden EXACTO en claro con
+  /* .works-priority--alta y .works-task-state--en_espera
+     coinciden EXACTO en claro con
      --color-stock-alert-50/-800 (#fff7ed/#9a3412), pero son prioridad de
      tarea y "en espera" de un proyecto, no alertas de inventario —
      cruzar ese token específico de un feature a otro violaría el mismo
@@ -311,11 +318,8 @@
     background: var(--color-warning-50);
     color: var(--color-warning-800);
   }
-
-  .works-wait-reason {
-    background: var(--color-warning-50);
-    color: var(--color-warning-800) !important;
-  }
+  /* .works-wait-reason ya usa estos mismos tokens en su regla base, que cambian con el tema: no necesita
+     un bloque propio para oscuro. */
 }
 
 /* Tokens faltantes nuevos encontrados en esta pasada: ninguno. */
@@ -333,7 +337,11 @@
 .works-more-details[open] > summary::before { content: "−"; }
 .works-more-details > summary:focus-visible { outline: var(--focus-outline); outline-offset: var(--focus-offset); }
 .works-more-details[open] > summary { margin-bottom: var(--space-2); }
-.works-detail-tabs { margin-top: var(--space-1); }
+/* Pestañas de la ficha fijas bajo el título del diálogo al hacer scroll. Viven con sus paneles dentro de
+   .works-detail-body (un bloque, no la grilla de .works-detail): el sticky de un hijo de grilla no pasa del alto de su fila. */
+.works-detail-body { min-width: 0; }
+.works-detail-tabs { background: var(--color-surface-panel); margin-top: 0; position: sticky; top: 0; z-index: 2; }
+.works-detail-body > [role="tabpanel"] { padding-top: var(--space-3); }
 
 /* Error de carga de lista y ficha: mensaje + Reintentar (nunca el vacío). */
 .works-load-error { align-items: center; display: flex; gap: var(--space-3); justify-content: space-between; }
@@ -372,7 +380,7 @@ button.works-task-board__card:hover { border-color: var(--color-brand-500); box-
 button.works-task-board__card:focus-visible { outline: var(--focus-outline); outline-offset: var(--focus-offset); }
 .works-task-card__title { color: var(--color-text-strong); font-size: var(--font-size-sm); font-weight: var(--font-weight-bold); overflow-wrap: anywhere; }
 .works-task-card__person { align-items: center; display: flex; gap: var(--space-2); min-width: 0; }
-.works-task-card__avatar { align-items: center; background: var(--color-surface-selected); border-radius: var(--radius-pill); color: var(--color-text-strong); display: inline-flex; flex: 0 0 auto; font-size: 10px; font-weight: var(--font-weight-bold); height: 22px; justify-content: center; width: 22px; }
+.works-task-card__avatar, .works-person-cell__avatar { align-items: center; background: var(--color-surface-selected); border-radius: var(--radius-pill); color: var(--color-text-strong); display: inline-flex; flex: 0 0 auto; font-size: 10px; font-weight: var(--font-weight-bold); height: 22px; justify-content: center; width: 22px; }
 .works-task-card__name, .works-task-card__none { color: var(--color-text-default); font-size: var(--font-size-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .works-task-card__none { color: var(--color-text-muted); }
 .works-task-card__progress { color: var(--color-text-muted); display: grid; font-size: var(--font-size-xs); gap: var(--space-1); }
@@ -381,30 +389,26 @@ button.works-task-board__card:focus-visible { outline: var(--focus-outline); out
 .works-task-card__cost > span:last-child { color: var(--color-text-default); font-weight: var(--font-weight-semibold); }
 .works-task-card__wait { align-items: flex-start; display: grid; gap: var(--space-1); justify-items: start; }
 .works-task-card__wait-reason { color: var(--color-text-default); font-size: var(--font-size-xs); overflow-wrap: anywhere; }
-/* Basurero de la tarjeta: hermano del botón que abre el panel, anclado a la esquina superior derecha. */
+/* Menú "⋯" de la tarjeta: hermano del botón que abre el panel, anclado a la esquina superior derecha. */
 .works-task-card { position: relative; }
 .works-task-card--deletable .works-task-card__title { padding-right: var(--space-8); }
-.works-task-card__delete { align-items: center; background: transparent; border: 0; border-radius: var(--radius-sm); color: var(--color-danger-700); cursor: pointer; display: inline-flex; height: var(--space-8); justify-content: center; padding: 0; position: absolute; right: var(--space-1); top: var(--space-1); width: var(--space-8); }
-.works-task-card__delete:hover:not([aria-disabled="true"]) { background: var(--color-danger-50); }
-.works-task-card__delete:focus-visible { outline: var(--focus-outline); outline-offset: var(--focus-offset); }
-.works-task-card__delete[aria-disabled="true"] { cursor: not-allowed; opacity: 0.62; }
+.works-task-card__menu { position: absolute; right: var(--space-1); top: var(--space-1); }
+.works-task-card__menu-trigger { align-items: center; background: transparent; border: 0; border-radius: var(--radius-sm); color: var(--color-text-muted); cursor: pointer; display: inline-flex; height: var(--space-8); justify-content: center; padding: 0; width: var(--space-8); }
+.works-task-card__menu-trigger:hover { background: var(--color-surface-hover); color: var(--color-text-strong); }
+.works-task-card__menu-trigger:focus-visible { outline: var(--focus-outline); outline-offset: var(--focus-offset); }
 .works-task-delete { display: grid; gap: var(--space-3); }
 .works-task-delete__text { color: var(--color-text-default); margin: 0; overflow-wrap: anywhere; }
 .works-task-delete__text strong { color: var(--color-text-strong); }
 
 /* Panel de la tarea: lateral en escritorio, pantalla completa en móvil. */
-.works-task-panel-layer { align-items: stretch; justify-content: flex-end; padding: 0; }
-.works-task-panel.responsive-dialog { border-bottom: 0; border-radius: var(--radius-md) 0 0 var(--radius-md); border-top: 0; height: 100vh; height: 100dvh; max-height: none; max-width: 480px; }
 .works-task-panel__content { display: grid; gap: var(--space-4); min-width: 0; }
 .works-task-panel__row { display: grid; gap: var(--space-3); grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.works-task-panel__section { border-top: 1px solid var(--color-border-subtle); display: grid; gap: var(--space-2); padding-top: var(--space-3); }
-.works-task-panel__section > h3 { color: var(--color-text-strong); font-size: var(--font-size-sm); margin: 0; }
+.works-task-panel__section { border-top: 1px solid var(--color-border-subtle); display: grid; gap: var(--space-3); padding-top: var(--space-4); }
 .works-task-panel__cost { align-items: baseline; color: var(--color-text-muted); display: flex; font-size: var(--font-size-sm); justify-content: space-between; }
 .works-task-panel__cost > strong { color: var(--color-text-strong); }
-.works-task-panel__danger { align-items: center; border-top: 1px solid var(--color-border-subtle); display: flex; gap: var(--space-3); justify-content: space-between; padding-top: var(--space-3); }
+/* Zona de Eliminar: separada del resto, al final del panel. */
+.works-task-panel__danger { border-top: 1px solid var(--color-border-subtle); display: grid; gap: var(--space-2); justify-items: start; margin-top: var(--space-2); padding-top: var(--space-4); }
 .works-task-panel__danger .works-task-panel__hint { margin: 0; }
-.works-task-panel__danger button { align-items: center; background: transparent; border: 0; color: var(--color-danger-700); cursor: pointer; display: inline-flex; flex: 0 0 auto; font-size: var(--font-size-xs); gap: var(--space-1); margin-left: auto; padding: var(--space-2); }
-.works-task-panel__danger button:disabled { cursor: not-allowed; opacity: 0.62; }
 
 /* Diálogo de costos con pestañas (Gastos, Horas hombre, Materiales). */
 .works-cost-tabs { margin-bottom: var(--space-1); }
@@ -426,12 +430,8 @@ button.works-task-board__card:focus-visible { outline: var(--focus-outline); out
 .works-closed__financials dd { color: var(--color-text-strong); display: grid; font-size: var(--font-size-xs); gap: 2px; justify-items: start; margin: 0; }
 .works-closed__financials dd .ui-status-badge { align-items: center; display: inline-flex; gap: var(--space-1); }
 @media(max-width:767px) {
-  .works-task-panel.responsive-dialog { border-radius: 0; max-width: none; }
-  .works-task-panel__row { grid-template-columns: minmax(0, 1fr); }
-  .works-task-card__delete { height: var(--space-10); width: var(--space-10); }
+  .works-task-card__menu-trigger { height: var(--space-10); width: var(--space-10); }
   .works-task-card--deletable .works-task-card__title { padding-right: var(--space-10); }
-  .works-task-panel__danger { align-items: stretch; flex-direction: column; }
-  .works-task-panel__danger button { justify-content: center; margin-left: 0; min-height: var(--space-10); }
   .works-closed__filters { align-items: stretch; flex-direction: column; }
   .works-closed__filters .works-search { max-width: none; }
 }
@@ -453,6 +453,11 @@ button.works-task-board__card:focus-visible { outline: var(--focus-outline); out
 .works-cost-dialog .works-cost-form { align-content: start; background: var(--color-surface-subtle); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); gap: var(--space-3); padding: var(--space-4); }
 .works-cost-form__title { color: var(--color-text-strong); font-size: var(--font-size-sm); grid-column: 1 / -1; margin: 0; }
 .works-cost-field { min-width: 0; }
+/* Compra al paso (pestaña Materiales): opción plegada bajo la salida de material, y formulario corto con el adjunto obligatorio. */
+.works-quick-purchase__toggle { display: flex; }
+.works-quick-purchase__attach { display: grid; gap: var(--space-2); }
+.works-quick-purchase__attach-actions, .works-quick-purchase__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.works-quick-purchase__file { align-items: center; color: var(--color-text-default); display: flex; flex-wrap: wrap; font-size: var(--font-size-sm); gap: var(--space-2); margin: 0; overflow-wrap: anywhere; }
 .works-cost-field--wide { grid-column: 1 / -1; }
 .works-money-input { display: flex; }
 .works-money-input__symbol { align-items: center; background: var(--color-surface-panel); border: 1px solid var(--color-border-control); border-bottom-left-radius: var(--radius-sm); border-right: 0; border-top-left-radius: var(--radius-sm); color: var(--color-text-muted); display: inline-flex; padding: 0 var(--space-3); }
@@ -526,18 +531,41 @@ button.works-task-board__card:focus-visible { outline: var(--focus-outline); out
 .works-task-board__empty .works-empty-copy { margin: 0 !important; }
 .works-task-card__done { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 
-.works-task-panel__block { display: grid; gap: var(--space-1); }
-.works-task-panel__block > h3, .works-task-panel__section > h3 { align-items: center; color: var(--color-text-strong); display: flex; font-size: var(--font-size-sm); gap: var(--space-2); margin: 0; }
+.works-task-panel__section > h3 { align-items: center; color: var(--color-text-strong); display: flex; font-size: var(--font-size-sm); gap: var(--space-2); margin: 0; }
 .works-task-panel__count { background: var(--color-surface-selected); border-radius: var(--radius-pill); color: var(--color-text-strong); font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); padding: 1px var(--space-2); }
-.works-task-panel__person { color: var(--color-text-strong); font-weight: var(--font-weight-semibold); overflow-wrap: anywhere; }
-.works-task-panel__secondary { color: var(--color-text-muted); font-size: var(--font-size-xs); overflow-wrap: anywhere; }
 .works-task-panel__cost { align-items: center; background: var(--color-surface-subtle); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); gap: var(--space-3); justify-content: space-between; padding: var(--space-3); }
 .works-task-panel__cost > div { display: grid; gap: 2px; }
 .works-task-panel__cost > div > span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .works-task-panel__cost > div > strong { color: var(--color-text-expense); font-size: var(--font-size-xl); font-variant-numeric: tabular-nums; }
-.works-task-panel__docs { border: 1px solid var(--color-border-subtle); }
-.works-task-panel__docs > summary { align-items: center; color: var(--color-text-strong); display: flex; font-size: var(--font-size-sm); gap: var(--space-2); justify-content: space-between; }
 .works-task-panel__hint { color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: var(--font-weight-regular); }
+/* Panel de la tarea: título con chip de estado, Responsable y Estado en columnas iguales, secciones con el mismo estilo. */
+.works-task-panel__title { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.works-task-panel__row { align-items: start; }
+.works-task-panel__field { align-content: start; }
+.works-task-panel__value { align-items: center; color: var(--color-text-strong); display: flex; font-size: var(--font-size-sm); min-height: var(--space-10); overflow-wrap: anywhere; }
+.works-task-panel__tags { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.works-task-panel__entries { display: grid; gap: var(--space-2); }
+.works-task-panel__entries > div { border-top: 1px solid var(--color-border-subtle); display: grid; gap: var(--space-1); padding-top: var(--space-2); }
+.works-task-panel__entries > div:first-child { border-top: 0; padding-top: 0; }
+.works-task-panel__entries p { color: var(--color-text-default); font-size: var(--font-size-sm); margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.works-task-panel__entries small { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+/* Comentario anulado: el texto tachado y atenuado; "Anulado por…" queda legible debajo. Los botones Anular y Ver todos no se estiran. */
+.works-task-panel__entries .is-annulled > p { color: var(--color-text-muted); text-decoration: line-through; }
+.works-task-panel__entries .works-task-panel__annulled { color: var(--color-text-default); overflow-wrap: anywhere; }
+.works-task-panel__entries > div > .ui-button, .works-task-panel__more { justify-self: start; }
+/* Anular de cada comentario: chico y sin borde, para que no pese más que el texto; el borde y el fondo aparecen solo al pasar el cursor. */
+.works-task-panel__entries .works-task-panel__annul { background: transparent; border-color: transparent; font-size: var(--font-size-xs); min-height: 0; padding: var(--space-1) var(--space-2); }
+.works-task-panel__entries .works-task-panel__annul:hover:not(:disabled) { background: var(--color-danger-50); border-color: transparent; }
+/* Diálogo Anular comentario: aviso, cita del comentario y motivo en una columna. */
+.works-task-annul { display: grid; gap: var(--space-3); }
+.works-task-annul__text { color: var(--color-text-default); font-size: var(--font-size-sm); margin: 0; }
+.works-task-annul__quote { border-left: 3px solid var(--color-border-subtle); color: var(--color-text-muted); font-size: var(--font-size-sm); margin: 0; max-height: 8rem; overflow: auto; overflow-wrap: anywhere; padding: var(--space-1) var(--space-3); white-space: pre-wrap; }
+.works-task-panel__cost > div > .works-task-panel__breakdown { color: var(--color-text-muted); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; }
+.works-task-panel .works-subtask-create, .works-task-panel .works-task-document-form { align-items: end; }
+@media(max-width:480px) {
+  .works-task-panel__row { grid-template-columns: minmax(0, 1fr); }
+  .works-task-panel__danger { justify-items: stretch; }
+}
 @media(max-width:767px) {
   .works-project-board__overview { grid-template-columns: minmax(0, 1fr); }
   .works-project-board__costs { grid-template-columns: minmax(0, 1fr); }
@@ -555,7 +583,20 @@ button.works-task-board__card:focus-visible { outline: var(--focus-outline); out
 .works-progress-cell { display: grid; gap: var(--space-1); min-width: 120px; }
 .works-progress-cell > span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .works-cost-cell { color: var(--color-text-expense); font-variant-numeric: tabular-nums; font-weight: var(--font-weight-semibold); white-space: nowrap; }
-.works-table { min-width: 1180px; }
+/* Lista a 1280 px sin scroll horizontal: la columna Trabajo tiene ancho mínimo (el título no se parte en 4 o 5 líneas),
+   el número TRB no se parte, los encabezados largos pasan a varias líneas y el responsable ya no lleva correo. */
+.erp-table.works-table th, .erp-table.works-table td { padding-inline: var(--space-2); }
+.works-table th { vertical-align: bottom; white-space: normal; }
+.works-table th:first-child, .works-table td:first-child { min-width: 12rem; }
+.works-table .works-empty-line { white-space: normal; }
+.works-table .works-progress-cell { min-width: 88px; }
+.works-link strong, .works-number { white-space: nowrap; }
+.works-work-cell .works-priority { margin-top: var(--space-1); }
+.works-person-cell { align-items: center; display: inline-flex; gap: var(--space-2); min-width: 0; }
+.works-person-cell__name { color: var(--color-text-strong); font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); overflow-wrap: anywhere; }
+/* Aclaración del costo bajo el rótulo, visible sin depender del hover (Lista, tarjeta móvil y Tablero). */
+.works-cost-label { display: grid; gap: 2px; }
+.works-cost-label__note { color: var(--color-text-muted); font-size: 11px; font-weight: var(--font-weight-regular); letter-spacing: normal; text-transform: none; white-space: normal; }
 
 .works-summary-card { background: var(--color-surface-subtle); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); display: grid; gap: var(--space-4); padding: var(--space-4); }
 .works-summary-card__key { display: grid; gap: var(--space-5); grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
@@ -594,3 +635,15 @@ button.works-task-board__card:focus-visible { outline: var(--focus-outline); out
 .works-balance-result { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
 .works-balance-result--gano .works-balance-result__amount { color: var(--color-success-700); }
 .works-balance-result--perdio .works-balance-result__amount { color: var(--color-danger-700); }
+
+/* Resumen comercial vacío: caja a todo el ancho y baja, con el botón a la derecha. */
+.works-commercial-empty { align-items: center; background: var(--color-surface-subtle); border: 1px dashed var(--color-border-default); border-radius: var(--radius-md); display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); grid-column: 1 / -1; justify-content: space-between; padding: var(--space-3); }
+.works-commercial-empty .works-empty-copy { margin: 0 !important; }
+/* Ficha: línea de desglose bajo el costo y enlace al balance. */
+.works-summary-card__metric dd > .works-summary-card__breakdown { font-variant-numeric: tabular-nums; }
+.works-summary-card__link { background: transparent; border: 0; color: var(--color-text-brand); cursor: pointer; font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); justify-self: start; padding: 0; text-decoration: underline; }
+.works-summary-card__link:hover { color: var(--color-text-brand-hover); }
+.works-summary-card__link:focus-visible { outline: var(--focus-outline); outline-offset: var(--focus-offset); }
+/* Balance: cifra sin dato = guion y, debajo, el motivo en letra chica. */
+.works-balance-empty { color: var(--color-text-muted); }
+.works-balance-reason { color: var(--color-text-muted); display: block; font-size: var(--font-size-xs); font-weight: var(--font-weight-regular); line-height: var(--line-height-default); margin-top: 2px; }

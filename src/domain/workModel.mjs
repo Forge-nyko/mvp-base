@@ -312,6 +312,7 @@ export function adaptStoredWork(raw = {}) {
     gastosMontoDirecto: Number(raw.gastosMontoDirecto || 0),
     gastosMontoIndirecto: Number(raw.gastosMontoIndirecto || 0),
     gastosMaterialMontoTotal: Number(raw.gastosMaterialMontoTotal || 0),
+    gastosMaterialDocumentadoMontoTotal: Number(raw.gastosMaterialDocumentadoMontoTotal || 0),
     horasHombreVigentesTotal: Number(raw.horasHombreVigentesTotal || 0),
     horasHombreCantidadTotal: Number(raw.horasHombreCantidadTotal || 0),
     horasHombreCostoTotal: Number(raw.horasHombreCostoTotal || 0),
@@ -382,7 +383,35 @@ export function adaptWorkTaskDocumentation(raw = {}) {
     autorUid: String(raw.autorUid || "").trim(),
     autorSnapshot: raw.autorSnapshot || null,
     creadoEn: dateValue(raw.creadoEn),
+    // Un comentario nunca se borra: se anula (solo OWNER/ADMIN, con motivo). Sin `estado` es vigente.
+    estado: raw.estado === "anulado" ? "anulado" : "vigente",
+    anuladoPorUid: String(raw.anuladoPorUid || "").trim(),
+    anuladoPorSnapshot: raw.anuladoPorSnapshot || null,
+    anuladoEn: dateValue(raw.anuladoEn),
+    motivoAnulacion: String(raw.motivoAnulacion || "").trim(),
   };
+}
+
+export const WORK_TASK_DOCUMENTATION_PREVIEW_LIMIT = 3;
+
+export function isWorkTaskDocumentationAnnulled(entry) {
+  return entry?.estado === "anulado";
+}
+
+// Vista de la documentación de una tarea (más reciente primero). Contraída: llega hasta el tercer comentario
+// vigente más reciente; los anulados que quedan entre ellos se ven tachados y no cuentan para el límite.
+// `activeCount` (y el "Ver todos (N)" del panel) cuenta solo los vigentes; el resto queda tras el enlace.
+export function getWorkTaskDocumentationView(entries, {expanded = false, limit = WORK_TASK_DOCUMENTATION_PREVIEW_LIMIT} = {}) {
+  const list = Array.isArray(entries) ? entries : [];
+  const activeCount = list.filter((entry) => !isWorkTaskDocumentationAnnulled(entry)).length;
+  if (expanded || activeCount <= limit) return {visible: list, hiddenCount: 0, activeCount};
+  let seen = 0;
+  let end = list.length;
+  for (let index = 0; index < list.length; index += 1) {
+    if (!isWorkTaskDocumentationAnnulled(list[index])) seen += 1;
+    if (seen === limit) { end = index + 1; break; }
+  }
+  return {visible: list.slice(0, end), hiddenCount: list.length - end, activeCount};
 }
 
 export function adaptWorkExpense(raw = {}) {
@@ -403,6 +432,8 @@ export function adaptWorkExpense(raw = {}) {
     fecha: String(raw.fecha || "").trim(),
     observacion: String(raw.observacion || "").trim(),
     tareaId: String(raw.tareaId || "").trim(),
+    tipoDocumento: WORK_EXPENSE_DOCUMENT_TYPES.includes(String(raw.tipoDocumento || "").toLowerCase()) ? String(raw.tipoDocumento).toLowerCase() : "",
+    numeroDocumento: String(raw.numeroDocumento || "").trim(),
     estado: raw.estado === "anulado" ? "anulado" : "vigente",
     creadoEn: dateValue(raw.creadoEn),
     anuladoEn: dateValue(raw.anuladoEn),
@@ -443,6 +474,16 @@ export function isValidWorkAdditionalStatus(value) {
 // tanto por validación en Functions (ETAPA 2) como por controles de UI (ETAPA 4).
 export function canTransitionWorkAdditionalStatus(from, to) {
   return Boolean(WORK_ADDITIONAL_TRANSITIONS[from]?.includes(to));
+}
+
+// Precio de venta de un ítem del catálogo para rellenar un adicional: el campo persistido `precioInterno`
+// (mismo criterio que aplica crearAdicionalTrabajo en el backend para TECNICO/MEMBER, functions/workPersistence.js
+// catalogSalePrice). Nunca cae al costo; sin precio válido (vacío, no numérico o menor o igual a cero) devuelve null.
+export function getWorkAdditionalCatalogPrice(item) {
+  const raw = item?.precioInterno;
+  if (raw === "" || raw == null) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? Math.round(value * 100) / 100 : null;
 }
 
 // Valida y normaliza los datos de un adicional nuevo. Puro: no consulta
@@ -616,7 +657,7 @@ export function getWorkTaskDeletionBlockers(task, {expenses = [], labor = [], ma
   const documented = Number(task?.documentacionTotal || 0) > 0 || (Array.isArray(task?.documentacion) && task.documentacion.length > 0);
   return [
     linked(expenses) && "gastos",
-    linked(labor) && "horas hombre",
+    linked(labor) && "horas",
     linked(additionals) && "adicionales",
     linked(materials) && "materiales",
     documented && "documentación",
@@ -761,8 +802,11 @@ export function getDefaultBoardWorkId(works = []) {
   return (list.find((work) => !["completado", "cancelado"].includes(work?.estado)) || list[0])?.id || "";
 }
 
+// Lista y Tablero leen totales guardados en el trabajo. Con salidas de inventario, el gasto de tipo Material sin
+// documento no suma; el que tiene documento (gastosMaterialDocumentadoMontoTotal, parte de gastosMaterialMontoTotal)
+// siempre suma. Un trabajo anterior sin ese total guardado se comporta como antes (todo el gasto Material fuera).
 export function getWorkAccumulatedCost(work = {}) {
-  const materialExpense = Number(work.materialesSalidasTotal || 0) > 0 ? Number(work.gastosMaterialMontoTotal || 0) : 0;
+  const materialExpense = Number(work.materialesSalidasTotal || 0) > 0 ? Math.max(0, Number(work.gastosMaterialMontoTotal || 0) - Number(work.gastosMaterialDocumentadoMontoTotal || 0)) : 0;
   return Math.max(0, rounded(Number(work.materialesCostoTotal || 0) + Number(work.horasHombreCostoTotal || 0) + Number(work.gastosMontoTotal || 0) - materialExpense));
 }
 
@@ -807,21 +851,54 @@ export function getInventoryCurrentCost(item = {}) {
   return selected == null ? null : rounded(Number(selected));
 }
 
+// Regla única para clasificar los costos de un trabajo. La usan la ficha («Horas · Gastos · Materiales»), el
+// costo por tarea, la tabla «Costos por día» y el Balance, que calcula calculateWorkBalance
+// (functions/workBalance.js) con esta misma regla:
+// - «Materiales» son solo los de inventario: los de las ventas confirmadas (con costo disponible) y las salidas
+//   del trabajo menos sus devoluciones.
+// - «Gastos» son todos los gastos vigentes, de cualquier tipo, incluido el tipo Material.
+// - Excepción: un gasto de tipo Material SIN documento no suma cuando el trabajo ya tiene materiales de inventario,
+//   para no contar dos veces el mismo material. Con documento (boleta o factura, `tipoDocumento`) siempre suma: es
+//   material comprado directo para la obra. Esa regla es la misma en las tres cifras.
+// El total no depende de la clasificación: es materiales + horas + gastos contados.
+export function hasWorkInventoryMaterials({materials = [], saleMaterials = []} = {}) {
+  return saleMaterials.length > 0 || materials.some((entry) => entry.tipo === "SALIDA_PROYECTO");
+}
+
+export const WORK_EXPENSE_DOCUMENT_TYPES = Object.freeze(["factura", "boleta"]);
+
+export function hasWorkExpenseDocument(expense) {
+  return WORK_EXPENSE_DOCUMENT_TYPES.includes(String(expense?.tipoDocumento || "").toLowerCase());
+}
+
+// Etiqueta corta del documento de un gasto ("Boleta", "Factura N° 123"); vacía si no tiene.
+export function getWorkExpenseDocumentLabel(expense) {
+  if (!hasWorkExpenseDocument(expense)) return "";
+  const type = String(expense.tipoDocumento).toLowerCase() === "boleta" ? "Boleta" : "Factura";
+  const number = String(expense.numeroDocumento || "").trim();
+  return number ? `${type} N° ${number}` : type;
+}
+
+export function isWorkExpenseCounted(expense, {hasInventoryMaterials = false} = {}) {
+  if (expense?.estado === "anulado") return false;
+  return !(hasInventoryMaterials && String(expense?.categoria || "").toUpperCase() === "MATERIAL" && !hasWorkExpenseDocument(expense));
+}
+
 export function getWorkCostSummary({expenses = [], labor = [], materials = [], saleMaterials = [], taskId} = {}) {
   const filterTask = (entry) => taskId === undefined || String(entry.tareaId || "") === String(taskId || "");
-  const activeExpenses = expenses.filter((entry) => entry.estado !== "anulado" && filterTask(entry));
+  const hasInventoryMaterials = hasWorkInventoryMaterials({materials, saleMaterials});
+  const countedExpenses = expenses.filter((entry) => isWorkExpenseCounted(entry, {hasInventoryMaterials}) && filterTask(entry));
   const activeLabor = labor.filter((entry) => entry.estado !== "anulado" && filterTask(entry));
-  const hasInventoryMaterials = saleMaterials.length > 0 || materials.some((entry) => entry.tipo === "SALIDA_PROYECTO");
   const materialMovements = materials.filter(filterTask);
   const saleMaterialTotal = taskId === undefined ? saleMaterials.filter((entry) => entry.costoHistoricoDisponible !== false && entry.costoTotal != null).reduce((sum, entry) => sum + Number(entry.costoTotal || 0), 0) : 0;
-  const materialTotal = hasInventoryMaterials
-    ? saleMaterialTotal + materialMovements.reduce((sum, entry) => sum + (entry.tipo === "DEVOLUCION_PROYECTO" ? -1 : 1) * Number(entry.costoTotal || 0), 0)
-    : activeExpenses.filter((entry) => entry.categoria === "MATERIAL").reduce((sum, entry) => sum + Number(entry.monto || 0), 0);
+  const materialTotal = saleMaterialTotal + materialMovements.reduce((sum, entry) => sum + (entry.tipo === "DEVOLUCION_PROYECTO" ? -1 : 1) * Number(entry.costoTotal || 0), 0);
   const laborTotal = activeLabor.reduce((sum, entry) => sum + Number(entry.total || 0), 0);
-  const expenseTotal = activeExpenses.filter((entry) => entry.categoria !== "MATERIAL").reduce((sum, entry) => sum + Number(entry.monto || 0), 0);
+  const expenseTotal = countedExpenses.reduce((sum, entry) => sum + Number(entry.monto || 0), 0);
   return {materials: Math.max(0, rounded(materialTotal)), labor: rounded(laborTotal), expenses: rounded(expenseTotal), total: Math.max(0, rounded(materialTotal + laborTotal + expenseTotal))};
 }
 
+// Un renglón por día con el neto de ese día (una devolución de material puede dejarlo negativo), sin recortar a
+// cero: así la suma de los renglones es el total del trabajo. Los registros sin fecha no tienen renglón.
 export function buildWorkDailyCostSummary({expenses = [], labor = [], materials = [], saleMaterials = [], events = []} = {}) {
   const dates = new Map();
   const row = (date) => {
@@ -829,18 +906,14 @@ export function buildWorkDailyCostSummary({expenses = [], labor = [], materials 
     if (!dates.has(date)) dates.set(date, {date, materials: 0, labor: 0, expenses: 0, total: 0, advanceRecorded: false});
     return dates.get(date);
   };
-  const hasInventoryMaterials = saleMaterials.length > 0 || materials.some((entry) => entry.tipo === "SALIDA_PROYECTO");
+  const hasInventoryMaterials = hasWorkInventoryMaterials({materials, saleMaterials});
   saleMaterials.filter((entry) => entry.costoHistoricoDisponible !== false && entry.costoTotal != null).forEach((entry) => { const current = row(entry.fecha); if (current) current.materials += Number(entry.costoTotal || 0); });
   materials.forEach((entry) => { const current = row(entry.fecha); if (current) current.materials += (entry.tipo === "DEVOLUCION_PROYECTO" ? -1 : 1) * Number(entry.costoTotal || 0); });
   labor.filter((entry) => entry.estado !== "anulado").forEach((entry) => { const current = row(entry.fecha); if (current) current.labor += Number(entry.total || 0); });
-  expenses.filter((entry) => entry.estado !== "anulado").forEach((entry) => {
-    const current = row(entry.fecha); if (!current) return;
-    if (!hasInventoryMaterials && entry.categoria === "MATERIAL") current.materials += Number(entry.monto || 0);
-    else if (entry.categoria !== "MATERIAL" || !hasInventoryMaterials) current.expenses += Number(entry.monto || 0);
-  });
+  expenses.filter((entry) => isWorkExpenseCounted(entry, {hasInventoryMaterials})).forEach((entry) => { const current = row(entry.fecha); if (current) current.expenses += Number(entry.monto || 0); });
   const progressEvents = new Set(["tarea_completada", "tarea_reabierta", "estado_tarea_cambiado", "subtarea_completada", "subtarea_reabierta", "tarea_documentacion_agregada"]);
   events.filter((entry) => progressEvents.has(entry.tipo)).forEach((entry) => { const current = row(String(entry.fecha || "").slice(0, 10)); if (current) current.advanceRecorded = true; });
-  return [...dates.values()].map((entry) => ({...entry, materials: rounded(entry.materials), labor: rounded(entry.labor), expenses: rounded(entry.expenses), total: Math.max(0, rounded(entry.materials + entry.labor + entry.expenses))})).sort((left, right) => right.date.localeCompare(left.date));
+  return [...dates.values()].map((entry) => ({...entry, materials: rounded(entry.materials), labor: rounded(entry.labor), expenses: rounded(entry.expenses), total: rounded(entry.materials + entry.labor + entry.expenses)})).sort((left, right) => right.date.localeCompare(left.date));
 }
 
 export function getWorkOperationalIndicators(work = {}, {now = new Date()} = {}) {
@@ -879,6 +952,7 @@ export function humanizeWorkEvent(event = {}, {includeAmounts = true} = {}) {
     tarea_asignada: `${actor} asignó la tarea “${detail.tareaTitulo || "Sin título"}” a ${detail.responsableNombre || "Sin responsable"}.`,
     tarea_reasignada: `${actor} reasignó la tarea “${detail.tareaTitulo || "Sin título"}” de ${detail.responsableAnteriorNombre || "Sin responsable"} a ${detail.responsableNombre || "Sin responsable"}.`,
     tarea_documentacion_agregada: `${actor} agregó documentación a la tarea “${detail.tareaTitulo || "Sin título"}”.`,
+    tarea_documentacion_anulada: `${actor} anuló un comentario de la tarea “${detail.tareaTitulo || "Sin título"}”${detail.motivo ? `: ${detail.motivo}` : "."}`,
     tarea_eliminada: `${actor} eliminó la tarea “${detail.tareaTitulo || "Sin título"}”.`,
     gasto_registrado: `${actor} registró el gasto “${detail.concepto || "Sin concepto"}”${amountText(detail.monto)}.`,
     gasto_anulado: `${actor} anuló el gasto “${detail.concepto || "Sin concepto"}”${amountText(detail.monto)}.`,

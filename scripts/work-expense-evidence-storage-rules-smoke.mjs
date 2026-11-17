@@ -2,6 +2,7 @@ import {deleteApp, initializeApp} from "firebase/app";
 import {createRequire} from "node:module";
 import {connectAuthEmulator, getAuth, signInAnonymously} from "firebase/auth";
 import {connectStorageEmulator, deleteObject, getBytes, getStorage, ref, uploadBytes} from "firebase/storage";
+import {resolveEmulatorHosts} from "./lib/emulatorHosts.mjs";
 
 // SPEC 020 ETAPA 3: Storage Rules de evidencia de gastos. Mismo patrón que
 // business-verification-rules-smoke.mjs: auth + storage + firestore
@@ -17,8 +18,12 @@ import {connectStorageEmulator, deleteObject, getBytes, getStorage, ref, uploadB
 // emulador puede no aplicar el tope de 2 documentos que sí impone producción.
 // Lo protege el guardia estático (npm run test:storage-rules-budget).
 
+// Puertos: NO hay puertos por defecto (scripts/lib/emulatorHosts.mjs): los hosts salen de `firebase emulators:exec`
+// y, si falta alguno, el script se detiene antes de crear ningún cliente (así nunca llega al emulador de QA).
+
 const PROJECT_ID = "tesis-inventario-ia";
 const RUN_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const {AUTH, STORAGE} = await resolveEmulatorHosts({projectId: PROJECT_ID, storage: true});
 const requireFromFunctions = createRequire(new URL("../functions/package.json", import.meta.url));
 const {deleteApp: deleteAdminApp, initializeApp: initializeAdminApp} = requireFromFunctions("firebase-admin/app");
 const {getFirestore: getAdminFirestore} = requireFromFunctions("firebase-admin/firestore");
@@ -26,8 +31,8 @@ const {getFirestore: getAdminFirestore} = requireFromFunctions("firebase-admin/f
 function createClient(name) {
   const app = initializeApp({apiKey: "demo-key", appId: `demo-${name}`, authDomain: `${PROJECT_ID}.firebaseapp.com`, projectId: PROJECT_ID, storageBucket: `${PROJECT_ID}.firebasestorage.app`}, name);
   const auth = getAuth(app); const storage = getStorage(app);
-  connectAuthEmulator(auth, "http://127.0.0.1:9099", {disableWarnings: true});
-  connectStorageEmulator(storage, "127.0.0.1", 9199);
+  connectAuthEmulator(auth, `http://${AUTH.host}:${AUTH.port}`, {disableWarnings: true});
+  connectStorageEmulator(storage, STORAGE.host, STORAGE.port);
   return {app, auth, storage};
 }
 
@@ -116,6 +121,14 @@ async function main() {
       await uploadBytes(imageRef, evidenceBytes, {contentType});
       console.log(`OK caso: upload autorizado ${extension.toUpperCase()} válido (TECNICO sobre su propio gasto)`);
     }
+
+    // --- Compra al paso: el nombre con sufijo único que arma buildWorkExpenseEvidenceFileName se acepta y sigue siendo create-only ---
+    const quickPurchaseName = `boleta-tubo-${Date.now().toString(36)}ab12.jpg`;
+    const quickPurchaseRef = ref(technicianOwn.storage, path(expenseId, quickPurchaseName));
+    await uploadBytes(quickPurchaseRef, evidenceBytes, {contentType: "image/jpeg"});
+    await expectDenied("compra al paso: el mismo nombre no se puede subir dos veces", () => uploadBytes(quickPurchaseRef, evidenceBytes, {contentType: "image/jpeg"}));
+    await expectDenied("compra al paso: usuario de otro negocio no sube", () => uploadBytes(ref(outsider.storage, path(expenseId, `ajeno-${quickPurchaseName}`)), evidenceBytes, {contentType: "image/jpeg"}));
+    console.log("OK compra al paso: nombre con sufijo único aceptado, create-only y sin acceso de otro negocio");
 
     // --- Caso 4: archivo >5MB rechazado ---
     await expectDenied("archivo >5MB", () => uploadBytes(

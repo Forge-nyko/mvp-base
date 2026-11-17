@@ -1,6 +1,7 @@
 import React, {useRef, useState} from "react";
 import Button from "../../components/ui/Button";
-import {getWorkExpenseEvidenceTypeLabel, MAX_WORK_EXPENSE_EVIDENCE_FILES, validateWorkExpenseEvidenceSelection, WORK_EXPENSE_EVIDENCE_TYPES} from "../../domain/workModel.mjs";
+import {fitEvidenceImageToLimit} from "../../utils/evidenceImage.mjs";
+import {getWorkExpenseEvidenceTypeLabel, MAX_WORK_EXPENSE_EVIDENCE_BYTES, MAX_WORK_EXPENSE_EVIDENCE_FILES, validateWorkExpenseEvidenceSelection, WORK_EXPENSE_EVIDENCE_TYPES} from "../../domain/workModel.mjs";
 
 // SPEC 020 ETAPA 4: control de evidencia documental de un gasto, integrado
 // dentro del gasto ya existente en FinancialSection (WorksPage.jsx) — no es
@@ -22,13 +23,17 @@ export default function WorkExpenseEvidence({annulled = false, canAttach = false
   const [selectionError, setSelectionError] = useState("");
   const atLimit = entries.length >= MAX_WORK_EXPENSE_EVIDENCE_FILES;
 
+  // Una foto que pasa del límite se reduce a JPEG antes de rechazarla por tamaño (el PDF no se toca). Solo el fallo de la
+  // reducción se atrapa aquí; los errores de onUpload siguen propagándose al manejo de siempre.
   const handleFile = (event) => {
-    const file = event.target.files?.[0] || null;
+    const picked = event.target.files?.[0] || null;
     event.target.value = "";
-    const validation = validateWorkExpenseEvidenceSelection(file, entries.length);
-    if (!validation.ok) { setSelectionError(validation.reason); return; }
-    setSelectionError("");
-    onUpload(file);
+    return fitEvidenceImageToLimit(picked, {maxBytes: MAX_WORK_EXPENSE_EVIDENCE_BYTES}).then(({file}) => {
+      const validation = validateWorkExpenseEvidenceSelection(file, entries.length);
+      if (!validation.ok) { setSelectionError(validation.reason); return; }
+      setSelectionError("");
+      onUpload(file);
+    }, (failure) => setSelectionError(failure.message));
   };
 
   return (

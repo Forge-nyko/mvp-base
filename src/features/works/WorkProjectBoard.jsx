@@ -8,15 +8,19 @@ import {TabPanel, Tabs} from "../../components/ui/Tabs";
 import {WORK_COST_SCOPE_ORPHAN, filterWorkCostsByTaskScope, getVisibleWorkTasks, getWorkCostSummary, getWorkStatusLabel, getWorkTaskProgress} from "../../domain/workModel.mjs";
 import {formatMoney} from "../../utils/formatters.js";
 import useBusinessFormat from "../../hooks/useBusinessFormat";
+import WorkAccumulatedCostLabel from "./WorkAccumulatedCostLabel.jsx";
+import {WorkFormError} from "./WorkCostParts.jsx";
 import WorkTaskBoard from "./WorkTaskBoard.jsx";
 import WorkTaskCreateDialog from "./WorkTaskCreateDialog.jsx";
 import WorkTaskDeleteDialog from "./WorkTaskDeleteDialog.jsx";
+import WorkTaskDocumentationAnnulDialog from "./WorkTaskDocumentationAnnulDialog.jsx";
 import WorkTaskPanel from "./WorkTaskPanel.jsx";
+import useWorkFormSubmit from "./useWorkFormSubmit.js";
 
 // Vista Tablero de /trabajos (SPEC 028 etapas B y B2): se elige UN proyecto y se
 // ven solo sus tareas como tarjetas compactas en tres columnas (Por hacer, En
 // curso, Hecho; las tareas en espera van dentro de En curso). Al hacer clic en
-// una tarjeta se abre WorkTaskPanel (panel lateral; diálogo completo en móvil)
+// una tarjeta se abre WorkTaskPanel (diálogo de tamaño medio; casi a pantalla completa en celular)
 // con descripción, responsable, estado, subtareas, documentación y costos. "Nueva
 // tarea" abre un formulario corto. Los costos de la tarea (con el `tareaId` ya
 // asociado) se abren en un diálogo con pestañas Gastos, Horas hombre y
@@ -33,7 +37,7 @@ import WorkTaskPanel from "./WorkTaskPanel.jsx";
 const GENERAL_SCOPE = "";
 const COST_TABS = Object.freeze([
   {id: "gastos", label: "Gastos"},
-  {id: "horas", label: "Horas hombre"},
+  {id: "horas", label: "Horas"},
   {id: "materiales", label: "Materiales"},
 ]);
 
@@ -74,9 +78,14 @@ export default function WorkProjectBoard({
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [waitingTask, setWaitingTask] = useState(null);
   const [waitReason, setWaitReason] = useState("");
+  // Poner en espera es un diálogo propio: su error y su requestId estable viven aquí (useWorkFormSubmit).
+  const waitForm = useWorkFormSubmit({prefix: "task-wait"});
   const [costTarget, setCostTarget] = useState(null);
   const [deletingTask, setDeletingTask] = useState(null);
-  const [deleteError, setDeleteError] = useState("");
+  // Eliminar tarea: requestId estable en los reintentos y el error del backend queda en el diálogo (useWorkFormSubmit).
+  const deleteForm = useWorkFormSubmit({prefix: "task-delete"});
+  // Anular un comentario de la documentación: { task, entry }; su diálogo maneja su propio error y requestId.
+  const [annulTarget, setAnnulTarget] = useState(null);
   const [costTab, setCostTab] = useState("gastos");
   const tasks = Array.isArray(detail?.tareas) ? detail.tareas : [];
   const visibleTasks = getVisibleWorkTasks(tasks, {canManage, currentUserUid});
@@ -84,17 +93,21 @@ export default function WorkProjectBoard({
   const emptyTasksCopy = canManage ? "Aún no hay tareas." : "No tienes tareas asignadas.";
   const progress = work ? getWorkTaskProgress(work) : null;
 
-  const requestTaskState = (task, estado) => {
-    if (estado === "en_espera") { setWaitingTask(task); setWaitReason(""); return; }
-    actions.changeTaskState(task, estado);
+  // `options` ({requestId, onError}) lo entrega el panel: el error del cambio de estado se ve dentro del panel.
+  const requestTaskState = (task, estado, options) => {
+    if (estado === "en_espera") { waitForm.clearError(); setWaitingTask(task); setWaitReason(""); return undefined; }
+    return actions.changeTaskState(task, estado, "", options);
   };
-  // Eliminar tarea: el diálogo queda abierto y muestra el mensaje del backend si lo rechaza.
-  const requestDelete = (task) => { setDeleteError(""); setDeletingTask(task); };
-  const closeDelete = () => { setDeletingTask(null); setDeleteError(""); };
-  const confirmDelete = () => {
-    setDeleteError("");
-    return actions.removeTask(deletingTask, (failure) => setDeleteError(failure?.message || "No se pudo eliminar la tarea.")).then((success) => { if (success) closeDelete(); });
+  const closeWait = () => { waitForm.clearError(); setWaitingTask(null); };
+  const confirmWait = () => {
+    const motivo = waitReason.trim();
+    return waitForm.submit({taskId: waitingTask.id, motivo}, (requestId, onError) => actions.changeTaskState(waitingTask, "en_espera", motivo, {onError, requestId})).then((success) => { if (success) { setWaitingTask(null); setWaitReason(""); } });
   };
+  // Eliminar tarea: el diálogo queda abierto y muestra el mensaje del backend si lo rechaza; un reintento reutiliza el requestId.
+  const requestDelete = (task) => { deleteForm.clearError(); setDeletingTask(task); };
+  const closeDelete = () => { setDeletingTask(null); deleteForm.clearError(); };
+  const confirmDelete = () => deleteForm.submit({taskId: deletingTask.id}, (requestId, onError) => actions.removeTask(deletingTask, {onError, requestId})).then((success) => { if (success) closeDelete(); });
+  const annulKey = annulTarget ? `task-document-annul-${annulTarget.entry.id}` : "";
   const openCosts = (target) => { setCostTab("gastos"); setCostTarget(target); };
 
   const orphanRecords = [
@@ -111,10 +124,10 @@ export default function WorkProjectBoard({
   const costTitle = costTarget?.scope === GENERAL_SCOPE ? "General" : costTarget?.scope === WORK_COST_SCOPE_ORPHAN ? "Sin tarea asignada" : costTarget?.title;
 
   return (
-    <section className="works-project-board" aria-label="Tablero del proyecto">
+    <section className="works-project-board" aria-label="Tablero del trabajo">
       <div className="works-project-board__header">
         <label className="erp-field works-project-board__picker">
-          <span className="erp-field__label">Proyecto</span>
+          <span className="erp-field__label">Trabajo</span>
           <select className="erp-control" value={workId} onChange={(event) => onSelectWork(event.target.value)}>
             {works.map((entry) => <option key={entry.id} value={entry.id}>{projectOptionLabel(entry)}</option>)}
           </select>
@@ -128,7 +141,7 @@ export default function WorkProjectBoard({
       </div>
 
       {work && (
-        <section className="works-project-board__overview" aria-label="Resumen del proyecto">
+        <section className="works-project-board__overview" aria-label="Resumen del trabajo">
           <div className="works-project-board__identity">
             <StatusBadge variant={work.estado === "completado" ? "success" : ["cancelado", "en_espera"].includes(work.estado) ? "warning" : "neutral"}>{getWorkStatusLabel(work.estado)}</StatusBadge>
             <span>{work.clienteSnapshot?.nombreRazonSocial || "Sin cliente"}</span>
@@ -139,18 +152,18 @@ export default function WorkProjectBoard({
               <dd>
                 <strong>{Math.round(progress.percent)}%</strong>
                 <span>{progress.completed}/{progress.total} tareas</span>
-                <progress className="works-task-progress" max="100" value={progress.percent} aria-label="Avance de tareas del proyecto" />
+                <progress className="works-task-progress" max="100" value={progress.percent} aria-label="Avance de tareas del trabajo" />
               </dd>
             </div>
             <div className="works-project-board__metric works-project-board__metric--primary">
-              <dt>Costo acumulado</dt>
+              <dt><WorkAccumulatedCostLabel /></dt>
               <dd><strong>{formatMoney(projectCost, currency, businessLocale)}</strong></dd>
             </div>
           </dl>
         </section>
       )}
 
-      {terminal && work && <p className="works-message works-message--warning">Este proyecto está {getWorkStatusLabel(work.estado).toLowerCase()}: el tablero es de solo lectura. Reábrelo desde la ficha para operar.</p>}
+      {terminal && work && <p className="works-message works-message--warning">Este trabajo está {getWorkStatusLabel(work.estado).toLowerCase()}: el tablero es de solo lectura. Reábrelo desde la ficha para operar.</p>}
 
       {loading ? <LoadingState variant="section" label="Cargando tablero..." /> : error ? <LoadFailure message={error} onRetry={onRetry} /> : (
         <>
@@ -158,10 +171,10 @@ export default function WorkProjectBoard({
             <CostCard
               amount={generalCost.total}
               currency={currency}
-              description="Costos del proyecto que no pertenecen a una tarea."
+              description="Costos del trabajo que no pertenecen a una tarea."
               label="General"
               onOpen={() => openCosts({scope: GENERAL_SCOPE, title: "General"})}
-              openLabel="Gastos, HH y materiales"
+              openLabel="Gastos, horas y materiales"
             />
             {orphanRecords.length > 0 && (
               <CostCard
@@ -197,6 +210,7 @@ export default function WorkProjectBoard({
         members={members}
         onClose={() => setSelectedTaskId("")}
         onOpenCosts={openCosts}
+        onRequestAnnulDocumentation={(task, entry) => setAnnulTarget({task, entry})}
         onRequestDelete={requestDelete}
         onRequestTaskState={requestTaskState}
         processing={processing}
@@ -206,21 +220,24 @@ export default function WorkProjectBoard({
 
       <WorkTaskCreateDialog members={members} onClose={() => setCreateOpen(false)} onSubmit={actions.createTask} open={createOpen && canManage && !terminal} processing={processing} />
 
-      <WorkTaskDeleteDialog error={deleteError} onClose={closeDelete} onConfirm={confirmDelete} processing={processing} task={canManage && !terminal ? deletingTask : null} />
+      <WorkTaskDeleteDialog error={deleteForm.error} onClose={closeDelete} onConfirm={confirmDelete} processing={processing} task={canManage && !terminal ? deletingTask : null} />
+
+      <WorkTaskDocumentationAnnulDialog entry={canManage && !terminal ? annulTarget?.entry : null} onAnnul={(motivo, options) => actions.annulDocumentation(annulTarget.task, annulTarget.entry, motivo, options)} onClose={() => setAnnulTarget(null)} processing={processing} processingKey={annulKey} />
 
       <ResponsiveDialog
         open={Boolean(waitingTask)}
-        onClose={() => !processing && setWaitingTask(null)}
+        onClose={() => !processing && closeWait()}
         size="small"
         eyebrow="Tarea"
         title="Poner tarea en espera"
         description="El motivo quedará en el historial."
-        footer={<><Button type="button" variant="secondary" onClick={() => setWaitingTask(null)}>Volver</Button><Button type="button" disabled={Boolean(processing) || !waitReason.trim()} onClick={() => actions.changeTaskState(waitingTask, "en_espera", waitReason.trim()).then((success) => { if (success) { setWaitingTask(null); setWaitReason(""); } })}>Confirmar espera</Button></>}
+        footer={<><Button type="button" variant="secondary" disabled={Boolean(processing)} onClick={closeWait}>Volver</Button><Button type="button" loading={Boolean(waitingTask) && processing === `task-state-${waitingTask.id}`} disabled={(Boolean(processing) && processing !== `task-state-${waitingTask?.id}`) || !waitReason.trim()} onClick={confirmWait}>Confirmar espera</Button></>}
       >
         <label className="erp-field">
           <span className="erp-field__label">Motivo *</span>
-          <textarea className="erp-control" rows="3" maxLength="1000" value={waitReason} onChange={(event) => setWaitReason(event.target.value)} />
+          <textarea className="erp-control" rows="3" maxLength="1000" value={waitReason} onChange={(event) => { setWaitReason(event.target.value); waitForm.clearError(); }} />
         </label>
+        <WorkFormError error={waitForm.error} noticeRef={waitForm.noticeRef} title="No se pudo poner la tarea en espera" />
       </ResponsiveDialog>
 
       <ResponsiveDialog
@@ -230,7 +247,7 @@ export default function WorkProjectBoard({
         size="large"
         eyebrow={work?.numero}
         title={`Costos · ${costTitle || ""}`}
-        description={costTarget?.scope === WORK_COST_SCOPE_ORPHAN ? "Registros de tareas que ya no existen: puedes consultarlos y anularlos." : costTarget?.scope === GENERAL_SCOPE ? "Costos generales del proyecto, sin tarea." : "Los registros quedan asociados a esta tarea."}
+        description={costTarget?.scope === WORK_COST_SCOPE_ORPHAN ? "Registros de tareas que ya no existen: puedes consultarlos y anularlos." : costTarget?.scope === GENERAL_SCOPE ? "Costos generales del trabajo, sin tarea." : "Los registros quedan asociados a esta tarea."}
       >
         {costTarget && (
           <>
