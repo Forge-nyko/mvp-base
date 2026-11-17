@@ -102,11 +102,11 @@ async function fotosAtencionVeterinariaHandler(request, {db, bucket, HttpsError,
 
   if (!VIEWS.includes(vista) || typeof imagen !== "string" || imagen.length > Math.ceil(MAX_BYTES / 3) * 4 ||
       !/^[A-Za-z0-9+/]+={0,2}$/.test(imagen)) {
-    throw new HttpsError("invalid-argument", "Selecciona una vista y una foto JPEG de hasta 2 MB.");
+    throw new HttpsError("invalid-argument", "Selecciona una vista y una foto JPEG de hasta 2 MiB.");
   }
   const bytes = Buffer.from(imagen, "base64");
   if (bytes.length > MAX_BYTES || !isVeterinaryJpeg(bytes)) {
-    throw new HttpsError("invalid-argument", "La imagen debe ser un JPEG válido de hasta 2 MB.");
+    throw new HttpsError("invalid-argument", "La imagen debe ser un JPEG válido de hasta 2 MiB.");
   }
   const digest = createHash("sha256").update(bytes).digest("hex");
   const initial = requireAttention(await attentionRef.get(), true);

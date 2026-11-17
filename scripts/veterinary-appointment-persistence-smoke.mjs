@@ -39,9 +39,22 @@ try {
   ]);
   const citaId = "cita-demo";
   const cita = {pacienteId: "paciente-demo", fecha: "2099-11-12", hora: "10:30", motivo: "Control de prueba"};
-  const save = (patch = {}, dependencyDb = db) => guardarCitaVeterinariaHandler({
+  const save = (patch = {}, dependencyDb = db, requireBusinessAccess = requireOperationalBusinessAccess) => guardarCitaVeterinariaHandler({
     auth: {uid}, data: {businessId, citaId, cita, operacion: "crear", ...patch},
-  }, {db: dependencyDb, HttpsError, FieldValue: admin.firestore.FieldValue, requireBusinessAccess: requireOperationalBusinessAccess});
+  }, {db: dependencyDb, HttpsError, FieldValue: admin.firestore.FieldValue, requireBusinessAccess});
+  // El Core valida la empresa antes de que el handler resuelva su zona horaria.
+  // Conservamos el acceso real y variamos solo el país que recibe el handler.
+  const accessWithCountry = (country) => async (...args) => {
+    const access = await requireOperationalBusinessAccess(...args);
+    const businessData = {...access.businessSnapshot.data()};
+    if (country === null) delete businessData.paisCodigo;
+    else businessData.paisCodigo = country;
+    return {...access, businessSnapshot: {data: () => businessData}};
+  };
+  const missingTimeZone = {
+    code: "failed-precondition",
+    message: "Configura un país con zona horaria definida para la empresa.",
+  };
   const ref = doc(clientDb, "negocios", businessId, "citasVeterinarias", citaId);
   await assert.rejects(save({businessId: "otra-clinica"}), {code: "permission-denied"});
   await assert.rejects(save({cita: {...cita, pacienteId: "paciente-ajeno"}}), {code: "failed-precondition"});
@@ -49,12 +62,10 @@ try {
   await assert.rejects(setDoc(ref, {negocioId: businessId}), {code: "permission-denied"});
 
   for (const country of [null, "OTHER"]) {
-    await business.update({paisCodigo: country ?? admin.firestore.FieldValue.delete()});
-    await assert.rejects(save(), {code: "failed-precondition"});
+    await assert.rejects(save({}, db, accessWithCountry(country)), missingTimeZone);
     assert.equal((await business.collection("citasVeterinarias").doc(citaId).get()).exists, false);
     assert.equal((await business.collection("cuposVeterinarios").get()).size, 0);
   }
-  await business.update({paisCodigo: "CL"});
   const competing = await Promise.allSettled([save(), save({citaId: "cita-competidora"})]);
   assert.equal(competing.filter(({status}) => status === "fulfilled").length, 1);
   assert.equal(competing.find(({status}) => status === "rejected").reason.code, "already-exists");
@@ -66,11 +77,12 @@ try {
   await membership.update({rol: "ADMIN"});
   await business.collection("citasVeterinarias").doc(winner).update({estado: "confirmada"});
   for (const country of [null, "OTHER"]) {
-    await business.update({paisCodigo: country ?? admin.firestore.FieldValue.delete()});
-    await assert.rejects(save({citaId: winner, operacion: "reprogramar", cita: {...cita, hora: "11:30"}}), {code: "failed-precondition"});
+    await assert.rejects(
+      save({citaId: winner, operacion: "reprogramar", cita: {...cita, hora: "11:30"}}, db, accessWithCountry(country)),
+      missingTimeZone,
+    );
     assert.equal((await getDoc(winningRef)).get("hora"), "10:30");
   }
-  await business.update({paisCodigo: "CL"});
   await save({citaId: winner, operacion: "reprogramar", cita: {...cita, hora: "11:30"}});
   const updated = (await getDoc(winningRef)).data();
   assert.equal(updated.hora, "11:30");

@@ -62,7 +62,7 @@ function AppointmentForm({appointment, businessId, patients}) {
       navigate(base + "/agenda", {replace: true});
     } catch (failure) {
       const code = String(failure?.code || "").replace(/^functions\//, "");
-      setError(["invalid-argument", "already-exists", "failed-precondition", "not-found"].includes(code)
+      setError(["invalid-argument", "already-exists", "failed-precondition", "not-found", "aborted"].includes(code)
         ? failure.message
         : "No se pudo guardar la cita. Revisa tus permisos o inténtalo nuevamente.");
     } finally {

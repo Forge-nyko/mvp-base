@@ -382,6 +382,8 @@ docs/specs/027-clinica-veterinaria-mvp.md
 
 El número oficial de esta especificación es `027`.
 
+El [guion de la demo para Bruno](./DEMO-BRUNO.md) recorre el flujo clínico y reúne las decisiones pendientes.
+
 ## 17. Comportamiento de la rama de revisión
 
 - Microchip: el modelo compartido elimina espacios y guiones y convierte a mayúsculas, conservando ceros iniciales (`00-ab` → `00AB`). La reserva por chip en `microchipsVeterinarios` es la única autoridad de unicidad por empresa; paciente, reserva y comprobante de requestId se guardan atómicamente. Cambiar el chip libera la reserva anterior del mismo paciente.
