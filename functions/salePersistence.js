@@ -486,7 +486,7 @@ async function crearVentaDesdeCotizacionHandler(request, dependencies, clock = n
     const quoteSnapshot = await transaction.get(quoteRef);
     if (!quoteSnapshot.exists) fail(HttpsError, "not-found", "No se encontró la cotización."); const quote = quoteSnapshot.data() || {};
     if (quote.negocioId && quote.negocioId !== businessId) fail(HttpsError, "permission-denied", "No puedes registrar esta cotización.");
-    if (quote.estado !== "aceptada") fail(HttpsError, "failed-precondition", "Sólo una cotización aceptada puede registrarse como venta.");
+    if (quote.estado !== "aceptada") fail(HttpsError, "failed-precondition", "Solo una cotización aceptada puede registrarse como venta.");
     const created = await createConfirmedSaleFromQuoteInTransaction({
       actor: {uid, origen: "registro_compatibilidad"},
       businessId,
@@ -533,7 +533,7 @@ async function actualizarVentaBorradorHandler(request, dependencies) {
   const ventaId = id(request?.data?.ventaId, "La venta", HttpsError); const normalized = input(request?.data?.venta, HttpsError); const saleRef = businessRef.collection("ventas").doc(ventaId);
   return transactionRetry(db, async (transaction) => {
     const snapshot = await transaction.get(saleRef); if (!snapshot.exists) fail(HttpsError, "not-found", "No se encontró la venta."); const existing = snapshot.data() || {};
-    if (existing.negocioId !== businessId) fail(HttpsError, "permission-denied", "No puedes editar esta venta."); if (existing.estado !== "borrador") fail(HttpsError, "failed-precondition", "Sólo puedes editar ventas en borrador.");
+    if (existing.negocioId !== businessId) fail(HttpsError, "permission-denied", "No puedes editar esta venta."); if (existing.estado !== "borrador") fail(HttpsError, "failed-precondition", "Solo puedes editar ventas en borrador.");
     if (existing.cotizacionId) assertQuoteReferences(existing, normalized, HttpsError);
     const previousLines = new Map((existing.items || []).map((line) => [text(line.lineaId, 160), line])); const clientChanged = normalized.clienteId !== existing.clienteId;
     const itemChanged = normalized.items.map((item) => { const previous = previousLines.get(item.lineaId); return !previous || previous.itemId !== item.itemId; }); const refs = [];
@@ -574,7 +574,7 @@ async function confirmarVentaHandler(request, dependencies) {
     // adicional nunca existe sin trabajoId, así que sin workRef ninguna línea
     // puede referenciarlo válidamente.
     const additionalLineEntries = lines.filter((line) => line.origenAdicionalId);
-    if (additionalLineEntries.length && !workRef) fail(HttpsError, "failed-precondition", "Un adicional sólo puede incorporarse en una venta vinculada a un proyecto.");
+    if (additionalLineEntries.length && !workRef) fail(HttpsError, "failed-precondition", "Un adicional solo puede incorporarse en una venta vinculada a un proyecto.");
     const referencedAdditionalIds = additionalLineEntries.map((line) => line.origenAdicionalId);
     if (new Set(referencedAdditionalIds).size !== referencedAdditionalIds.length) fail(HttpsError, "invalid-argument", "Un mismo adicional no puede incorporarse en más de una línea de la venta.");
     const additionalRefs = additionalLineEntries.map((line) => workRef.collection("adicionales").doc(line.origenAdicionalId));

@@ -1121,7 +1121,7 @@ async function deleteBusinessHandler(
     ) {
       throw new HttpsError(
         "permission-denied",
-        "Sólo el propietario puede eliminar esta empresa."
+        "Solo el propietario puede eliminar esta empresa."
       );
     }
 

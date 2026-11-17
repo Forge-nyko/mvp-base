@@ -486,7 +486,7 @@ async function crearCompraDesdeOrdenHandler(request, dependencies, clock = new D
       transaction.set(requestRef, {negocioId: businessId, ordenCompraId: orderId, compraId: existing.id, numero: existing.data()?.numero || order.compraNumero || "", uidUsuario: uid, creadoEn: FieldValue.serverTimestamp()});
       return {compra: {id: existing.id, ...existing.data()}, requestId: reqId, idempotent: true, alreadyConverted: true};
     }
-    if (order.estado !== "emitida") fail(HttpsError, "failed-precondition", "Sólo una orden emitida puede registrarse como compra.");
+    if (order.estado !== "emitida") fail(HttpsError, "failed-precondition", "Solo una orden emitida puede registrarse como compra.");
     if (!receptionsSnapshot.empty) {
       fail(
         HttpsError,
@@ -653,7 +653,7 @@ async function actualizarCompraBorradorHandler(request, dependencies) {
     if (!snapshot.exists) fail(HttpsError, "not-found", "No se encontró la compra.");
     const existing = snapshot.data() || {};
     if (existing.negocioId !== businessId) fail(HttpsError, "permission-denied", "No puedes editar esta compra.");
-    if (existing.estado !== "borrador") fail(HttpsError, "failed-precondition", "Sólo puedes editar compras en borrador.");
+    if (existing.estado !== "borrador") fail(HttpsError, "failed-precondition", "Solo puedes editar compras en borrador.");
     if (existing.ordenCompraId) assertOrderReferencesUnchanged(existing, normalized, HttpsError);
     const previousLines = new Map((existing.items || []).map((line) => [text(line.lineaId, 160), line]));
     const providerChanged = normalized.proveedorId !== existing.proveedorId;
@@ -975,7 +975,7 @@ async function revertirCompraHandler(request, dependencies) {
       return {compra: {id: purchaseId, ...purchase}, idempotent: true, productosRevertidos: 0};
     }
     if (purchase.estado !== "confirmada") {
-      fail(HttpsError, "failed-precondition", "Sólo una compra confirmada puede revertirse.");
+      fail(HttpsError, "failed-precondition", "Solo una compra confirmada puede revertirse.");
     }
     const effects = purchaseReversalEffects({...purchase, compraId: purchaseId});
     const inventoryIds = [...new Set(effects.map((effect) => text(effect.itemId, 160)))];
@@ -1206,7 +1206,7 @@ async function cancelarCompraBorradorHandler(request, dependencies) {
     const existing = snapshot.data() || {};
     if (existing.negocioId !== businessId) fail(HttpsError, "permission-denied", "No puedes cancelar esta compra.");
     if (existing.estado === "cancelada") return {compra: {id: purchaseId, ...existing}, idempotent: true};
-    if (existing.estado !== "borrador" || existing.stockAplicado) fail(HttpsError, "failed-precondition", "Sólo puedes cancelar compras en borrador.");
+    if (existing.estado !== "borrador" || existing.stockAplicado) fail(HttpsError, "failed-precondition", "Solo puedes cancelar compras en borrador.");
     const timestamp = FieldValue.serverTimestamp();
     const update = {estado: "cancelada", canceladoPorUid: uid, canceladoEn: timestamp, actualizadoPorUid: uid, actualizadoEn: timestamp};
     transaction.update(purchaseRef, update);

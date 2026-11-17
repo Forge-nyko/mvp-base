@@ -531,7 +531,7 @@ async function searchInventoryMarketReferencesHandler(request, dependencies) {
     throw new HttpsError("failed-precondition", "El producto debe estar activo para buscar referencias.");
   }
   if ((item.tipoItem || "producto") !== "producto") {
-    throw new HttpsError("failed-precondition", "La búsqueda de mercado está disponible sólo para productos.");
+    throw new HttpsError("failed-precondition", "La búsqueda de mercado está disponible solo para productos.");
   }
 
   const business = access.businessSnapshot.data() || {};

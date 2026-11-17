@@ -161,6 +161,7 @@ const {
   agregarNotaTrabajoHandler,
   agregarSubtareaTrabajoHandler,
   anularAdicionalTrabajoHandler,
+  anularDocumentacionTareaTrabajoHandler,
   anularGastoTrabajoHandler,
   anularHorasHombreTrabajoHandler,
   asignarTareaTrabajoHandler,
@@ -2407,6 +2408,10 @@ exports.asignarTareaTrabajo = onCall(workCallableOptions, async (request) =>
 
 exports.documentarTareaTrabajo = onCall(workCallableOptions, async (request) =>
   documentarTareaTrabajoHandler(request, workPersistenceDependencies)
+);
+
+exports.anularDocumentacionTareaTrabajo = onCall(workCallableOptions, async (request) =>
+  anularDocumentacionTareaTrabajoHandler(request, workPersistenceDependencies)
 );
 
 exports.registrarGastoTrabajo = onCall(workCallableOptions, async (request) =>
