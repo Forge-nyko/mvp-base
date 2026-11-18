@@ -127,7 +127,9 @@ function normalizeVehiclePlate(value, HttpsError, countryCode = "CL") {
     fail(
       HttpsError,
       "invalid-argument",
-      `La patente debe usar un formato válido para ${countryCode}.`
+      patterns
+        ? `La patente debe usar un formato válido para ${countryCode}.`
+        : "La patente debe tener de 5 a 8 caracteres con letras y números."
     );
   }
   return normalized;

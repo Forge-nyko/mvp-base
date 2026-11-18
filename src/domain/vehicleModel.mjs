@@ -116,7 +116,9 @@ export function getVehicleFieldErrors(raw = {}, {requiresOwner = false, countryC
     errors.clienteId = "Selecciona un cliente propietario.";
   }
   if (normalizedText(raw.patente) && !isValidVehiclePlate(raw.patente, countryCode)) {
-    errors.patente = `Ingresa una patente válida para ${countryCode}.`;
+    errors.patente = VEHICLE_PLATE_PATTERNS_BY_COUNTRY[countryCode]
+      ? `Ingresa una patente válida para ${countryCode}.`
+      : "Ingresa una patente de 5 a 8 caracteres con letras y números.";
   }
   if (normalizedText(raw.marca) && !isTextOnly(raw.marca)) {
     errors.marca = "La marca solo puede contener texto.";
