@@ -467,6 +467,7 @@ async function main() {
         regionCodigo: "13",
         estado: "activo",
         verificacionEmpresa: {estado: "VERIFICADA"},
+        creadoPorUid: ownerUid,
       }),
       adminDb.doc(`membresias/${businessId}__${ownerUid}`).set({
         negocioId: businessId,
