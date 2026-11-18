@@ -4,6 +4,7 @@
 // siempre activos. Copia exacta en functions/verticalModules.js.
 export const VERTICAL_MODULES = Object.freeze([
   {id: "taller", label: "Taller automotriz", basePath: "/taller"},
+  {id: "veterinaria", label: "Clínica veterinaria", basePath: "/clinica-veterinaria"},
 ]);
 
 export function isKnownVerticalModule(id, registry = VERTICAL_MODULES) {

@@ -53,6 +53,7 @@ import WorkOrdersPage from "../pages/WorkOrdersPage";
 import NewWorkOrderPage from "../pages/NewWorkOrderPage";
 import WorkOrderDetailPage from "../pages/WorkOrderDetailPage";
 import WorkshopPlazasPage from "../pages/WorkshopPlazasPage";
+import VeterinaryPage from "../pages/VeterinaryPage";
 import Button from "../components/ui/Button";
 import { BusinessFormatProvider } from "../hooks/useBusinessFormat";
 import { ThemePreferenceProvider } from "../hooks/useThemePreference";
@@ -488,6 +489,17 @@ function AppRoutes({
               key={businessId}
               businessId={businessId}
               role={activeBusiness}
+            />
+          }
+        />
+        <Route
+          path="/clinica-veterinaria/*"
+          element={
+            <VeterinaryPage
+              key={businessId}
+              businessId={businessId}
+              countryCode={activeBusiness?.paisCodigo}
+              role={activeBusiness?.role}
             />
           }
         />

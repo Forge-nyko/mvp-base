@@ -8,9 +8,10 @@ const require = createRequire(import.meta.url);
 const backendRegistry = require("../functions/verticalModules.js");
 const verticalModulesPath = require.resolve("../functions/verticalModules.js");
 
-// 1. Registro: Taller se agrega sobre el Core y las dos copias son identicas.
+// 1. Registro: Taller y Veterinaria se agregan sobre el Core y las dos copias son identicas.
 const expectedRegistry = [
   {id: "taller", label: "Taller automotriz", basePath: "/taller"},
+  {id: "veterinaria", label: "Clínica veterinaria", basePath: "/clinica-veterinaria"},
 ];
 
 assert.deepEqual(frontendRegistry.VERTICAL_MODULES, expectedRegistry);
@@ -33,13 +34,13 @@ const inputs = [
   ["Taller", " taller"], ["__proto__", "constructor", "taller"],
 ];
 for (const input of inputs) {
-  const expectedReal = Array.isArray(input) && input.includes("taller") ? ["taller"] : [];
   assert.deepEqual(
     frontendRegistry.normalizeEnabledModules(input, sample),
     backendRegistry.normalizeEnabledModules(input, sample),
     `paridad normalizeEnabledModules ${JSON.stringify(input)}`
   );
-  assert.deepEqual(frontendRegistry.normalizeEnabledModules(input), expectedReal);
+  const expectedReal = Array.isArray(input) ? ["taller", "veterinaria"].filter((id) => input.includes(id)) : [];
+  assert.deepEqual(frontendRegistry.normalizeEnabledModules(input), expectedReal, "el registro real conserva Taller y Veterinaria");
   assert.deepEqual(backendRegistry.normalizeEnabledModules(input), expectedReal);
 }
 assert.deepEqual(frontendRegistry.normalizeEnabledModules(["veterinaria", "taller", "taller", "x"], sample), ["taller", "veterinaria"]);
@@ -49,8 +50,8 @@ for (const id of ["taller", "veterinaria", "x", "", null, undefined, "__proto__"
     backendRegistry.isKnownVerticalModule(id, sample),
     `paridad isKnownVerticalModule ${String(id)}`
   );
-  assert.equal(frontendRegistry.isKnownVerticalModule(id), id === "taller");
-  assert.equal(backendRegistry.isKnownVerticalModule(id), id === "taller");
+  assert.equal(frontendRegistry.isKnownVerticalModule(id), ["taller", "veterinaria"].includes(id));
+  assert.equal(backendRegistry.isKnownVerticalModule(id), ["taller", "veterinaria"].includes(id));
 }
 assert.equal(frontendRegistry.isKnownVerticalModule("taller", sample), true);
 
@@ -68,7 +69,7 @@ assert.equal(
   functionsBlock(readFileSync(new URL("../functions/verticalModules.js", import.meta.url), "utf8").replace(/\r\n/g, "\n")),
   "las dos copias del registro deben tener el mismo contenido"
 );
-console.log("OK registro de modulos verticales: Taller registrado y con paridad entre copias");
+console.log("OK registro de modulos verticales: Taller y Veterinaria registrados y con paridad entre copias");
 
 // 2. Helper de acceso.
 const {MODULE_DISABLED_MESSAGE, assertBusinessModuleEnabled} = require("../functions/moduleAccess.js");

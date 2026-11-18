@@ -28,6 +28,15 @@ const SMOKE_SCRIPTS = [
   "test:vehicles-ui",
   "test:work-orders-model",
   "test:work-orders-ui",
+  "test:veterinary-patient",
+  "test:veterinary-appointment",
+  "test:veterinary-reception-triage",
+  "test:veterinary-clinical-consultation",
+  "test:veterinary-attention",
+  "test:veterinary-clinical-closure",
+  "test:veterinary-inventory-pharmacy",
+  "test:veterinary-photo-conversion",
+  "test:veterinary-packaging",
   "test:rbac",
   "test:market-relevance",
   "test:visible-text-accents",
@@ -41,6 +50,9 @@ const EMULATOR_SCRIPTS = [
   "test:quote-delete-draft",
   "test:vehicles-integrated",
   "test:work-orders-integrated",
+  // Agrupa microchip, paciente, cita, atencion y fotos con un solo arranque de emuladores.
+  "test:veterinary-emulators",
+  "test:veterinary-concurrency",
 ];
 
 const results = [];
