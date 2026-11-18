@@ -26,6 +26,8 @@ function ClientSelector({
   inline = false,
   onAvailabilityChange,
   onChange,
+  loadClients = listarClientes,
+  nameOnly = false,
   snapshot,
   value,
 }) {
@@ -64,7 +66,7 @@ function ClientSelector({
     }
 
     setLoading(true);
-    listarClientes(businessId)
+    loadClients(businessId)
       .then((items) => {
         if (!cancelled) setClients(items);
       })
@@ -78,7 +80,7 @@ function ClientSelector({
     return () => {
       cancelled = true;
     };
-  }, [businessId, onChange]);
+  }, [businessId, loadClients, onChange]);
 
   const activeClients = useMemo(
     () => filterSelectableClients(clients, businessId),
@@ -164,7 +166,7 @@ function ClientSelector({
                 onKeyDown={(event) => {
                   if (event.key === "Escape" && hasSelection) finishInlinePicking();
                 }}
-                placeholder="Buscar cliente por nombre o RUT"
+                placeholder={nameOnly ? "Buscar cliente por nombre" : "Buscar cliente por nombre o RUT"}
               />
             </div>
           </label>
@@ -174,7 +176,7 @@ function ClientSelector({
           {!searching && !loading && !error && activeClients.length > 0 && (
             <div className="client-selector__count">
               <p className="client-selector__status">
-                Tienes {activeClients.length === 1 ? "1 cliente activo" : `${activeClients.length} clientes activos`} · escribe un nombre o RUT para buscar
+                Tienes {activeClients.length === 1 ? "1 cliente activo" : `${activeClients.length} clientes activos`} · escribe un nombre{nameOnly ? "" : " o RUT"} para buscar
               </p>
               <button type="button" className="client-selector__all" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>Ver todos los clientes</button>
             </div>
@@ -190,8 +192,8 @@ function ClientSelector({
                     onClick={() => selectClient(client)}
                   >
                     <strong>{clientName(client)}</strong>
-                    <span>{client.identificadorFiscalValor || client.rut}</span>
-                    <small>{client.email || client.telefono || "Sin datos de contacto"}</small>
+                    {!nameOnly && <span>{client.identificadorFiscalValor || client.rut}</span>}
+                    {!nameOnly && <small>{client.email || client.telefono || "Sin datos de contacto"}</small>}
                   </button>
                 </div>
               ))}
@@ -221,18 +223,22 @@ function ClientSelector({
                 {value ? "Cliente registrado" : "Cliente histórico no vinculado"}
               </span>
             </div>
-            <p>{snapshot?.identificadorFiscalValor || snapshot?.rut || "Sin identificación fiscal"}</p>
-            <p>
-              {[snapshot?.email, snapshot?.telefono].filter(Boolean).join(" · ") ||
-                "Sin datos de contacto"}
-            </p>
-            <p>
-              {[
-                snapshot?.direccion,
-                snapshot?.comunaNombre || snapshot?.ciudad,
-                snapshot?.regionNombre,
-              ].filter(Boolean).join(", ") || "Sin dirección"}
-            </p>
+            {!nameOnly && (
+              <>
+                <p>{snapshot?.identificadorFiscalValor || snapshot?.rut || "Sin identificación fiscal"}</p>
+                <p>
+                  {[snapshot?.email, snapshot?.telefono].filter(Boolean).join(" · ") ||
+                    "Sin datos de contacto"}
+                </p>
+                <p>
+                  {[
+                    snapshot?.direccion,
+                    snapshot?.comunaNombre || snapshot?.ciudad,
+                    snapshot?.regionNombre,
+                  ].filter(Boolean).join(", ") || "Sin dirección"}
+                </p>
+              </>
+            )}
           </div>
           <Button
             ref={changeButtonRef}
@@ -248,7 +254,9 @@ function ClientSelector({
           <AppIcon icon={UserRoundSearch} size={24} />
           <div>
             <strong>Selecciona un cliente registrado</strong>
-            <p>La cotización guardará una copia histórica de sus datos.</p>
+            <p>{nameOnly
+              ? "El vehículo quedará asociado a este cliente."
+              : "La cotización guardará una copia histórica de sus datos."}</p>
           </div>
           <Button
             type="button"
@@ -274,9 +282,11 @@ function ClientSelector({
         onClose={() => { setOpen(false); setDialogSearch(""); }}
         initialFocusRef={dialogSearchRef}
         size="medium"
-        eyebrow="Cotización"
+        eyebrow={nameOnly ? "Taller" : "Cotización"}
         title="Seleccionar cliente"
-        description="Busca por nombre o identificación fiscal. Solo se muestran clientes activos del negocio actual."
+        description={nameOnly
+          ? "Busca por nombre. Solo se muestran clientes activos del negocio actual."
+          : "Busca por nombre o identificación fiscal. Solo se muestran clientes activos del negocio actual."}
       >
         <label className="client-selector__search">
           <span>Buscar cliente</span>
@@ -288,7 +298,7 @@ function ClientSelector({
               value={dialogSearch}
               maxLength={SEARCH_MAX_LENGTH}
               onChange={(event) => setDialogSearch(event.target.value)}
-              placeholder="Nombre o identificación fiscal"
+              placeholder={nameOnly ? "Nombre del cliente" : "Nombre o identificación fiscal"}
             />
           </div>
         </label>
@@ -304,8 +314,8 @@ function ClientSelector({
                   onClick={() => selectClient(client)}
                 >
                   <strong>{clientName(client)}</strong>
-                  <span>{client.identificadorFiscalValor || client.rut}</span>
-                  <small>{client.email || client.telefono || "Sin datos de contacto"}</small>
+                  {!nameOnly && <span>{client.identificadorFiscalValor || client.rut}</span>}
+                  {!nameOnly && <small>{client.email || client.telefono || "Sin datos de contacto"}</small>}
                 </button>
               </div>
             ))}

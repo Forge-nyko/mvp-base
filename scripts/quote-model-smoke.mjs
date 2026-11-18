@@ -533,7 +533,8 @@ assert.match(
   sourceNewQuote,
   /if \(client\.clienteId === currentClienteIdRef\.current\) return;/
 );
-assert.match(sourceClientSelector, /listarClientes\(businessId\)/);
+assert.match(sourceClientSelector, /loadClients = listarClientes/);
+assert.match(sourceClientSelector, /loadClients\(businessId\)/);
 assert.match(sourceClientSelector, /if \(!businessId\)/);
 assert.doesNotMatch(sourceClientSelector, /clientRutKeys/);
 assert.match(sourceNewQuote, /areaId/);
@@ -721,7 +722,7 @@ assert.match(sourceClientSelector, /visibleClients\.length > INLINE_RESULTS_LIMI
 assert.match(sourceClientSelector, /Mostrando \{INLINE_RESULTS_LIMIT\} de \{visibleClients\.length\} · sigue escribiendo para afinar/);
 assert.match(sourceClientSelector, /const searching = search\.trim\(\)\.length > 0;/, "sin escribir no se dibuja ninguna lista");
 assert.match(sourceClientSelector, /\{searching && \(visibleClients\.length > 0 \? \(/, "la lista solo existe al escribir");
-assert.match(sourceClientSelector, /Tienes \{activeClients\.length === 1 \? "1 cliente activo" : `\$\{activeClients\.length\} clientes activos`\} · escribe un nombre o RUT para buscar/);
+assert.match(sourceClientSelector, /Tienes \{activeClients\.length === 1 \? "1 cliente activo" : `\$\{activeClients\.length\} clientes activos`\} · escribe un nombre\{nameOnly \? "" : " o RUT"\} para buscar/);
 assert.match(sourceClientSelector, /<p className="sr-only" aria-live="polite">/, "aviso para lectores de pantalla con la cantidad de resultados");
 assert.match(sourceClientSelector, /<strong>Aún no tienes clientes<\/strong>/);
 assert.match(sourceClientSelector, /<Link className="client-selector__link" to="\/clientes">Ir a Clientes<\/Link>/);
@@ -749,7 +750,7 @@ assert.doesNotMatch(sourceClientSelector, /\{!inline && <ResponsiveDialog/, "con
 assert.match(sourceClientSelector, /<ResponsiveDialog\s+open=\{open\}/);
 assert.match(sourceClientSelector, /filterSelectableClients\(clients, businessId, search\)/, "mismo filtro");
 assert.equal((sourceClientSelector.match(/onChange\?\.\(client\)/g) || []).length, 1, "un solo punto de elección: onChange(client) con el objeto");
-assert.match(sourceClientSelector, /placeholder="Buscar cliente por nombre o RUT"/);
+assert.match(sourceClientSelector, /placeholder=\{nameOnly \? "Buscar cliente por nombre" : "Buscar cliente por nombre o RUT"\}/);
 assert.match(sourceQuoteSummary, /<h2>Resumen<\/h2>/);
 assert.doesNotMatch(sourceQuoteSummary, /Totales|quote-workspace__kicker/, "el resumen ya no repite el rótulo");
 assert.match(sourceQuoteWorkspaceCss, /\.quote-summary__row--total strong \{\s*color: var\(--color-text-brand\);\s*font-size: var\(--font-size-2xl\);/, "Total en color de marca, como en Venta");

@@ -24,6 +24,10 @@ const SMOKE_SCRIPTS = [
   "test:quote-email",
   "test:quote-public",
   "test:sales-model",
+  "test:vehicles-model",
+  "test:vehicles-ui",
+  "test:work-orders-model",
+  "test:work-orders-ui",
   "test:rbac",
   "test:market-relevance",
   "test:visible-text-accents",
@@ -35,6 +39,8 @@ const EMULATOR_SCRIPTS = [
   "test:business-verification-rules",
   "test:notification-rules",
   "test:quote-delete-draft",
+  "test:vehicles-integrated",
+  "test:work-orders-integrated",
 ];
 
 const results = [];
