@@ -273,7 +273,7 @@ function ClientsManager({businessId, canCreateQuotes = false, countryCode = "CL"
           action={canManage ? {label: "Crear primer cliente", icon: Plus, onClick: openCreate} : undefined}
           description={canManage
             ? "Crea el primer cliente para comenzar tu registro comercial."
-            : "OWNER o ADMIN pueden registrar el primer cliente."}
+            : "Propietario o Administrador pueden registrar el primer cliente."}
           icon={MODULE.icon}
           title="Aún no hay clientes"
         />

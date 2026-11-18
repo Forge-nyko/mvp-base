@@ -297,7 +297,7 @@ function ProvidersManager({businessId, countryCode = "CL", role}) {
           action={canManage ? {label: "Crear primer proveedor", icon: Plus, onClick: openCreate} : undefined}
           description={canManage
             ? "Crea el primer proveedor para comenzar tu registro comercial."
-            : "OWNER o ADMIN pueden registrar el primer proveedor."}
+            : "Propietario o Administrador pueden registrar el primer proveedor."}
           icon={MODULE.icon}
           title="No hay proveedores registrados"
         />

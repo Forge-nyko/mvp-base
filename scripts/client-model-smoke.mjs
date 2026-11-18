@@ -267,4 +267,8 @@ assert.match(clientForm, /label=\{values\.tipoCliente === "persona" \? "Nombre c
 assert.doesNotMatch(clientForm, /client-form-field__optional/);
 console.log("OK formulario: Empresa/Persona diferenciadas, formato vivo y sin datos ocultos residuales");
 
+// Texto visible del vacío sin permiso: rol en español, nunca el código interno.
+const clientsManagerSource = fs.readFileSync("src/features/clients/ClientsManager.jsx", "utf8");
+assert.match(clientsManagerSource, /Propietario o Administrador pueden registrar el primer cliente/);
+assert.doesNotMatch(clientsManagerSource, /OWNER o ADMIN/, "no debe reaparecer «OWNER o ADMIN» en textos visibles");
 console.log("CLIENT_MODEL_SMOKE_OK");

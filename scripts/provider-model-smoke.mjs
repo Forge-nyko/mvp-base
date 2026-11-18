@@ -265,4 +265,8 @@ assert.match(sourcePersistence, /PURCHASE_WRITE_ROLES: AUTHORIZED_ROLES/);
 assert.match(sourcePersistence, /collection\("providerCreateRequests"\)/);
 console.log("OK contrato: servicio, cambio de negocio, UI, Rules y backend autoritativo");
 
+// Texto visible del vacío sin permiso: rol en español, nunca el código interno.
+const providersManagerSource = fs.readFileSync("src/features/providers/ProvidersManager.jsx", "utf8");
+assert.match(providersManagerSource, /Propietario o Administrador pueden registrar el primer proveedor/);
+assert.doesNotMatch(providersManagerSource, /OWNER o ADMIN/, "no debe reaparecer «OWNER o ADMIN» en textos visibles");
 console.log("PROVIDER_MODEL_SMOKE_OK");

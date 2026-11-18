@@ -1044,7 +1044,7 @@ async function cambiarEstadoTareaTrabajoV2Handler(request, dependencies) {
     if (previous) { result = previous; return; }
     const work = assertWork(await transaction.get(workRef), context.businessId, HttpsError); assertWorkOperator(work, context, HttpsError); assertTaskMutable(work, HttpsError);
     const task = assertTask(await transaction.get(taskRef), context.businessId, workId, HttpsError); assertTaskOperator(task, context, HttpsError);
-    if (taskIsCompleted(task) && !completed && !WRITE_ROLES.includes(context.membership?.rol)) fail(HttpsError, "permission-denied", "Solo OWNER o ADMIN puede reabrir tareas.");
+    if (taskIsCompleted(task) && !completed && !WRITE_ROLES.includes(context.membership?.rol)) fail(HttpsError, "permission-denied", "Solo Propietario o Administrador puede reabrir tareas.");
     const timestamp = FieldValue.serverTimestamp();
     const previousStatus = taskIsCompleted(task) ? "completada" : WORK_TASK_STATUSES.has(task.estado) ? task.estado : "pendiente";
     if (previousStatus === requestedStatus && (requestedStatus !== "en_espera" || String(task.motivoEspera || "") === motivoEspera)) {

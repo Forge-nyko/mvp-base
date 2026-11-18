@@ -1308,4 +1308,8 @@ console.log("OK gasto Material con documento: suma siempre; sin documento se man
 }
 console.log("OK ficha, textos, Comercial, Adicionales y Balance: enlace al balance, desglose, pestañas fijas, vacío comercial, etiquetas y «Horas»");
 
+// Mensajes de error que llegan a la pantalla: rol en español, nunca el código interno.
+const workPersistenceSource = fs.readFileSync("functions/workPersistence.js", "utf8");
+assert.match(workPersistenceSource, /Solo Propietario o Administrador puede reabrir tareas./);
+assert.doesNotMatch(workPersistenceSource, /OWNER o ADMIN/, "no debe reaparecer «OWNER o ADMIN» en mensajes visibles de functions");
 console.log("WORKS_MODEL_SMOKE_OK");

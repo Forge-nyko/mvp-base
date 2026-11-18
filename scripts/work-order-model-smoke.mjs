@@ -242,4 +242,23 @@ assert.deepEqual(normalizeDiagnosisInput({responsableUid: "member-1", descripcio
 assert.throws(() => normalizeDiagnosisInput({responsableUid: "member-1", descripcion: "", observaciones: "", estado: "completado"}, TestHttpsError),
   (error) => error.code === "invalid-argument" && /estado.*no está admitido/i.test(error.message));
 console.log("OK recepción OT: enums, anomalías, NO_REVISADO/NO_PROBADO y transición autoritativa");
+// Mensajes de error que ve la persona: Inventario, sin la palabra interna «Core».
+{
+  const fs = require("node:fs");
+  const visible = [];
+  assert.throws(() => normalizeServiceInput({itemId: "", responsableUid: "member-1"}, TestHttpsError),
+    (error) => { visible.push(error.message); return error.code === "invalid-argument" && /El servicio de Inventario/.test(error.message); });
+  const missing = {exists: false, id: "x", data: () => undefined};
+  assert.throws(() => freezeCoreItem(missing, "negocio-1", "x", "servicio", TestHttpsError),
+    (error) => { visible.push(error.message); return error.code === "not-found" && /ítem de Inventario\./.test(error.message); });
+  const wrongType = {exists: true, id: "x", data: () => ({tipoItem: "producto", estado: "activo"})};
+  assert.throws(() => freezeCoreItem(wrongType, "negocio-1", "x", "servicio", TestHttpsError),
+    (error) => { visible.push(error.message); return error.code === "failed-precondition" && /de Inventario del mismo negocio/.test(error.message); });
+  visible.forEach((message) => assert.doesNotMatch(message, /Core/, `mensaje visible con «Core»: ${message}`));
+  // Los productos de planificación se validan dentro de una transacción: se revisa el código fuente.
+  const persistenceSource = fs.readFileSync("functions/workOrderPersistence.js", "utf8");
+  const leaks = persistenceSource.split(/\r?\n/).filter((line) => /(fail\(|identifier\()/.test(line) && /Core/.test(line));
+  assert.deepEqual(leaks, [], `mensajes de error con «Core»:\n${leaks.join("\n")}`);
+  assert.match(persistenceSource, /"El producto de Inventario"/);
+}
 console.log("WORK_ORDER_MODEL_SMOKE_OK");

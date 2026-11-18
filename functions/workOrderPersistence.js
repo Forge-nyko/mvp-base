@@ -336,7 +336,7 @@ function normalizeServiceInput(raw, HttpsError) {
   const unknown = Object.keys(raw).find((field) => !SERVICE_INPUT_FIELDS.has(field));
   if (unknown) fail(HttpsError, "invalid-argument", `El campo ${unknown} no está admitido en el servicio.`);
   return {
-    itemId: identifier(raw.itemId, "El servicio Core", HttpsError),
+    itemId: identifier(raw.itemId, "El servicio de Inventario", HttpsError),
     responsableUid: identifier(raw.responsableUid, "El responsable", HttpsError),
   };
 }
@@ -372,11 +372,11 @@ function invalidateWorkOrderScope(transaction, orderRef, order, context, actorSn
 }
 
 function assertPlanningItem(snapshot, businessId, itemId, type, HttpsError) {
-  if (!snapshot.exists) fail(HttpsError, "not-found", "No se encontró el ítem de Inventario Core.");
+  if (!snapshot.exists) fail(HttpsError, "not-found", "No se encontró el ítem de Inventario.");
   const item = snapshot.data() || {};
   if (snapshot.id !== itemId || (item.negocioId && item.negocioId !== businessId) ||
       item.tipoItem !== type || (item.estado || "activo") !== "activo") {
-    fail(HttpsError, "failed-precondition", `Selecciona un ${type} activo de Inventario Core del mismo negocio.`);
+    fail(HttpsError, "failed-precondition", `Selecciona un ${type} activo de Inventario del mismo negocio.`);
   }
 }
 
@@ -1010,7 +1010,7 @@ async function changeProductoOTHandler(request, dependencies, action) {
     ? requestIdentifier(request?.data?.requestId, HttpsError)
     : identifier(request?.data?.productoOtId, "El producto planificado", HttpsError);
   const itemId = action === "agregar"
-    ? identifier(request?.data?.itemId, "El producto Core", HttpsError)
+    ? identifier(request?.data?.itemId, "El producto de Inventario", HttpsError)
     : null;
   const quantity = action === "eliminar" ? null : plannedQuantity(request?.data?.cantidad, HttpsError);
   const expected = request?.data?.expectedActualizadoEn;
@@ -1359,9 +1359,9 @@ async function readApprovalContext(transaction, context, orderRef, dependencies,
   }
   const ids = new Set();
   services.forEach((service) => {
-    ids.add(identifier(service.itemId, "El servicio Core", HttpsError));
+    ids.add(identifier(service.itemId, "El servicio de Inventario", HttpsError));
     (service.productos || []).forEach((product) => {
-      ids.add(identifier(product.itemId, "El producto Core", HttpsError));
+      ids.add(identifier(product.itemId, "El producto de Inventario", HttpsError));
       plannedQuantity(product.cantidad, HttpsError);
     });
   });
