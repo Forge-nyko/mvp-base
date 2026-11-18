@@ -42,7 +42,7 @@ function PrimaryNavigation({
   const renderLink = (item, nested = false) => {
     const isActive = item.activeWhen
       ? item.activeWhen(pathname)
-      : pathname === item.to || pathname.startsWith(`${item.to}/`);
+      : pathname === item.to;
     const classes = ["nav-link", nested ? "nav-link--nested" : "", isActive ? "nav-link-active" : ""]
       .filter(Boolean)
       .join(" ");

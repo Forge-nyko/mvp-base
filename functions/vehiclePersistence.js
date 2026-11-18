@@ -31,6 +31,7 @@ const VEHICLE_PLATE_PATTERNS_BY_COUNTRY = Object.freeze({
     /^[A-Z]{4}\d{3}$/,
   ]),
 });
+const GENERIC_VEHICLE_PLATE_PATTERN = /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{5,8}$/;
 const TEXT_ONLY_PATTERN = /^\p{L}(?:[\p{L}\s.'-]*\p{L})?$/u;
 const MIN_VEHICLE_YEAR = 1900;
 const VEHICLE_INPUT_FIELDS = new Set([
@@ -119,7 +120,10 @@ function normalizeVehiclePlate(value, HttpsError, countryCode = "CL") {
   }
   const normalized = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
   const patterns = VEHICLE_PLATE_PATTERNS_BY_COUNTRY[countryCode];
-  if (!patterns || !patterns.some((pattern) => pattern.test(normalized))) {
+  const valid = patterns
+    ? patterns.some((pattern) => pattern.test(normalized))
+    : GENERIC_VEHICLE_PLATE_PATTERN.test(normalized);
+  if (!valid) {
     fail(
       HttpsError,
       "invalid-argument",
@@ -563,6 +567,7 @@ async function cambiarPropietarioVehiculoHandler(request, dependencies) {
 
 module.exports = {
   VEHICLE_PLATE_PATTERNS_BY_COUNTRY,
+  GENERIC_VEHICLE_PLATE_PATTERN,
   VEHICLE_TYPES,
   actualizarVehiculoHandler,
   cambiarPropietarioVehiculoHandler,
