@@ -279,6 +279,37 @@ assert.deepEqual(
   ).map((section) => section.label),
   ["Inicio", "Comercial", "Operación", "Abastecimiento", "Gestión", "Módulos", "Cuenta"]
 );
+// Veterinaria: el ítem del menú lleva sus hijos; con hijos vacíos el filtro lo descartaba.
+const verticalModulesFor = (access, enabledModules) =>
+  filterNavigationSections(registeredVerticalSections, access, {enabledModules})
+    .find((section) => section.label === "Módulos")?.items ?? [];
+const bothVerticalItems = verticalModulesFor({role: "OWNER"}, ["taller", "veterinaria"]);
+assert.deepEqual(bothVerticalItems.map((item) => item.to), ["/taller", "/clinica-veterinaria"]);
+const veterinaryNavItem = bothVerticalItems[1];
+assert.deepEqual(
+  veterinaryNavItem.children.map((item) => item.to),
+  ["/clinica-veterinaria", "/clinica-veterinaria/pacientes", "/clinica-veterinaria/agenda"]
+);
+assert.deepEqual(
+  veterinaryNavItem.children.map((item) => item.label),
+  ["Resumen clínico", "Pacientes", "Agenda"]
+);
+const veterinarySummary = veterinaryNavItem.children[0];
+assert.equal(veterinarySummary.activeWhen("/clinica-veterinaria"), true);
+assert.equal(veterinarySummary.activeWhen("/clinica-veterinaria/pacientes"), false, "el resumen no queda activo en las pantallas hijas");
+assert.equal(veterinaryNavItem.children[1].activeWhen("/clinica-veterinaria/pacientes/abc"), true);
+assert.deepEqual(
+  verticalModulesFor({role: "OWNER"}, ["veterinaria"]).map((item) => item.to),
+  ["/clinica-veterinaria"]
+);
+assert.deepEqual(
+  verticalModulesFor({role: "ADMIN"}, ["veterinaria"]).map((item) => item.to),
+  ["/clinica-veterinaria"]
+);
+assert.deepEqual(verticalModulesFor({role: "OWNER"}, ["taller"]).map((item) => item.to), ["/taller"]);
+for (const role of ["VENTAS", "TECNICO", "MEMBER"]) {
+  assert.deepEqual(verticalModulesFor({role}, ["veterinaria"]), [], `${role} no ve la Clínica veterinaria`);
+}
 const testVerticalRegistry = [{ id: "prueba", label: "Módulo de prueba", basePath: "/modulo-prueba" }];
 const verticalSections = buildNavigationSections(testVerticalRegistry);
 assert.deepEqual(verticalSections.map((section) => section.label).slice(-2), ["Módulos", "Cuenta"]);

@@ -2,11 +2,14 @@ import {
   BarChart3,
   Boxes,
   Building2,
+  CalendarDays,
   ClipboardCheck,
   ClipboardList,
   BriefcaseBusiness,
   Car,
+  HeartPulse,
   History,
+  PawPrint,
   ReceiptText,
   PackageCheck,
   UserRound,
@@ -30,6 +33,12 @@ const verticalNavigationItems = Object.freeze({
       icon: Warehouse,
       requiredPermission: BUSINESS_PERMISSIONS.TALLER_MANAGE,
     },
+  ]),
+  // path "" = la ruta base del módulo (Resumen clínico), con coincidencia exacta.
+  veterinaria: Object.freeze([
+    {path: "", label: "Resumen clínico", title: "Resumen clínico", icon: HeartPulse},
+    {path: "pacientes", label: "Pacientes", title: "Pacientes", icon: PawPrint},
+    {path: "agenda", label: "Agenda", title: "Agenda", icon: CalendarDays},
   ]),
 });
 
@@ -166,11 +175,14 @@ export function buildNavigationSections(registry = VERTICAL_MODULES) {
     label: "Módulos",
     items: registry.map(({id, label, basePath}) => {
       const children = (verticalNavigationItems[id] || []).map(({path, ...item}) => {
-        const to = `${basePath}/${path}`;
+        const to = path ? `${basePath}/${path}` : basePath;
         return {
           ...item,
           to,
-          activeWhen: (pathname) => pathname === to || pathname.startsWith(`${to}/`),
+          // Sin path es la ruta base: coincide solo con ella para no quedar activa en las hijas.
+          activeWhen: path
+            ? (pathname) => pathname === to || pathname.startsWith(`${to}/`)
+            : (pathname) => pathname === to || pathname === `${to}/`,
         };
       });
       return {
