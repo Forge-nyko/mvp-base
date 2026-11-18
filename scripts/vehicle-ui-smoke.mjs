@@ -57,6 +57,7 @@ assert.equal(isValidVehiclePlate("AB12C", "BO"), true);
 for (const plate of ["ABCD", "12345", "ABCDEFGHI", "123456789"]) {
   assert.equal(isValidVehiclePlate(plate, "BO"), false);
 }
+assert.match(getVehicleFieldErrors({patente: "ABCD"}, {countryCode: "BO"}).patente, /5 a 8 caracteres con letras y números/);
 assert.equal(normalizeVehiclePlate("abc-123"), "ABC123");
 for (const plate of ["12ABC", "12345ABC", "1234AB", "ABC1234", "1234AB1"]) {
   assert.equal(isValidVehiclePlate(plate), false);
