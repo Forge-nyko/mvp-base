@@ -1,6 +1,6 @@
 # SPEC 030: Rubros seleccionables y aviso fiscal por país
 
-Estado: **implementada (2026-10-18)**. Solo catálogo y presentación. No toca reglas Firestore, cálculos, esquema del catálogo ni países, monedas o regiones. Complementa la SPEC 016 (visión post-demo) y la documentación de onboarding; no sustituye ninguno de sus puntos.
+Estado: **implementada (2026-10-18)**; las decisiones 1 y 2 y el punto "Nada del sistema decide menús o módulos según el rubro" de la sección 2 quedan sustituidos por la SPEC 033 (9 rubros seleccionables con Taller y Veterinaria, y módulos habilitados por rubro al crear el negocio). Solo catálogo y presentación. No toca reglas Firestore, cálculos, esquema del catálogo ni países, monedas o regiones. Complementa la SPEC 016 (visión post-demo) y la documentación de onboarding; no sustituye ninguno de sus puntos.
 
 ## 1. Decisión
 

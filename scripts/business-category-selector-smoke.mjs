@@ -29,7 +29,7 @@ const [picker, quickFields, company, dialog, componentStyles] = await Promise.al
 assert.equal(normalizeCategorySearch("  TECNOLOGÍA  "), "tecnologia");
 assert.equal(normalizeCategorySearch("Cafetería"), "cafeteria");
 const visibleCategories = filterBusinessCategories(catalog.businessCategories, "");
-assert.equal(visibleCategories.length, 7);
+assert.equal(visibleCategories.length, 9);
 assert.deepEqual(
   visibleCategories.map(({ code }) => code),
   [
@@ -38,6 +38,8 @@ assert.deepEqual(
     "ELECTRICIDAD_ENERGIA_CLIMATIZACION",
     "AUTOMATIZACION_CONTROL",
     "MANTENIMIENTO_INSTALACIONES",
+    "TALLER_AUTOMOTRIZ",
+    "CLINICA_VETERINARIA",
     "INGENIERIA_CONSULTORIA",
     "OTRO_SERVICIO_PROYECTOS",
   ]
@@ -70,13 +72,23 @@ assert.equal(
   false
 );
 
+// Taller automotriz y Clínica veterinaria dejaron de ser "Próximamente" (SPEC 033):
+// ahora son rubros seleccionables y el buscador los devuelve.
+for (const [query, code] of [
+  ["taller", "TALLER_AUTOMOTRIZ"],
+  ["automotriz", "TALLER_AUTOMOTRIZ"],
+  ["veterinaria", "CLINICA_VETERINARIA"],
+  ["clinica", "CLINICA_VETERINARIA"],
+]) {
+  assert.ok(
+    filterBusinessCategories(catalog.businessCategories, query).some((category) => category.code === code),
+    `${query} devuelve ${code}`
+  );
+}
+
 // "Próximamente": una sola línea de texto, sin filas, etiquetas ni botones,
 // sin código y fuera del buscador.
 for (const query of [
-  "taller",
-  "automotriz",
-  "veterinaria",
-  "clinica",
   "construccion",
   "software",
   "marketing",
@@ -85,7 +97,7 @@ for (const query of [
 }
 assert.match(
   picker,
-  /Próximamente: Taller automotriz, Clínica veterinaria, Construcción y obras, Software y soluciones digitales y Servicios digitales y creativos\./
+  /Próximamente: Construcción y obras, Software y soluciones digitales y Servicios digitales y creativos\./
 );
 assert.match(picker, /<p className="business-category-soon">\{COMING_SOON_TEXT\}<\/p>/);
 assert.doesNotMatch(picker, /COMING_SOON_CATEGORIES|business-category-option--soon|business-category-soon__/);

@@ -23,6 +23,7 @@ const { legalAcceptanceState } = require("./legalAcceptance");
 const {BUSINESS_ROLES} = require("./rbac");
 const {assertBusinessModuleEnabled} = require("./moduleAccess");
 const {normalizeEnabledModules} = require("./verticalModules");
+const {modulesForCategory} = require("./categoryModules");
 const ACTIVE_STATUS = "activo";
 const DELETED_STATUS = "eliminada";
 const PILOT_OWNER_BUSINESS_LIMIT = null;
@@ -683,6 +684,8 @@ async function createFirstBusinessHandler(
     regionRequired: false,
   });
   const fingerprint = fingerprintBusinessInput(input);
+  // Después del fingerprint: no altera los reintentos idempotentes (SPEC 033).
+  const modulosHabilitados = modulesForCategory(input.rubroCodigo);
   const userRef = db.collection("usuarios").doc(uid);
   const lockRef = userRef.collection("sistema").doc("primerNegocio");
   const ownerPlanRef = userRef.collection("sistema").doc("negociosPropios");
@@ -813,6 +816,7 @@ async function createFirstBusinessHandler(
 
     transaction.create(businessRef, {
       ...input,
+      modulosHabilitados,
       estado: ACTIVE_STATUS,
       verificacionEmpresa: {estado: VERIFICATION_STATES.NOT_VERIFIED},
       modeloNegocioVersion: 2,
@@ -886,6 +890,7 @@ async function createFirstBusinessHandler(
       business: {
         id: businessRef.id,
         ...input,
+        modulosHabilitados,
         estado: ACTIVE_STATUS,
         verificacionEmpresa: {estado: VERIFICATION_STATES.NOT_VERIFIED},
         role: "OWNER",
@@ -903,6 +908,8 @@ async function createAdditionalBusinessHandler(
   const requestId = validateRequestId(request?.data?.requestId, HttpsError);
   const input = validateBusinessCreationInput(request?.data, HttpsError);
   const fingerprint = fingerprintBusinessInput(input);
+  // Después del fingerprint: no altera los reintentos idempotentes (SPEC 033).
+  const modulosHabilitados = modulesForCategory(input.rubroCodigo);
   const userRef = db.collection("usuarios").doc(uid);
   const requestRef = userRef
     .collection("businessCreateRequests")
@@ -976,6 +983,7 @@ async function createAdditionalBusinessHandler(
 
     transaction.create(businessRef, {
       ...input,
+      modulosHabilitados,
       estado: ACTIVE_STATUS,
       verificacionEmpresa: {estado: VERIFICATION_STATES.NOT_VERIFIED},
       modeloNegocioVersion: 2,
@@ -1038,6 +1046,7 @@ async function createAdditionalBusinessHandler(
       business: {
         id: businessRef.id,
         ...input,
+        modulosHabilitados,
         estado: ACTIVE_STATUS,
         verificacionEmpresa: {estado: VERIFICATION_STATES.NOT_VERIFIED},
         role: "OWNER",

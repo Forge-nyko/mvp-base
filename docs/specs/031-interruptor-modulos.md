@@ -29,4 +29,4 @@ Estado: **implementada (2026-10-18)**, en dos partes. Parte 1 (commit `0a9236f`)
 
 - Despliegue de Functions, reglas y Hosting.
 - La primera entrada real del registro llega con la integración de Taller o Clínica Veterinaria.
-- Asociar módulos a un rubro no está en alcance: el rubro sigue siendo descriptivo.
+- ~~Asociar módulos a un rubro no está en alcance: el rubro sigue siendo descriptivo.~~ **Sustituido por la SPEC 033**: el rubro elegido al crear el negocio habilita sus módulos verticales (`functions/categoryModules.js`). Cambiar el rubro después no recalcula los módulos.

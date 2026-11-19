@@ -15,27 +15,33 @@ Solo en `functions/businessCatalog.json` (clave `businessCategories`). El servid
 
 Un negocio conserva su `rubroCodigo` y `rubroNombre` aunque el rubro deje de ser seleccionable: el servidor lo acepta si el código es igual al que ya tiene guardado.
 
-## Rubros seleccionables hoy (7)
+## Rubros seleccionables hoy (9)
 
-`TECNOLOGIA_INFORMATICA`, `SEGURIDAD_TELECOMUNICACIONES`, `ELECTRICIDAD_ENERGIA_CLIMATIZACION`, `AUTOMATIZACION_CONTROL`, `MANTENIMIENTO_INSTALACIONES`, `INGENIERIA_CONSULTORIA` y `OTRO_SERVICIO_PROYECTOS`.
+`TECNOLOGIA_INFORMATICA`, `SEGURIDAD_TELECOMUNICACIONES`, `ELECTRICIDAD_ENERGIA_CLIMATIZACION`, `AUTOMATIZACION_CONTROL`, `MANTENIMIENTO_INSTALACIONES`, `TALLER_AUTOMOTRIZ`, `CLINICA_VETERINARIA`, `INGENIERIA_CONSULTORIA` y `OTRO_SERVICIO_PROYECTOS`. `TALLER_AUTOMOTRIZ` y `CLINICA_VETERINARIA` además habilitan su módulo vertical al crear el negocio (ver "Cómo se activa un módulo para un rubro").
 
-Existen pero no son seleccionables: `AUTOMOTRIZ_MOVILIDAD`, `CONSTRUCCION_OBRAS`, `SOFTWARE_SOLUCIONES_DIGITALES` y `SERVICIOS_DIGITALES_CREATIVOS`. El picker los muestra, con "Taller automotriz" y "Clínica veterinaria", en el grupo "Próximamente".
+Existen pero no son seleccionables: `AUTOMOTRIZ_MOVILIDAD`, `CONSTRUCCION_OBRAS`, `SOFTWARE_SOLUCIONES_DIGITALES` y `SERVICIOS_DIGITALES_CREATIVOS`. El picker muestra "Construcción y obras", "Software y soluciones digitales" y "Servicios digitales y creativos" en el grupo "Próximamente" (solo texto, sin código).
 
 ## Cómo habilitar un rubro
 
 1. En `businessCatalog.json`, deja `active: true`, `catalogVersion` igual al vigente y quita `selectable: false` (o no lo pongas).
 2. Si es nuevo, agrega `code` (mayúsculas y guion bajo), `name`, `sectorCode` y `searchTerms`.
-3. Si aparece en la lista "Próximamente" del picker (`BusinessCategoryPicker.jsx`), quita su fila de `COMING_SOON_CATEGORIES`.
+3. Si aparece en el texto "Próximamente" del picker (`COMING_SOON_TEXT` en `BusinessCategoryPicker.jsx`), quítalo de ese texto y ajusta la expresión que lo comprueba en `business-category-selector-smoke.mjs`.
 4. Ajusta los smokes: la lista y el recuento de seleccionables en `business-catalog-smoke.mjs` y `business-category-selector-smoke.mjs`, y la lista `RETIRED_CATEGORIES` de `business-onboarding-integrated.mjs`.
 
 ## Cómo se activa un módulo para un rubro
 
-El interruptor de módulos por negocio ya existe (SPEC 031), pero **no depende del rubro**: el rubro sigue siendo solo un dato descriptivo y habilitar un rubro no activa ningún módulo. Los módulos verticales (por ejemplo Taller o Clínica Veterinaria) los habilita el superadmin negocio por negocio, desde la consola de plataforma (detalle de la empresa, sección "Módulos"). El registro de módulos nace vacío; cómo agregar uno está en `docs/guia-practicantes.md` (sección 4) y el diseño en `docs/specs/031-interruptor-modulos.md`.
+Desde la SPEC 033 el rubro **sí** habilita módulos verticales, pero **solo al crear el negocio**. El mapa vive en `functions/categoryModules.js` (`TALLER_AUTOMOTRIZ` a `["taller"]` y `CLINICA_VETERINARIA` a `["veterinaria"]`); `createFirstBusiness` y `createAdditionalBusiness` guardan `modulesForCategory(rubroCodigo)` en `modulosHabilitados`. Un rubro sin mapeo deja `[]`.
+
+- **Cambiar el rubro después no recalcula los módulos.** `updateBusinessProfile` no los toca. Agregar o quitar módulos a un negocio ya creado sigue siendo del superadmin, desde la consola de plataforma (detalle de la empresa, sección "Módulos", SPEC 031).
+- **Para que un rubro nuevo habilite un módulo:** el módulo debe existir en el registro (`docs/guia-practicantes.md`, sección 4); agrega el par `rubroCodigo` a `[idDelMódulo]` en `CATEGORY_MODULES` y un caso en `scripts/category-modules-smoke.mjs`. El rubro debe ser seleccionable: un código no seleccionable no se puede elegir al crear.
+- **Decisión de producto:** el dueño se autohabilita el módulo al elegir el rubro, sin aprobación. Si se venden planes habrá que poner un tope (SPEC 033, sección 3).
+- El archivo `functions/categoryModules.js` está aparte de `functions/verticalModules.js` para no romper la paridad textual con `src/domain/verticalModules.mjs`. Si lo creas de nuevo en otro módulo, agrégalo también al script `lint` de `functions/package.json` (lista archivos uno a uno).
 
 ## Pruebas
 
 ```bash
 npm run test:business-catalog
+npm run test:category-modules
 npm run test:business-category-selector
 npm run test:business-quick-flow
 npm run test:business-onboarding   # integrado, requiere emuladores

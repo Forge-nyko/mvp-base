@@ -256,6 +256,9 @@ async function main() {
     assert.equal(createdBusinesses.size, 1);
     const createdBusiness = createdBusinesses.docs[0].data();
     assert.equal(createdBusiness.nombreComercial, validPayload.nombreComercial);
+    // SPEC 033: un rubro sin mapeo deja la lista vacía (no el campo ausente).
+    assert.deepEqual(createdBusiness.modulosHabilitados, []);
+    assert.deepEqual(firstResponse.data.business.modulosHabilitados, []);
     assert.equal(createdBusiness.regionCodigo, "");
     assert.equal(Object.hasOwn(createdBusiness, "comunaCodigo"), false);
     assert.equal(Object.hasOwn(createdBusiness, "comunaNombre"), false);
@@ -616,6 +619,29 @@ async function main() {
     ]);
     assert.equal(upgradedBusiness.data()?.rubroCodigo, "INGENIERIA_CONSULTORIA");
     assert.equal(upgradedProfile.data()?.rubroCodigo, "INGENIERIA_CONSULTORIA");
+    // Este negocio perdió el campo más arriba (admin lo borró): ausente equivale a [] (SPEC 031).
+    // Se compara contra el valor de antes del cambio, no contra un literal.
+    const modulesOf = (data) => (Array.isArray(data?.modulosHabilitados) ? data.modulosHabilitados : []);
+    const modulesBeforeCategoryChanges = modulesOf(upgradedBusiness.data());
+    // SPEC 033: pasar a un rubro con módulos tampoco habilita nada después de crear el negocio.
+    for (const nextCategory of ["TALLER_AUTOMOTRIZ", "CLINICA_VETERINARIA", "INGENIERIA_CONSULTORIA"]) {
+      await ownerCall("updateBusinessProfile", {
+        businessId,
+        profile: {
+          nombreComercial: validPayload.nombreComercial,
+          rubroCodigo: nextCategory,
+          regionEstado: "Exterior",
+          validezCotizacionDias: 15,
+        },
+      });
+      const afterCategoryChange = await adminDb.collection("negocios").doc(businessId).get();
+      assert.equal(afterCategoryChange.data()?.rubroCodigo, nextCategory);
+      assert.deepEqual(
+        modulesOf(afterCategoryChange.data()),
+        modulesBeforeCategoryChanges,
+        `cambiar el rubro a ${nextCategory} no altera los módulos`
+      );
+    }
 
     // Un negocio que ya tenía un rubro hoy no seleccionable lo conserva al actualizar su perfil.
     for (const [retiredCode, retiredName] of RETIRED_CATEGORIES) {
@@ -772,6 +798,141 @@ async function main() {
         )
       )
     );
+
+    // SPEC 033: el rubro elegido al crear el negocio habilita sus módulos verticales.
+    const categoryClient = createClient("category-modules");
+    try {
+      const categoryCredential = await createUserWithEmailAndPassword(
+        categoryClient.auth,
+        `category-modules-${RUN_ID}@example.test`,
+        "test-password-123"
+      );
+      const categoryUid = categoryCredential.user.uid;
+      const categoryCall = (name, data = {}) =>
+        httpsCallable(categoryClient.functions, name)(data);
+      const storedModules = async (id) =>
+        (await adminDb.collection("negocios").doc(id).get()).data()?.modulosHabilitados;
+      const createdByCategoryUser = async () =>
+        (await adminDb.collection("negocios").where("creadoPorUid", "==", categoryUid).get()).size;
+
+      // Primer negocio con Taller automotriz.
+      const tallerPayload = {
+        nombreComercial: "Taller Los Andes",
+        rubroCodigo: "TALLER_AUTOMOTRIZ",
+        paisCodigo: "PY",
+        monedaCodigo: "USD",
+        locale: "en-US",
+        identificadorFiscalTipo: "RFC",
+        impuestoPredeterminadoTasa: 1,
+        requestId: "category_modules_taller_first_001",
+      };
+      const tallerFirst = await categoryCall("createFirstBusiness", tallerPayload);
+      const tallerId = tallerFirst.data.business.id;
+      assert.equal(tallerFirst.data.idempotent, false);
+      assert.equal(tallerFirst.data.business.rubroCodigo, "TALLER_AUTOMOTRIZ");
+      assert.equal(tallerFirst.data.business.rubroNombre, "Taller automotriz");
+      assert.deepEqual(tallerFirst.data.business.modulosHabilitados, ["taller"]);
+      assert.deepEqual(await storedModules(tallerId), ["taller"]);
+      const tallerSession = await categoryCall("getBusinessSession");
+      assert.equal(tallerSession.data.activeBusiness.id, tallerId);
+      assert.deepEqual(tallerSession.data.activeBusiness.modulosHabilitados, ["taller"]);
+      assert.deepEqual(
+        tallerSession.data.businesses.find((business) => business.id === tallerId)?.modulosHabilitados,
+        ["taller"]
+      );
+
+      // Reintento con el mismo requestId: misma respuesta, sin negocio nuevo ni módulos distintos.
+      const tallerRetry = await categoryCall("createFirstBusiness", tallerPayload);
+      assert.equal(tallerRetry.data.idempotent, true);
+      assert.equal(tallerRetry.data.business.id, tallerId);
+      assert.deepEqual(tallerRetry.data.business.modulosHabilitados, ["taller"]);
+      assert.deepEqual(await storedModules(tallerId), ["taller"]);
+      assert.equal(await createdByCategoryUser(), 1);
+
+      // Negocio adicional con Clínica veterinaria.
+      const veterinariaPayload = {
+        nombreComercial: "Veterinaria Norte",
+        rubroCodigo: "CLINICA_VETERINARIA",
+        regionCodigo: "01",
+        requestId: "category_modules_vet_additional_001",
+      };
+      const veterinariaAdditional = await categoryCall("createAdditionalBusiness", veterinariaPayload);
+      const veterinariaId = veterinariaAdditional.data.business.id;
+      assert.equal(veterinariaAdditional.data.idempotent, false);
+      assert.equal(veterinariaAdditional.data.business.rubroNombre, "Clínica veterinaria");
+      assert.deepEqual(veterinariaAdditional.data.business.modulosHabilitados, ["veterinaria"]);
+      assert.deepEqual(await storedModules(veterinariaId), ["veterinaria"]);
+      const veterinariaSession = await categoryCall("getBusinessSession");
+      assert.equal(veterinariaSession.data.activeBusiness.id, veterinariaId);
+      assert.deepEqual(veterinariaSession.data.activeBusiness.modulosHabilitados, ["veterinaria"]);
+      assert.deepEqual(
+        veterinariaSession.data.businesses.find((business) => business.id === tallerId)?.modulosHabilitados,
+        ["taller"],
+        "cada negocio conserva sus propios módulos"
+      );
+      const veterinariaRetry = await categoryCall("createAdditionalBusiness", veterinariaPayload);
+      assert.equal(veterinariaRetry.data.idempotent, true);
+      assert.equal(veterinariaRetry.data.business.id, veterinariaId);
+      assert.deepEqual(veterinariaRetry.data.business.modulosHabilitados, ["veterinaria"]);
+      assert.equal(await createdByCategoryUser(), 2);
+
+      // Negocio adicional con Taller automotriz: mismo resultado que el primero.
+      const tallerAdditional = await categoryCall("createAdditionalBusiness", {
+        nombreComercial: "Taller Sur",
+        rubroCodigo: "TALLER_AUTOMOTRIZ",
+        regionCodigo: "01",
+        requestId: "category_modules_taller_additional_001",
+      });
+      assert.deepEqual(tallerAdditional.data.business.modulosHabilitados, ["taller"]);
+      assert.deepEqual(await storedModules(tallerAdditional.data.business.id), ["taller"]);
+
+      // Negocio adicional con un rubro sin mapeo: lista vacía.
+      const plainAdditional = await categoryCall("createAdditionalBusiness", {
+        nombreComercial: "Servicios Centro",
+        rubroCodigo: "TECNOLOGIA_INFORMATICA",
+        regionCodigo: "01",
+        requestId: "category_modules_plain_additional_001",
+      });
+      assert.deepEqual(plainAdditional.data.business.modulosHabilitados, []);
+      assert.deepEqual(await storedModules(plainAdditional.data.business.id), []);
+
+      // Cambiar el rubro después no altera los módulos: ni los quita ni agrega otros.
+      await categoryCall("updateBusinessProfile", {
+        businessId: tallerId,
+        profile: {
+          nombreComercial: tallerPayload.nombreComercial,
+          rubroCodigo: "TECNOLOGIA_INFORMATICA",
+          regionEstado: "Exterior",
+          validezCotizacionDias: 15,
+        },
+      });
+      const tallerAfterChange = await adminDb.collection("negocios").doc(tallerId).get();
+      assert.equal(tallerAfterChange.data()?.rubroCodigo, "TECNOLOGIA_INFORMATICA");
+      assert.deepEqual(tallerAfterChange.data()?.modulosHabilitados, ["taller"]);
+      await categoryCall("updateBusinessProfile", {
+        businessId: tallerId,
+        profile: {
+          nombreComercial: tallerPayload.nombreComercial,
+          rubroCodigo: "CLINICA_VETERINARIA",
+          regionEstado: "Exterior",
+          validezCotizacionDias: 15,
+        },
+      });
+      assert.deepEqual(await storedModules(tallerId), ["taller"]);
+      const afterChangeSession = await categoryCall("getBusinessSession");
+      assert.deepEqual(
+        afterChangeSession.data.businesses.find((business) => business.id === tallerId)?.modulosHabilitados,
+        ["taller"]
+      );
+      // El SDK cliente sigue sin poder escribir el campo.
+      await expectDenied(() =>
+        updateDoc(doc(categoryClient.db, "negocios", tallerId), {modulosHabilitados: ["taller", "veterinaria"]})
+      );
+      assert.deepEqual(await storedModules(tallerId), ["taller"]);
+    } finally {
+      if (categoryClient.auth.currentUser) await signOut(categoryClient.auth);
+      await deleteApp(categoryClient.app);
+    }
 
     // SPEC 024 etapa 2: aceptación de términos y privacidad.
     const legalClient = createClient("legal-user");

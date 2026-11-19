@@ -95,13 +95,15 @@ const expectedV1Categories = [
   ["ELECTRICIDAD_ENERGIA_CLIMATIZACION", "Electricidad, energía y climatización"],
   ["AUTOMATIZACION_CONTROL", "Automatización y control"],
   ["MANTENIMIENTO_INSTALACIONES", "Mantenimiento e instalaciones técnicas"],
+  ["TALLER_AUTOMOTRIZ", "Taller automotriz"],
+  ["CLINICA_VETERINARIA", "Clínica veterinaria"],
   ["INGENIERIA_CONSULTORIA", "Ingeniería y consultoría técnica"],
   ["OTRO_SERVICIO_PROYECTOS", "Otro servicio por proyectos"],
 ];
 const selectableCategories = catalog.businessCategories.filter((category) =>
   isSelectableBusinessCategory(category, catalog.businessCategoryCatalogVersion)
 );
-assert.equal(selectableCategories.length, 7);
+assert.equal(selectableCategories.length, 9);
 assert.deepEqual(
   selectableCategories.map(({ code, name }) => [code, name]),
   expectedV1Categories

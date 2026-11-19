@@ -33,7 +33,7 @@ const CATEGORY_DISPLAY_NAMES = Object.freeze({
 // Rubros en construcción: solo texto informativo. No tienen código, no entran
 // al catálogo ni al payload y el buscador no los devuelve.
 const COMING_SOON_TEXT =
-  "Próximamente: Taller automotriz, Clínica veterinaria, Construcción y obras, Software y soluciones digitales y Servicios digitales y creativos.";
+  "Próximamente: Construcción y obras, Software y soluciones digitales y Servicios digitales y creativos.";
 
 // Nombre visible de un rubro en cualquier pantalla (el selector y el resumen de Empresa)
 // usan el mismo texto. El nombre canónico del catálogo (y el que se guarda) no cambia.
