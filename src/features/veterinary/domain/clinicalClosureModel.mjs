@@ -8,6 +8,14 @@ export const VETERINARY_CLINICAL_OUTCOMES =
   ]);
 
 
+export const VETERINARY_CLINICAL_OUTCOME_LABELS =
+  Object.freeze({
+    alta: "Alta",
+    control: "Control",
+    derivacion: "Derivación",
+  });
+
+
 const VETERINARY_SALE_ITEM_TYPES =
   Object.freeze([
     "servicio",

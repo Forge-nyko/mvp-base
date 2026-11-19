@@ -5,9 +5,10 @@ import LoadingState from "../../../components/ui/LoadingState";
 import {crearCliente, listarClientes} from "../../../services/clientService";
 import ClientFormDialog from "../../clients/ClientFormDialog";
 import {guardarPacienteVeterinario, subscribeToVeterinaryAttentions, subscribeToVeterinaryPatients} from "../data/veterinaryDataService";
-import {buildVeterinaryPatientMutationPayload, formatVeterinaryPatientAge} from "../domain/patientModel.mjs";
+import {buildVeterinaryPatientMutationPayload, formatVeterinaryPatientAge, getVeterinaryPatientFieldErrors} from "../domain/patientModel.mjs";
 import VeterinaryPhotoMap from "../attention/VeterinaryPhotoMap";
 import PatientDetail from "./PatientDetail";
+import VeterinaryField from "../VeterinaryField";
 
 const patientListPath = "/clinica-veterinaria/pacientes";
 const patientPath = (id) => patientListPath + "/" + encodeURIComponent(id);
@@ -27,15 +28,17 @@ function PatientForm({businessId, countryCode, patient, tutors, onTutorCreated})
   const pendingWrite = useRef(null);
   const [version] = useState(() => patient?.version ?? 0);
   const [newId] = useState(() => crypto.randomUUID());
-  const [registrationDate] = useState(() => patient ? patient.creadoEn : new Date());
-  const registeredAge = formatVeterinaryPatientAge(form.fechaNacimiento, registrationDate);
+  // La edad se calcula contra hoy, así que se actualiza con los días.
+  const age = formatVeterinaryPatientAge(form.fechaNacimiento, new Date());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const activeTutors = tutors.filter((tutor) => tutor.estado === "activo");
   const selectedTutorAvailable = activeTutors.some((tutor) => tutor.id === form.tutorClienteId);
   const setField = (event) => {
     const {name, value} = event.target;
     setForm((current) => ({...current, [name]: value}));
+    setFieldErrors((current) => ({...current, [name]: undefined}));
   };
 
   async function registerTutor(payload) {
@@ -43,11 +46,15 @@ function PatientForm({businessId, countryCode, patient, tutors, onTutorCreated})
     const tutor = {...client, id: client.clienteId};
     onTutorCreated(tutor);
     setForm((current) => ({...current, tutorClienteId: tutor.id}));
+    setFieldErrors((current) => ({...current, tutorClienteId: undefined}));
   }
 
   async function save(event) {
     event.preventDefault();
-    if (saving || !selectedTutorAvailable) return;
+    if (saving) return;
+    const nextErrors = getVeterinaryPatientFieldErrors({...form, tutorClienteId: selectedTutorAvailable ? form.tutorClienteId : ""});
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
     setSaving(true);
     setError("");
     try {
@@ -79,26 +86,24 @@ function PatientForm({businessId, countryCode, patient, tutors, onTutorCreated})
     <section className="erp-panel">
       <h1>{patient ? "Editar paciente" : "Nuevo paciente"}</h1>
       {!activeTutors.length && <p>Registra un tutor activo para asociarlo al paciente.</p>}
-      <form className="erp-form" onSubmit={save}>
-        <label className="erp-field">
-          <span>Tutor registrado</span>
-          <select className="erp-control" name="tutorClienteId" required value={selectedTutorAvailable ? form.tutorClienteId : ""} onChange={setField}>
+      <form className="erp-form" onSubmit={save} noValidate>
+        <VeterinaryField label="Tutor registrado" required error={fieldErrors.tutorClienteId}>
+          <select className="erp-control" name="tutorClienteId" value={selectedTutorAvailable ? form.tutorClienteId : ""} onChange={setField}>
             <option value="">Selecciona un tutor</option>
             {activeTutors.map((tutor) => <option key={tutor.id} value={tutor.id}>{tutor.nombreRazonSocial}</option>)}
           </select>
-        </label>
+        </VeterinaryField>
         <Button type="button" variant="secondary" disabled={saving} onClick={() => setTutorDialogOpen(true)}>Registrar tutor</Button>
         <div className="erp-form-grid">
           {textFields.map(([name, label, required, type = "text"]) => (
-            <label key={name} className="erp-field">
-              <span>{label}</span>
-              <input className="erp-control" name={name} type={type} inputMode={name === "peso" ? "decimal" : undefined} required={required} value={form[name] ?? ""} onChange={setField} />
-            </label>
+            <VeterinaryField key={name} label={label} required={required} error={fieldErrors[name]}>
+              <input className="erp-control" name={name} type={type} inputMode={name === "peso" ? "decimal" : undefined} value={form[name] ?? ""} onChange={setField} />
+            </VeterinaryField>
           ))}
           {form.fechaNacimiento ? (
             <div className="erp-field">
-              <span>Edad al registro</span>
-              <output>{registeredAge || "Edad no disponible para esa fecha."}</output>
+              <span>Edad</span>
+              <output>{age || "Edad no disponible para esa fecha."}</output>
             </div>
           ) : (
             <label className="erp-field">
@@ -107,14 +112,13 @@ function PatientForm({businessId, countryCode, patient, tutors, onTutorCreated})
             </label>
           )}
           {notesFields.map(([name, label]) => (
-            <label key={name} className="erp-field">
-              <span>{label}</span>
+            <VeterinaryField key={name} label={label} error={fieldErrors[name]}>
               <textarea className="erp-control" name={name} value={form[name] ?? ""} onChange={setField} />
-            </label>
+            </VeterinaryField>
           ))}
         </div>
         {error && <p className="erp-empty-state" role="alert">{error}</p>}
-        <Button type="submit" loading={saving} disabled={!selectedTutorAvailable}>Guardar paciente</Button>
+        <Button type="submit" loading={saving}>Guardar paciente</Button>
       </form>
       <ClientFormDialog open={tutorDialogOpen} countryCode={countryCode}
         onClose={() => setTutorDialogOpen(false)} onSubmit={registerTutor} />

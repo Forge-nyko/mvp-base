@@ -3,13 +3,16 @@
 const {importVeterinaryModel} = require("./veterinaryModels");
 
 async function guardarAtencionVeterinariaHandler(request, {db, HttpsError, FieldValue, requireBusinessAccess}) {
-  const {buildVeterinaryAttentionMutationPayload} = await importVeterinaryModel("attentionModel");
+  const {
+    buildVeterinaryAttentionDraftPayload,
+    buildVeterinaryAttentionMutationPayload,
+  } = await importVeterinaryModel("attentionModel");
   const {buildVeterinaryClinicalClosureMutationPayload} = await importVeterinaryModel("clinicalClosureModel");
   const {uid, businessId, businessRef} = await requireBusinessAccess(
       request, {db, HttpsError}, {roles: ["OWNER", "ADMIN"], requiredVerticalModule: "veterinaria"},
   );
   const {citaId, operacion, atencion} = request.data;
-  if (!["iniciar", "cerrar"].includes(operacion) || typeof citaId !== "string" || !/^[a-zA-Z0-9_-]{1,120}$/.test(citaId)) {
+  if (!["iniciar", "borrador", "cerrar"].includes(operacion) || typeof citaId !== "string" || !/^[a-zA-Z0-9_-]{1,120}$/.test(citaId)) {
     throw new HttpsError("invalid-argument", "Selecciona una cita y una operación válidas.");
   }
   const appointmentRef = businessRef.collection("citasVeterinarias").doc(citaId);
@@ -27,7 +30,7 @@ async function guardarAtencionVeterinariaHandler(request, {db, HttpsError, Field
       throw new HttpsError("failed-precondition", "La atención no coincide con la cita.");
     }
     if (existing && (
-      (existing.estado === "finalizada" && appointment.estado === "finalizada") ||
+      (operacion !== "borrador" && existing.estado === "finalizada" && appointment.estado === "finalizada") ||
       (operacion === "iniciar" && existing.estado === "en_atencion" && appointment.estado === "en_atencion")
     )) return {atencionId: citaId};
 
@@ -50,6 +53,21 @@ async function guardarAtencionVeterinariaHandler(request, {db, HttpsError, Field
         recepcion: appointment.recepcion, triage: appointment.triage,
       });
       tx.update(appointmentRef, {...audit, estado: "en_atencion"});
+      return {atencionId: citaId};
+    }
+    if (operacion === "borrador") {
+      if (existing?.estado !== "en_atencion" || appointment.estado !== "en_atencion") {
+        throw new HttpsError("failed-precondition", "Solo puedes guardar el borrador de una atención abierta.");
+      }
+      let draft;
+      try {
+        draft = buildVeterinaryAttentionDraftPayload(atencion);
+      } catch (error) {
+        if (!error.fieldErrors) throw error;
+        throw new HttpsError("invalid-argument", Object.values(error.fieldErrors).flat()[0], error.fieldErrors);
+      }
+      // Sin lista de ítems en la solicitud se conserva la del borrador anterior.
+      tx.update(attentionRef, {borrador: {...draft, items: draft.items ?? existing.borrador?.items ?? []}, ...audit});
       return {atencionId: citaId};
     }
     if (existing?.estado !== "en_atencion" || appointment.estado !== "en_atencion") {
@@ -75,6 +93,7 @@ async function guardarAtencionVeterinariaHandler(request, {db, HttpsError, Field
     tx.update(attentionRef, {
       ...clinical, ...audit, resultadoClinico: closure.resultadoClinico,
       estado: "finalizada", finalizadaEn: stamp, finalizadoPorUid: uid,
+      borrador: FieldValue.delete(),
     });
     tx.update(appointmentRef, {...audit, estado: "finalizada"});
     return {atencionId: citaId};

@@ -20,4 +20,25 @@ for (const blob of [null, {type: "image/png", size: 10}, {type: "image/jpeg", si
 const large = {type: "image/jpeg", size: 2 * 1024 * 1024 + 1};
 await assert.rejects(run([large, large, large]), /supera los 2 MiB/);
 assert.deepEqual(await run([large, {type: "image/jpeg", size: 100}]), {value: "TEST", qualities: [0.82, 0.65]});
+
+// Una sola lista de nombres de vista: pestañas y "Vistas que faltan" usan los mismos textos.
+assert.doesNotMatch(source, /viewButtons|"Frente"|"Atrás"|"Arriba"|"Abajo"/);
+assert.match(source, /Object\.entries\(views\)\.filter/);
+// El conteo de fotos sale de la atención, no del lote recién subido.
+assert.match(source, /Fotos guardadas en la atención: \{photos\.length\} de 12\./);
+assert.doesNotMatch(source, /uploaded === 1 \? "1 foto guardada\./);
+// Se avisa cuando una foto se reduce para cumplir el límite de 2 MiB.
+assert.match(source, /se redujo a .* para cumplir el límite de 2 MiB/s);
+// Solo lectura (historial y atención cerrada): sin textos de edición.
+assert.match(source, /\{!closed && \(\s*<>\s*<p>Agrega fotos de esta mascota/);
+assert.match(source, /closed \? "Fotos clínicas"/);
+const attentionSource = readFileSync(new URL("../src/features/veterinary/attention/VeterinaryAttention.jsx", import.meta.url), "utf8");
+assert.match(attentionSource, /Guardar borrador/);
+assert.match(attentionSource, /"borrador"/);
+assert.match(attentionSource, /attention\.borrador/);
+const detailSource = readFileSync(new URL("../src/features/veterinary/patients/PatientDetail.jsx", import.meta.url), "utf8");
+assert.match(detailSource, /Resultado clínico:/);
+assert.doesNotMatch(detailSource, /Edad al registro/);
+const patientsSource = readFileSync(new URL("../src/features/veterinary/patients/VeterinaryPatients.jsx", import.meta.url), "utf8");
+assert.doesNotMatch(patientsSource, /Edad al registro/);
 console.log("VETERINARY_PHOTO_CONVERSION_SMOKE_OK");

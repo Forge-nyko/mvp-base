@@ -2,6 +2,7 @@ import assert
   from "node:assert/strict";
 
 import {
+  buildVeterinaryAttentionDraftPayload,
   buildVeterinaryAttentionMutationPayload,
   getVeterinaryAttentionFieldErrors,
 } from "../src/features/veterinary/domain/attentionModel.mjs";
@@ -413,7 +414,40 @@ function testAttentionAuthorityFieldsAreRemoved() {
 }
 
 
+function testDraft() {
+  // El borrador no exige los obligatorios del cierre.
+  assert.deepEqual(buildVeterinaryAttentionDraftPayload({}), {
+    motivoConsulta: "", diagnostico: "", tratamiento: "", indicaciones: "", resultadoClinico: "",
+  });
+  const draft = buildVeterinaryAttentionDraftPayload({
+    motivoConsulta: "Control", diagnostico: "Línea 1\r\nLínea 2 ", tratamiento: "", indicaciones: "Reposo",
+    resultadoClinico: "Control",
+    items: [{itemId: "producto-1", cantidad: "2.5", nombre: "Nombre manipulado", precio: 1}, {itemId: "servicio-1", cantidad: 1}],
+  });
+  assert.equal(draft.diagnostico, "Línea 1\nLínea 2 ");
+  assert.equal(draft.resultadoClinico, "control");
+  assert.deepEqual(draft.items, [{itemId: "producto-1", cantidad: 2.5}, {itemId: "servicio-1", cantidad: 1}]);
+  // Sin "items" no hay lista (la Function conserva la anterior).
+  assert.equal(Object.hasOwn(buildVeterinaryAttentionDraftPayload({diagnostico: "x"}), "items"), false);
+  assert.deepEqual(buildVeterinaryAttentionDraftPayload({items: []}).items, []);
+  const rejects = (data, field) => assert.throws(
+    () => buildVeterinaryAttentionDraftPayload(data),
+    (error) => Boolean(error.fieldErrors?.[field]),
+  );
+  rejects({resultadoClinico: "inventado"}, "resultadoClinico");
+  rejects({diagnostico: "a".repeat(4001)}, "diagnostico");
+  rejects({diagnostico: {texto: "x"}}, "diagnostico");
+  rejects({items: [{itemId: "a", cantidad: 0}]}, "items");
+  rejects({items: [{itemId: "a", cantidad: 1}, {itemId: "a", cantidad: 2}]}, "items");
+  rejects({items: [{itemId: "../malo", cantidad: 1}]}, "items");
+  rejects({items: "no es lista"}, "items");
+  rejects({items: Array.from({length: 101}, (_, index) => ({itemId: "i" + index, cantidad: 1}))}, "items");
+}
+
+
 testValidAttention();
+
+testDraft();
 
 testRequiredFields();
 

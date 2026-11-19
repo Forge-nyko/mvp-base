@@ -1,10 +1,17 @@
 import React, {useState} from "react";
 import Button from "../../../components/ui/Button";
 import {guardarRecepcionVeterinaria} from "../data/veterinaryDataService";
-import {VETERINARY_TRIAGE_PRIORITIES} from "../domain/receptionTriageModel.mjs";
+import VeterinaryField from "../VeterinaryField";
+import {
+  getVeterinaryReceptionFieldErrors,
+  getVeterinaryTriageFieldErrors,
+  VETERINARY_TRIAGE_LIMITS,
+  VETERINARY_TRIAGE_PRIORITIES,
+} from "../domain/receptionTriageModel.mjs";
 
 export const triageLabels = {normal: "Normal", prioritaria: "Prioritaria", urgente: "Urgente"};
 
+// Los límites (min/max) salen de VETERINARY_TRIAGE_LIMITS, el mismo modelo que valida el backend.
 const vitalFields = [
   ["pesoKg", "Peso (kg)", "any"],
   ["temperaturaC", "Temperatura (°C)", "any"],
@@ -17,19 +24,30 @@ export default function VeterinaryReceptionForm({appointment, businessId}) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const change = ({target: {name, value}}) => {
     setSaved(false);
     setForm((current) => ({...current, [name]: value}));
+    setFieldErrors((current) => ({...current, [name]: undefined}));
   };
   async function save(event) {
     event.preventDefault();
     if (saving) return;
+    const names = ["horaLlegada", "prioridad", "observacionesRecepcion", "observacionesTriage", ...vitalFields.map(([name]) => name)];
+    const reception = Object.fromEntries(names.map((name) => [name, form[name] ?? ""]));
+    // El paciente y el tutor los resuelve la Function desde la cita; aquí solo se validan los campos del formulario.
+    const context = {citaId: appointment.id, pacienteId: appointment.pacienteId || "-", tutorClienteId: "-"};
+    const nextErrors = {
+      ...getVeterinaryReceptionFieldErrors({...reception, ...context}),
+      ...getVeterinaryTriageFieldErrors({...reception, ...context}),
+    };
+    for (const key of Object.keys(context)) delete nextErrors[key];
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
     setSaving(true);
     setError("");
     setSaved(false);
     try {
-      const names = ["horaLlegada", "prioridad", "observacionesRecepcion", "observacionesTriage", ...vitalFields.map(([name]) => name)];
-      const reception = Object.fromEntries(names.map((name) => [name, form[name] ?? ""]));
       await guardarRecepcionVeterinaria(businessId, appointment.id, reception);
       setSaved(true);
     } catch (failure) {
@@ -43,28 +61,28 @@ export default function VeterinaryReceptionForm({appointment, businessId}) {
   return (
     <section className="erp-panel">
       <h2>Recepción y triage</h2>
-      <form className="erp-form" onSubmit={save}>
+      <form className="erp-form" onSubmit={save} noValidate>
         <div className="erp-form-grid">
-          <label className="erp-field"><span>Hora de llegada</span>
-            <input className="erp-control" type="time" name="horaLlegada" required value={form.horaLlegada ?? ""} onChange={change} />
-          </label>
-          <label className="erp-field"><span>Prioridad</span>
-            <select className="erp-control" name="prioridad" required value={form.prioridad ?? ""} onChange={change}>
+          <VeterinaryField label="Hora de llegada" required error={fieldErrors.horaLlegada}>
+            <input className="erp-control" type="time" name="horaLlegada" value={form.horaLlegada ?? ""} onChange={change} />
+          </VeterinaryField>
+          <VeterinaryField label="Prioridad" required error={fieldErrors.prioridad}>
+            <select className="erp-control" name="prioridad" value={form.prioridad ?? ""} onChange={change}>
               <option value="">Selecciona la prioridad</option>
               {VETERINARY_TRIAGE_PRIORITIES.map((priority) => <option value={priority} key={priority}>{triageLabels[priority]}</option>)}
             </select>
-          </label>
+          </VeterinaryField>
           {vitalFields.map(([name, label, step]) => (
-            <label className="erp-field" key={name}><span>{label}</span>
-              <input className="erp-control" type="number" min="0" step={step} name={name} value={form[name] ?? ""} onChange={change} />
-            </label>
+            <VeterinaryField label={label} key={name} error={fieldErrors[name]}>
+              <input className="erp-control" type="number" min={VETERINARY_TRIAGE_LIMITS[name].min} max={VETERINARY_TRIAGE_LIMITS[name].max} step={step} name={name} value={form[name] ?? ""} onChange={change} />
+            </VeterinaryField>
           ))}
-          <label className="erp-field"><span>Observaciones de recepción</span>
+          <VeterinaryField label="Observaciones de recepción" error={fieldErrors.observacionesRecepcion}>
             <textarea className="erp-control" name="observacionesRecepcion" maxLength={1000} value={form.observacionesRecepcion ?? ""} onChange={change} />
-          </label>
-          <label className="erp-field"><span>Observaciones de triage</span>
+          </VeterinaryField>
+          <VeterinaryField label="Observaciones de triage" error={fieldErrors.observacionesTriage}>
             <textarea className="erp-control" name="observacionesTriage" maxLength={2000} value={form.observacionesTriage ?? ""} onChange={change} />
-          </label>
+          </VeterinaryField>
         </div>
         {error && <p role="alert">{error}</p>}
         {saved && <p role="status">Recepción y triage guardados.</p>}

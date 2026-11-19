@@ -11,6 +11,7 @@ import {
 import Button from "../../../components/ui/Button";
 import StatusBadge from "../../../components/ui/StatusBadge";
 
+import {VETERINARY_CLINICAL_OUTCOME_LABELS} from "../domain/clinicalClosureModel.mjs";
 import {formatVeterinaryPatientAge} from "../domain/patientModel.mjs";
 import "./patient-detail.css";
 
@@ -107,7 +108,8 @@ export default function PatientDetail({
     );
   }
 
-  const registeredAge = formatVeterinaryPatientAge(patient.fechaNacimiento, patient.creadoEn);
+  // La edad se calcula contra hoy, así que se actualiza con los días.
+  const age = formatVeterinaryPatientAge(patient.fechaNacimiento, new Date());
   const patientStatus =
     PATIENT_STATUS_LABELS[patient.estado] || "Activo";
 
@@ -204,8 +206,8 @@ export default function PatientDetail({
             </div>
 
             <div>
-              <dt>{registeredAge ? "Edad al registro" : "Edad estimada"}</dt>
-              <dd>{registeredAge || patient.edadEstimada || "No registrada"}</dd>
+              <dt>{age ? "Edad" : "Edad estimada"}</dt>
+              <dd>{age || patient.edadEstimada || "No registrada"}</dd>
             </div>
 
             <div>
@@ -240,7 +242,7 @@ export default function PatientDetail({
               <h2>Tutor responsable</h2>
 
               <p>
-                Información obtenida desde Clientes Core.
+                Datos del cliente registrado.
               </p>
             </div>
           </div>
@@ -455,6 +457,9 @@ export default function PatientDetail({
                             "Sin tratamiento registrado"}
                         </p>
                         {attention.indicaciones && <p><strong>Indicaciones:</strong> {attention.indicaciones}</p>}
+                        {VETERINARY_CLINICAL_OUTCOME_LABELS[attention.resultadoClinico] && (
+                          <p><strong>Resultado clínico:</strong> {VETERINARY_CLINICAL_OUTCOME_LABELS[attention.resultadoClinico]}</p>
+                        )}
                         {[...(attention.servicios ?? []), ...(attention.productos ?? [])].length > 0 && (
                           <ul>
                             {[...(attention.servicios ?? []), ...(attention.productos ?? [])].map((item) => (

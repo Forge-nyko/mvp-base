@@ -104,6 +104,16 @@ function getTodayIsoDate({now = new Date(), timeZone} = {}) {
 }
 
 
+// Fecha para mostrar al usuario: "2026-11-19" -> "19-11-2026". Lo no reconocible se devuelve tal cual.
+export function formatVeterinaryAppointmentDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value ?? ""));
+
+  return match
+    ? `${match[3]}-${match[2]}-${match[1]}`
+    : String(value ?? "") || "—";
+}
+
+
 export function getVeterinaryAppointmentFieldErrors(
   rawData = {}, options = {}
 ) {

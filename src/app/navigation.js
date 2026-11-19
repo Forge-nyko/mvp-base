@@ -272,10 +272,15 @@ export function getRouteMeta(pathname) {
     return { title: "Ver venta" };
   }
 
-  return (
-    navigationItems.find((item) => item.to === pathname) ||
-    hiddenRouteMeta[pathname] || {
-      title: "ValoraCloud",
-    }
-  );
+  const exactMeta = navigationItems.find((item) => item.to === pathname) || hiddenRouteMeta[pathname];
+  if (exactMeta) return exactMeta;
+
+  // Subpantallas de Veterinaria (paciente nuevo/ficha/edición, cita, atención): sin título propio,
+  // la barra muestra el nombre del módulo en vez de la marca.
+  const veterinary = VERTICAL_MODULES.find((module) => module.id === "veterinaria");
+  if (veterinary && pathname.startsWith(`${veterinary.basePath}/`)) {
+    return { title: veterinary.label };
+  }
+
+  return { title: "ValoraCloud" };
 }

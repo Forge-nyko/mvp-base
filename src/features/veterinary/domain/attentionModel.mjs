@@ -1,3 +1,4 @@
+import { VETERINARY_CLINICAL_OUTCOMES } from "./clinicalClosureModel.mjs";
 import { isValidVeterinaryQuantity } from "./quantityValidation.mjs";
 
 export const VETERINARY_ATTENTION_ITEM_TYPES =
@@ -375,4 +376,149 @@ export function buildVeterinaryAttentionMutationPayload(
             )
         ),
   };
+}
+
+
+// Borrador de la atención abierta: guarda lo escrito hasta ahora sin exigir los obligatorios del cierre.
+// Los ítems solo conservan itemId y cantidad; nombre, unidad y precio se vuelven a leer de Inventario
+// (en el formulario al abrir y en el servidor al cerrar). Sin "items" se conserva la lista anterior.
+const VETERINARY_ATTENTION_DRAFT_TEXT_LIMITS =
+  Object.freeze({
+    motivoConsulta: 1000,
+    diagnostico: 4000,
+    tratamiento: 4000,
+    indicaciones: 4000,
+  });
+
+const VETERINARY_ATTENTION_DRAFT_MAX_ITEMS = 100;
+
+
+export function buildVeterinaryAttentionDraftPayload(
+  rawData = {}
+) {
+  const data =
+    rawData &&
+    typeof rawData === "object"
+      ? rawData
+      : {};
+
+  const errors = {};
+  const draft = {};
+
+
+  for (
+    const [field, maxLength] of
+    Object.entries(
+      VETERINARY_ATTENTION_DRAFT_TEXT_LIMITS
+    )
+  ) {
+    const value = data[field];
+
+    if (
+      value !== undefined &&
+      value !== null &&
+      typeof value !== "string"
+    ) {
+      errors[field] =
+        "El texto del borrador no es válido.";
+
+      continue;
+    }
+
+    const text =
+      String(value ?? "")
+        .replace(/\r\n/g, "\n");
+
+    if (text.length > maxLength) {
+      errors[field] =
+        `El texto supera los ${maxLength} caracteres.`;
+    }
+
+    draft[field] =
+      text;
+  }
+
+
+  const resultadoClinico =
+    normalizeText(
+      data.resultadoClinico,
+      40
+    ).toLowerCase();
+
+  if (
+    resultadoClinico &&
+    !VETERINARY_CLINICAL_OUTCOMES
+      .includes(resultadoClinico)
+  ) {
+    errors.resultadoClinico =
+      "Selecciona un resultado clínico válido.";
+  }
+
+  draft.resultadoClinico =
+    resultadoClinico;
+
+
+  if (data.items !== undefined) {
+    if (
+      !Array.isArray(data.items) ||
+      data.items.length >
+        VETERINARY_ATTENTION_DRAFT_MAX_ITEMS
+    ) {
+      errors.items =
+        "Registra hasta 100 ítems en el borrador.";
+    } else {
+      const seenIds =
+        new Set();
+
+      const items = [];
+
+      for (const rawItem of data.items) {
+        const itemId =
+          normalizeText(
+            rawItem?.itemId,
+            120
+          );
+
+        const cantidad =
+          normalizeNumber(
+            rawItem?.cantidad
+          );
+
+        if (
+          !/^[a-zA-Z0-9_-]{1,120}$/.test(itemId) ||
+          seenIds.has(itemId) ||
+          !isValidVeterinaryQuantity(cantidad)
+        ) {
+          errors.items =
+            "Revisa los ítems: deben ser válidos, sin duplicados y con cantidad mayor que cero.";
+
+          break;
+        }
+
+        seenIds.add(itemId);
+
+        items.push({itemId, cantidad});
+      }
+
+      if (!errors.items) {
+        draft.items = items;
+      }
+    }
+  }
+
+
+  if (Object.keys(errors).length > 0) {
+    const error =
+      new Error(
+        "Los datos del borrador contienen errores."
+      );
+
+    error.fieldErrors =
+      errors;
+
+    throw error;
+  }
+
+
+  return draft;
 }

@@ -6,6 +6,30 @@ export const VETERINARY_TRIAGE_PRIORITIES =
   ]);
 
 
+// Límites anti-error de tipeo de los signos vitales (inclusivos). Para cambiarlos basta editar
+// estos valores: el formulario y la Function de recepción usan este mismo modelo.
+export const VETERINARY_TRIAGE_LIMITS =
+  Object.freeze({
+    pesoKg: Object.freeze({min: 0.01, max: 1000}),
+    temperaturaC: Object.freeze({min: 20, max: 45}),
+    frecuenciaCardiaca: Object.freeze({min: 10, max: 600}),
+    frecuenciaRespiratoria: Object.freeze({min: 2, max: 300}),
+  });
+
+
+function formatLimit(value) {
+  return String(value).replace(".", ",");
+}
+
+
+function isOutOfRange(
+  value,
+  {min, max}
+) {
+  return value < min || value > max;
+}
+
+
 function normalizeText(
   value,
   maxLength = 500
@@ -321,10 +345,13 @@ export function getVeterinaryTriageFieldErrors(
   ) {
     if (
       pesoKg === null ||
-      pesoKg <= 0
+      isOutOfRange(
+        pesoKg,
+        VETERINARY_TRIAGE_LIMITS.pesoKg
+      )
     ) {
       errors.pesoKg =
-        "El peso debe ser mayor que cero.";
+        `El peso debe estar entre ${formatLimit(VETERINARY_TRIAGE_LIMITS.pesoKg.min)} y ${formatLimit(VETERINARY_TRIAGE_LIMITS.pesoKg.max)} kg.`;
     }
   }
 
@@ -336,10 +363,13 @@ export function getVeterinaryTriageFieldErrors(
   ) {
     if (
       temperaturaC === null ||
-      temperaturaC <= 0
+      isOutOfRange(
+        temperaturaC,
+        VETERINARY_TRIAGE_LIMITS.temperaturaC
+      )
     ) {
       errors.temperaturaC =
-        "La temperatura debe ser mayor que cero.";
+        `La temperatura debe estar entre ${formatLimit(VETERINARY_TRIAGE_LIMITS.temperaturaC.min)} y ${formatLimit(VETERINARY_TRIAGE_LIMITS.temperaturaC.max)} °C.`;
     }
   }
 
@@ -351,10 +381,13 @@ export function getVeterinaryTriageFieldErrors(
   ) {
     if (
       frecuenciaCardiaca === null ||
-      frecuenciaCardiaca <= 0
+      isOutOfRange(
+        frecuenciaCardiaca,
+        VETERINARY_TRIAGE_LIMITS.frecuenciaCardiaca
+      )
     ) {
       errors.frecuenciaCardiaca =
-        "La frecuencia cardíaca debe ser un número entero mayor que cero.";
+        `La frecuencia cardíaca debe ser un número entero entre ${VETERINARY_TRIAGE_LIMITS.frecuenciaCardiaca.min} y ${VETERINARY_TRIAGE_LIMITS.frecuenciaCardiaca.max}.`;
     }
   }
 
@@ -366,10 +399,13 @@ export function getVeterinaryTriageFieldErrors(
   ) {
     if (
       frecuenciaRespiratoria === null ||
-      frecuenciaRespiratoria <= 0
+      isOutOfRange(
+        frecuenciaRespiratoria,
+        VETERINARY_TRIAGE_LIMITS.frecuenciaRespiratoria
+      )
     ) {
       errors.frecuenciaRespiratoria =
-        "La frecuencia respiratoria debe ser un número entero mayor que cero.";
+        `La frecuencia respiratoria debe ser un número entero entre ${VETERINARY_TRIAGE_LIMITS.frecuenciaRespiratoria.min} y ${VETERINARY_TRIAGE_LIMITS.frecuenciaRespiratoria.max}.`;
     }
   }
 

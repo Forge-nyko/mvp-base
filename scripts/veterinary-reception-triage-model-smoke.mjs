@@ -2,6 +2,7 @@ import assert
   from "node:assert/strict";
 
 import {
+  VETERINARY_TRIAGE_LIMITS,
   VETERINARY_TRIAGE_PRIORITIES,
   buildVeterinaryReceptionMutationPayload,
   buildVeterinaryTriageMutationPayload,
@@ -379,6 +380,33 @@ function testTriageInvalidMeasurements() {
 }
 
 
+function testTriageMeasurementLimits() {
+  const base = {citaId: "cita-001", pacienteId: "paciente-001", prioridad: "normal"};
+  const errorsFor = (field, value) =>
+    getVeterinaryTriageFieldErrors({...base, [field]: value})[field];
+
+  assert.deepEqual(
+    Object.keys(VETERINARY_TRIAGE_LIMITS),
+    ["pesoKg", "temperaturaC", "frecuenciaCardiaca", "frecuenciaRespiratoria"]
+  );
+
+  for (const [field, {min, max}] of Object.entries(VETERINARY_TRIAGE_LIMITS)) {
+    assert.equal(errorsFor(field, String(min)), undefined, `${field}: el mínimo es válido`);
+    assert.equal(errorsFor(field, String(max)), undefined, `${field}: el máximo es válido`);
+    assert.ok(errorsFor(field, String(min - 1)), `${field}: bajo el mínimo`);
+    assert.ok(errorsFor(field, String(max + 1)), `${field}: sobre el máximo`);
+  }
+
+  assert.ok(errorsFor("pesoKg", "0.005"), "0,005 kg es error de tipeo");
+  assert.ok(errorsFor("pesoKg", "1200"), "1200 kg es error de tipeo");
+  assert.ok(errorsFor("temperaturaC", "385"), "385 °C es error de tipeo");
+  assert.ok(errorsFor("frecuenciaCardiaca", "9000"));
+  assert.ok(errorsFor("frecuenciaRespiratoria", "1"));
+  assert.match(errorsFor("pesoKg", "1500"), /entre 0,01 y 1000 kg/);
+  assert.match(errorsFor("temperaturaC", "50"), /entre 20 y 45 °C/);
+}
+
+
 function testTriageOptionalMeasurements() {
   const payload =
     buildVeterinaryTriageMutationPayload({
@@ -512,6 +540,8 @@ testTriageRequiredFields();
 testTriageInvalidPriority();
 
 testTriageInvalidMeasurements();
+
+testTriageMeasurementLimits();
 
 testTriageOptionalMeasurements();
 

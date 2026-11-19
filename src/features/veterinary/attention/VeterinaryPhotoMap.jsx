@@ -10,21 +10,23 @@ const views = {
   inferior: "Inferior", detalle: "Detalle",
 };
 
-const viewButtons = {
-  general: "General", frontal: "Frente", "lateral-izquierda": "Izquierda",
-  "lateral-derecha": "Derecha", trasera: "Atrás", superior: "Arriba",
-  inferior: "Abajo", detalle: "Detalle",
-};
-
 const acceptedImageTypes = ["image/jpeg", "image/png", "image/webp"];
+// La foto original puede pesar hasta 20 MiB: el navegador la convierte a JPEG y la reduce hasta que cabe en
+// 2 MiB. El límite de 2 MiB se aplica a la imagen que se guarda (la Function también lo comprueba).
+const MAX_ORIGINAL_BYTES = 20 * 1024 * 1024;
+const MAX_STORED_BYTES = 2 * 1024 * 1024;
+
+function formatMiB(bytes) {
+  return (bytes / (1024 * 1024)).toFixed(1).replace(".", ",") + " MiB";
+}
 const bodyViewOrder = Object.keys(views).filter((key) => key !== "detalle");
 
 function fileProblem(file) {
   if (!acceptedImageTypes.includes(file.type)) {
     return "Archivo incompatible. Selecciona una imagen JPEG, PNG o WebP.";
   }
-  if (!file.size || file.size > 20 * 1024 * 1024) {
-    return "La foto debe tener contenido y pesar como máximo 20 MiB.";
+  if (!file.size || file.size > MAX_ORIGINAL_BYTES) {
+    return "La foto debe tener contenido y pesar como máximo 20 MiB. Se guarda reducida a un JPEG de hasta 2 MiB.";
   }
   return "";
 }
@@ -220,6 +222,7 @@ export default function VeterinaryPhotoMap({businessId, attention, onPendingChan
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState("");
   const [uploadStatus, setUploadStatus] = useState("");
+  const [uploadResult, setUploadResult] = useState(null);
   const fileErrorId = useId();
 
   const photos = attention.fotosClinicas ?? [];
@@ -240,6 +243,11 @@ export default function VeterinaryPhotoMap({businessId, attention, onPendingChan
     views[key] + (pendingViews.has(key) ? " (en lista, pendiente de subir)" : "")
   );
 
+  const clearStatus = () => {
+    setUploadStatus("");
+    setUploadResult(null);
+  };
+
   useEffect(() => {
     onPendingChange?.(hasPending);
   }, [hasPending, onPendingChange]);
@@ -250,7 +258,7 @@ export default function VeterinaryPhotoMap({businessId, attention, onPendingChan
     input.value = "";
     if (!file || closed || uploading || removing) return;
 
-    setUploadStatus("");
+    clearStatus();
     const problem = fileProblem(file);
     if (problem || photoCount >= 12) {
       setError(problem || "Puedes guardar hasta 12 fotos por atención.");
@@ -270,14 +278,14 @@ export default function VeterinaryPhotoMap({businessId, attention, onPendingChan
     setPendingPhotos((current) => current.filter((item) => item.fotoId !== photo.fotoId));
     setView(photo.vista);
     setError("");
-    setUploadStatus("");
+    clearStatus();
   }
 
   async function removeSavedPhoto() {
     if (closed || removing || uploading || removeId !== photo?.fotoId) return;
     setRemoving(true);
     setError("");
-    setUploadStatus("");
+    clearStatus();
     try {
       await operarFotoVeterinaria(businessId, attention.id, photo.fotoId, "quitar");
       setView(photo.vista);
@@ -295,14 +303,20 @@ export default function VeterinaryPhotoMap({businessId, attention, onPendingChan
     if (closed || !hasPending || uploading || removing) return;
     setUploading(true);
     setError("");
-    setUploadStatus("");
+    clearStatus();
 
     let uploaded = 0;
+    const reductions = [];
     const failures = [];
     try {
       for (const item of pendingPhotos) {
         try {
           const imagen = await imageAsJpeg(item.file);
+          const storedBytes = Math.floor(imagen.length * 3 / 4);
+          if (item.file.size > MAX_STORED_BYTES) {
+            reductions.push(item.file.name + " pesaba " + formatMiB(item.file.size) + " y se redujo a " +
+              formatMiB(storedBytes) + " para cumplir el límite de 2 MiB.");
+          }
           await operarFotoVeterinaria(businessId, attention.id, item.fotoId, "subir", {vista: item.vista, imagen});
           setPendingPhotos((current) => current.filter((entry) => entry.fotoId !== item.fotoId));
           setSelected(item.fotoId);
@@ -314,7 +328,7 @@ export default function VeterinaryPhotoMap({businessId, attention, onPendingChan
           failures.push(views[item.vista] + " (" + item.file.name + "): " + message);
         }
       }
-      if (uploaded) setUploadStatus(uploaded === 1 ? "1 foto guardada." : uploaded + " fotos guardadas.");
+      if (uploaded) setUploadResult({count: uploaded, reductions});
       if (failures.length) setError("Quedaron fotos pendientes. " + failures.join(" "));
     } finally {
       setUploading(false);
@@ -323,18 +337,22 @@ export default function VeterinaryPhotoMap({businessId, attention, onPendingChan
 
   return (
     <section className="erp-panel">
-      <h2>Fotos y mapa corporal de la mascota</h2>
-      <p>Agrega fotos de esta mascota desde distintos ángulos. Elige un lado para cambiar de vista y marca la lesión sobre la foto correspondiente.</p>
-      <p role="status">
-        {missingLabels.length
-          ? "Vistas que faltan por subir: " + missingLabels.join(", ") + "."
-          : <strong>TODAS LAS IMÁGENES DISPONIBLES</strong>}
-      </p>
+      <h2>{closed ? "Fotos clínicas" : "Fotos y mapa corporal de la mascota"}</h2>
+      {!closed && (
+        <>
+          <p>Agrega fotos de esta mascota desde distintos ángulos. Elige un lado para cambiar de vista y marca la lesión sobre la foto correspondiente.</p>
+          <p role="status">
+            {missingLabels.length
+              ? "Vistas que faltan por subir: " + missingLabels.join(", ") + "."
+              : <strong>TODAS LAS IMÁGENES DISPONIBLES</strong>}
+          </p>
+        </>
+      )}
       {!closed && (photos.length < 12 || hasPending) && (
         <form className="erp-form" onSubmit={upload}>
           <div className="erp-form-grid">
             <label className="erp-field"><span>Vista del cuerpo</span>
-              <select className="erp-control" value={view} disabled={uploading} onChange={({target}) => {setView(target.value); setUploadStatus("");}}>
+              <select className="erp-control" value={view} disabled={uploading} onChange={({target}) => {setView(target.value); clearStatus();}}>
                 {Object.entries(views).map(([value, label]) => <option key={value} value={value}>{value === "detalle" ? "Detalle (opcional)" : label}</option>)}
               </select>
             </label>
@@ -342,6 +360,7 @@ export default function VeterinaryPhotoMap({businessId, attention, onPendingChan
               <input className="erp-control" type="file" accept={acceptedImageTypes.join(",")}
                 aria-describedby={error ? fileErrorId : undefined}
                 disabled={uploading || removing || photoCount >= 12} onChange={selectFile} />
+              <small>JPEG, PNG o WebP. Se guarda como JPEG de hasta 2 MiB: si pesa más, se reduce automáticamente.</small>
             </label>
           </div>
           {hasPending && (
@@ -363,17 +382,24 @@ export default function VeterinaryPhotoMap({businessId, attention, onPendingChan
       )}
       {error && <p id={fileErrorId} role="alert">{error}</p>}
       {uploadStatus && <p role="status">{uploadStatus}</p>}
-      {!photos.length && <p>Esta atención aún no tiene fotos clínicas.</p>}
+      {uploadResult && (
+        <p role="status">
+          {uploadResult.count === 1 ? "1 foto subida." : uploadResult.count + " fotos subidas."}
+          {" "}Fotos guardadas en la atención: {photos.length} de 12.
+          {uploadResult.reductions.map((message) => " " + message).join("")}
+        </p>
+      )}
+      {!photos.length && <p>{closed ? "Esta atención no tiene fotos clínicas." : "Esta atención aún no tiene fotos clínicas."}</p>}
       {photo && (
         <>
           <div className="veterinary-photo-tools" role="group" aria-label="Vistas del cuerpo">
-            {Object.entries(viewButtons).map(([key, label]) => {
+            {Object.entries(views).filter(([key]) => !closed || photosByView.has(key)).map(([key, label]) => {
               const group = photosByView.get(key);
               const active = photo.vista === key;
               return (
                 <Button key={key} type="button" variant={active ? "primary" : "secondary"}
                   aria-pressed={active} disabled={!group?.length}
-                  title={group?.length ? undefined : "Agrega una foto de esta vista"}
+                  title={group?.length || closed ? undefined : "Agrega una foto de esta vista"}
                   onClick={() => {if (!active && group?.length) setSelected(group[0].fotoId);}}>
                   {label}
                 </Button>

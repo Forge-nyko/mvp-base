@@ -3,6 +3,8 @@ import {Link, useNavigate, useParams} from "react-router-dom";
 import Button from "../../../components/ui/Button";
 import LoadingState from "../../../components/ui/LoadingState";
 import VeterinaryReceptionForm, {triageLabels} from "./VeterinaryReceptionForm";
+import VeterinaryField from "../VeterinaryField";
+import {formatVeterinaryAppointmentDate, getVeterinaryAppointmentFieldErrors} from "../domain/appointmentModel.mjs";
 import {
   guardarAtencionVeterinaria,
   guardarCitaVeterinaria,
@@ -21,6 +23,7 @@ function AppointmentForm({appointment, businessId, patients}) {
   const [saving, setSaving] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const activePatients = patients.filter((patient) => ["activo", undefined].includes(patient.estado));
   const editable = !appointment || ["agendada", "confirmada"].includes(appointment.estado);
 
@@ -45,10 +48,20 @@ function AppointmentForm({appointment, businessId, patients}) {
     }
   }
 
-  const change = ({target: {name, value}}) => setForm((current) => ({...current, [name]: value}));
+  const change = ({target: {name, value}}) => {
+    setForm((current) => ({...current, [name]: value}));
+    setFieldErrors((current) => ({...current, [name]: undefined}));
+  };
 
   async function save(operation) {
     if (saving) return;
+    if (operation !== "cancelar") {
+      // El tutor lo deriva la Function desde el paciente; aquí solo se validan los campos del formulario.
+      const nextErrors = getVeterinaryAppointmentFieldErrors({...form, tutorClienteId: "derivado-por-backend"});
+      delete nextErrors.tutorClienteId;
+      setFieldErrors(nextErrors);
+      if (Object.keys(nextErrors).length) return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -74,31 +87,38 @@ function AppointmentForm({appointment, businessId, patients}) {
     <>
       <section className="erp-panel">
         <h1>{appointment ? "Cita veterinaria" : "Nueva cita veterinaria"}</h1>
+        {appointment && <p>Fecha y hora: {formatVeterinaryAppointmentDate(appointment.fecha)} · {appointment.hora || "—"}</p>}
         {appointment && <p>Estado: {statusLabels[appointment.estado] || "Sin estado"}</p>}
         {appointment?.triage?.prioridad && <p>Prioridad: {triageLabels[appointment.triage.prioridad]}</p>}
         {!appointment && !activePatients.length && <p>Registra un paciente activo antes de crear una cita.</p>}
-        <form className="erp-form" onSubmit={(event) => {
+        <form className="erp-form" noValidate onSubmit={(event) => {
           event.preventDefault();
           if (editable) save(appointment ? "reprogramar" : "crear");
         }}>
-          <label className="erp-field">
-            <span>Paciente</span>
-            {appointment ? (
+          {appointment ? (
+            <div className="erp-field">
+              <span className="erp-field__label">Paciente</span>
               <Link to={base + "/pacientes/" + encodeURIComponent(appointment.pacienteId)}>
                 {patients.find((patient) => patient.id === appointment.pacienteId)?.nombre || "Ver paciente"}
               </Link>
-            ) : (
-              <select name="pacienteId" className="erp-control" required value={form.pacienteId ?? ""} onChange={change}>
+            </div>
+          ) : (
+            <VeterinaryField label="Paciente" required error={fieldErrors.pacienteId}>
+              <select name="pacienteId" className="erp-control" value={form.pacienteId ?? ""} onChange={change}>
                 <option value="">Selecciona un paciente</option>
                 {activePatients.map((patient) => <option key={patient.id} value={patient.id}>{patient.nombre}</option>)}
               </select>
-            )}
-          </label>
+            </VeterinaryField>
+          )}
           <div className="erp-form-grid">
-            <label className="erp-field"><span>Fecha</span><input className="erp-control" name="fecha" type="date" required readOnly={!editable} value={form.fecha ?? ""} onChange={change} /></label>
-            <label className="erp-field"><span>Hora</span><input className="erp-control" name="hora" type="time" required readOnly={!editable} value={form.hora ?? ""} onChange={change} /></label>
-            <label className="erp-field"><span>Motivo</span><input className="erp-control" name="motivo" required maxLength={500} readOnly={!editable} value={form.motivo ?? ""} onChange={change} /></label>
-            <label className="erp-field"><span>Observaciones</span><textarea className="erp-control" name="observaciones" maxLength={2000} readOnly={!editable} value={form.observaciones ?? ""} onChange={change} /></label>
+            {editable && (
+              <>
+                <VeterinaryField label="Fecha" required error={fieldErrors.fecha}><input className="erp-control" name="fecha" type="date" value={form.fecha ?? ""} onChange={change} /></VeterinaryField>
+                <VeterinaryField label="Hora" required error={fieldErrors.hora}><input className="erp-control" name="hora" type="time" value={form.hora ?? ""} onChange={change} /></VeterinaryField>
+              </>
+            )}
+            <VeterinaryField label="Motivo" required={editable} error={fieldErrors.motivo}><input className="erp-control" name="motivo" maxLength={500} readOnly={!editable} value={form.motivo ?? ""} onChange={change} /></VeterinaryField>
+            <VeterinaryField label="Observaciones" error={fieldErrors.observaciones}><textarea className="erp-control" name="observaciones" maxLength={2000} readOnly={!editable} value={form.observaciones ?? ""} onChange={change} /></VeterinaryField>
           </div>
           {error && <p role="alert">{error}</p>}
           {canStart && !confirmCancel && <Button type="button" variant="secondary" disabled={saving} onClick={startAttention}>Iniciar atención</Button>}
@@ -161,7 +181,7 @@ export default function VeterinaryAgenda({businessId, mode}) {
             <ul>
               {sorted.map((item) => (
                 <li key={item.id}>
-                  <Link to={appointmentPath(item.id)}>{item.fecha} · {item.hora} · {names.get(item.pacienteId) || "Paciente"} · {item.motivo}</Link>
+                  <Link to={appointmentPath(item.id)}>{formatVeterinaryAppointmentDate(item.fecha)} · {item.hora} · {names.get(item.pacienteId) || "Paciente"} · {item.motivo}</Link>
                   {" · "}{statusLabels[item.estado] || "Sin estado"}
                   {item.estado === "en_espera" && item.triage?.prioridad && " · Prioridad: " + triageLabels[item.triage.prioridad]}
                 </li>

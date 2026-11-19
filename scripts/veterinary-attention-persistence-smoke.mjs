@@ -82,7 +82,31 @@ try {
   assert.equal((await getDoc(ref)).get("triage.prioridad"), "prioritaria");
   await assert.rejects(receive(intake), {code: "failed-precondition"});
   assert.equal((await appointment.get()).get("estado"), "en_atencion");
+  // Borrador: guarda lo escrito sin exigir los obligatorios y se conserva al recargar.
+  await assert.rejects(save("borrador", {businessId: "otra-clinica"}), {code: "permission-denied"});
+  await assert.rejects(save("borrador", {atencion: {...clinical, resultadoClinico: "inventado"}}), {code: "invalid-argument"});
+  await assert.rejects(save("borrador", {atencion: {...clinical, items: [{itemId: "x", cantidad: 0}]}}), {code: "invalid-argument"});
+  await assert.rejects(save("borrador", {citaId: "cancelada"}), {code: "failed-precondition"});
+  const partial = {diagnostico: "Solo diagnóstico", items: [{itemId: "producto-demo", cantidad: 2, nombre: "Manipulado"}]};
+  assert.deepEqual(await save("borrador", {atencion: partial}), {atencionId: citaId});
+  const draftDoc = (await getDoc(ref)).data();
+  assert.equal(draftDoc.estado, "en_atencion");
+  assert.equal(draftDoc.borrador.diagnostico, "Solo diagnóstico");
+  assert.equal(draftDoc.borrador.tratamiento, "");
+  assert.deepEqual(draftDoc.borrador.items, [{itemId: "producto-demo", cantidad: 2}]);
+  assert.equal(draftDoc.diagnostico, undefined, "el borrador no escribe los campos finales");
+  assert.equal((await appointment.get()).get("estado"), "en_atencion");
+  // Sin lista de ítems se conserva la del borrador anterior.
+  await save("borrador", {atencion: {diagnostico: "Segundo guardado", tratamiento: "Reposo"}});
+  const secondDraft = (await getDoc(ref)).get("borrador");
+  assert.equal(secondDraft.diagnostico, "Segundo guardado");
+  assert.deepEqual(secondDraft.items, [{itemId: "producto-demo", cantidad: 2}]);
+  assert.equal((await product.get()).get("stock"), 10);
+  await membership.update({rol: "TECNICO"});
+  await assert.rejects(save("borrador"), {code: "permission-denied"});
+  await membership.update({rol: "OWNER"});
   await assert.rejects(save("cerrar", {atencion: {...clinical, diagnostico: ""}}), {code: "invalid-argument"});
+  assert.equal((await getDoc(ref)).get("estado"), "en_atencion", "cerrar sigue exigiendo los obligatorios");
   await assert.rejects(save("cerrar", {atencion: {...clinical, items: [{itemId: "ajeno", cantidad: 1}]}}), {code: "failed-precondition"});
   await assert.rejects(save("cerrar", {atencion: {...clinical, items: [{itemId: "producto-demo", cantidad: 11}]}}), {code: "failed-precondition"});
   await membership.update({rol: "TECNICO"});
@@ -92,6 +116,8 @@ try {
   await save("cerrar", {atencion: {...clinical, diagnostico: "Cambio posterior"}});
   const closed = (await getDoc(ref)).data();
   assert.equal(closed.estado, "finalizada");
+  assert.equal(closed.borrador, undefined, "al cerrar se elimina el borrador");
+  await assert.rejects(save("borrador"), {code: "failed-precondition"});
   assert.equal(closed.pacienteId, pacienteId);
   assert.equal(closed.diagnostico, clinical.diagnostico);
   assert.equal(closed.productos[0].nombre, "Producto ficticio");
