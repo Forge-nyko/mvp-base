@@ -184,7 +184,12 @@ try {
   const asOwner = bell({invitations: {...base, invitations: []}});
   assert.doesNotMatch(asOwner, /No tienes invitaciones pendientes\./, "el centro no dibuja la sección vacía");
   assert.doesNotMatch(asOwner, /notification-invitations-title/);
-  assert.match(asOwner, /Sin notificaciones/, "los avisos conservan su vacío propio");
+  assert.match(asOwner, /No tienes avisos nuevos/, "los avisos conservan su vacío propio, ahora sin avisos nuevos");
+  assert.doesNotMatch(asOwner, /Sin notificaciones/, "el OWNER ya no ve Sin notificaciones: ese texto es solo del rol sin permiso ni invitaciones");
+  // Las invitaciones viven dentro del panel desplegable: sus botones siguen ahí y el diálogo de rechazo es un
+  // ResponsiveDialog aparte (portal), que el panel no cierra con un clic fuera.
+  assert.match(asAdmin, /class="notification-popover no-print"/, "las invitaciones se muestran dentro del desplegable");
+  assert.doesNotMatch(asAdmin, /aria-modal|responsive-dialog/, "el centro ya no es un modal");
   // ADMIN sin invitaciones, correo verificado y no cargando: sin avisos ni invitaciones que dibujar,
   // el cuerpo muestra el texto discreto (no queda vacío ni vuelve el texto de invitaciones).
   const adminEmpty = bell({showNotifications: false, invitations: {...base, invitations: []}});

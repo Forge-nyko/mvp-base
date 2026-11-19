@@ -4,7 +4,6 @@ import AppIcon from "./ui/AppIcon";
 import Button from "./ui/Button";
 import Notice from "./ui/Notice";
 import InvitationsInbox from "./InvitationsInbox";
-import ResponsiveDialog from "./ui/ResponsiveDialog";
 import { SkeletonCards, SkeletonRegion } from "./ui/Skeleton";
 import { countLoadedInvitations } from "../domain/invitationsLoader.mjs";
 import { SUBSCRIPTION_STATUS } from "../domain/subscriptionStatus.mjs";
@@ -39,6 +38,30 @@ const NOTIFICATION_TYPE_ICONS = Object.freeze({
 
 export function notificationIcon(type) {
   return NOTIFICATION_TYPE_ICONS[String(type || "").toUpperCase()] || Bell;
+}
+
+// Un aviso leído deja de listarse: la lista solo muestra los que no tienen leida === true.
+// Se filtra aquí (y no en la consulta) para no exigir un índice nuevo; el aviso sigue en Firestore.
+export function filterUnreadNotifications(notifications) {
+  return (notifications || []).filter((notification) => notification.leida !== true);
+}
+
+// El panel es un desplegable, no un modal. Los diálogos que abren sus hijos (Rechazar invitación)
+// son modales que ResponsiveDialog monta en un portal fuera del panel: mientras haya uno abierto, ni un
+// clic fuera ni Escape cierran el panel (si no, el panel se desmontaría con el diálogo y su estado).
+const CHILD_DIALOG_SELECTOR = ".responsive-dialog-layer";
+
+export function hasOpenChildDialog(doc) {
+  return Boolean(doc?.querySelector?.(CHILD_DIALOG_SELECTOR));
+}
+
+export function shouldClosePopoverOnPointerDown(target, root, doc) {
+  if (!root || hasOpenChildDialog(doc)) return false;
+  return !root.contains(target);
+}
+
+export function shouldClosePopoverOnEscape(event, doc) {
+  return event?.key === "Escape" && !event.defaultPrevented && !hasOpenChildDialog(doc);
 }
 
 // La sección de invitaciones solo ocupa lugar si tiene algo que decir: cargando (o
@@ -97,16 +120,50 @@ function NotificationBellView({
   const showVerificationNotice =
     showInvitations && invitations.requiresVerification === true && invitations.status === "ready";
   const cooldownLeft = verification?.cooldownLeft || 0;
+  const unreadNotifications = filterUnreadNotifications(notifications);
+
+  const panelId = React.useId();
+  const titleId = React.useId();
+  const rootRef = React.useRef(null);
+  const triggerRef = React.useRef(null);
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Mismo patrón que BusinessSwitcher: clic fuera y Escape cierran; Escape devuelve el foco al botón.
+  // Sin focus-trap ni bloqueo de scroll. Con un diálogo hijo abierto no se cierra nada.
+  React.useEffect(() => {
+    if (!open) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (shouldClosePopoverOnPointerDown(event.target, rootRef.current, document)) {
+        onCloseRef.current?.();
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (!shouldClosePopoverOnEscape(event, document)) return;
+      event.preventDefault();
+      onCloseRef.current?.();
+      triggerRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
 
   return (
-    <>
+    <div className="notification-bell" ref={rootRef}>
       <button
+        ref={triggerRef}
         type="button"
         className="topbar-notifications-button no-print"
         aria-label={bellLabel}
-        aria-haspopup="dialog"
+        aria-haspopup="true"
         aria-expanded={open}
-        onClick={onOpen}
+        aria-controls={open ? panelId : undefined}
+        onClick={open ? onClose : onOpen}
       >
         <AppIcon icon={Bell} size={20} />
         {(totalUnread > 0 || notificationsFailed) && (
@@ -119,12 +176,15 @@ function NotificationBellView({
         )}
       </button>
 
-      <ResponsiveDialog
-        open={open}
-        onClose={onClose}
-        title="Notificaciones"
-        size="small"
+      {open && (
+      <section
+        id={panelId}
+        className="notification-popover no-print"
+        aria-labelledby={titleId}
       >
+        <h2 id={titleId} className="notification-popover__title">
+          Notificaciones
+        </h2>
         {showInvitations && (
           <section className="notification-section" aria-labelledby="notification-invitations-title">
             <h3 id="notification-invitations-title" className="notification-section__title">
@@ -194,22 +254,17 @@ function NotificationBellView({
                   La conexión está lenta o no hay conexión. Sigue intentando...
                 </Notice>
               )
-            ) : notifications.length === 0 ? (
-              <p className="notification-empty">Sin notificaciones</p>
+            ) : unreadNotifications.length === 0 ? (
+              <p className="notification-empty">No tienes avisos nuevos</p>
             ) : (
               <ul className="notification-list">
-                {notifications.map((notification) => (
+                {unreadNotifications.map((notification) => (
                   <li key={notification.id}>
+                    {/* Solo se listan los no leídos: el clic lo marca leído y el aviso sale de la lista. */}
                     <button
                       type="button"
-                      className={
-                        notification.leida
-                          ? "notification-list__item"
-                          : "notification-list__item is-unread"
-                      }
-                      onClick={() => {
-                        if (!notification.leida) markRead(notification.id);
-                      }}
+                      className="notification-list__item is-unread"
+                      onClick={() => markRead(notification.id)}
                     >
                       <span className="notification-list__icon">
                         <AppIcon icon={notificationIcon(notification.tipo)} size={18} />
@@ -223,12 +278,8 @@ function NotificationBellView({
                           {formatRelativeTimestamp(notification.creadoEn)}
                         </small>
                       </span>
-                      {!notification.leida && (
-                        <>
-                          <span className="notification-list__dot" aria-hidden="true" />
-                          <span className="sr-only">No leída</span>
-                        </>
-                      )}
+                      <span className="notification-list__dot" aria-hidden="true" />
+                      <span className="sr-only">No leída</span>
                     </button>
                   </li>
                 ))}
@@ -241,8 +292,9 @@ function NotificationBellView({
         {!showInvitations && !showNotifications && (
           <p className="notification-empty">Sin notificaciones</p>
         )}
-      </ResponsiveDialog>
-    </>
+      </section>
+      )}
+    </div>
   );
 }
 

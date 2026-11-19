@@ -729,6 +729,37 @@ body:has(.topbar .environment-notice--inline) .environment-notice--floating {
   top: 4px;
 }
 
+/* Centro de notificaciones: desplegable anclado a la campana (sin overlay ni
+   bloqueo de scroll). El wrapper es el ancla; el panel cuelga bajo el botón y
+   se alinea a su borde derecho. En pantallas chicas pasa a fixed (ver el
+   media query de 640px). */
+.notification-bell {
+  display: inline-flex;
+  position: relative;
+}
+
+.notification-popover {
+  background: var(--color-surface-panel);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  max-height: calc(100vh - var(--shell-topbar-height) - var(--space-6));
+  max-height: calc(100dvh - var(--shell-topbar-height) - var(--space-6));
+  overflow-y: auto;
+  padding: var(--space-4);
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--space-2));
+  width: min(24rem, calc(100vw - var(--space-6)));
+  z-index: var(--z-sticky);
+}
+
+.notification-popover__title {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-md);
+  margin: 0 0 var(--space-3);
+}
+
 .topbar-user {
   align-items: center;
   display: flex;
@@ -1426,6 +1457,16 @@ body:has(.topbar .environment-notice--inline) .environment-notice--floating {
     gap: var(--space-3);
     grid-template-columns: auto minmax(0, 1fr) auto;
     padding: var(--space-1) var(--space-4);
+  }
+
+  /* Pantallas chicas: el panel ocupa el ancho disponible, con margen de
+     --space-3, justo bajo el encabezado (que es sticky en top: 0). */
+  .notification-popover {
+    left: var(--space-3);
+    position: fixed;
+    right: var(--space-3);
+    top: calc(var(--shell-topbar-height) + var(--space-2));
+    width: auto;
   }
 
   .topbar .ui-page-header__eyebrow {
