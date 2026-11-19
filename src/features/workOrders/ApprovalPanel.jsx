@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useState} from "react";
 import Button from "../../components/ui/Button";
 import LoadingState from "../../components/ui/LoadingState";
 import ResponsiveDialog from "../../components/ui/ResponsiveDialog";
+import {calculateWorkOrderScopeTotal} from "../../domain/workOrderModel.mjs";
 import {
   createWorkOrderRequestId, ejecutarAccionAprobacionOT, getWorkOrderErrorMessage,
   obtenerResumenAprobacionOT,
@@ -25,6 +26,7 @@ export default function ApprovalPanel({businessId, otId, order, onChanged}) {
   const [notice, setNotice] = useState("");
   const [confirmation, setConfirmation] = useState(null);
   const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState("");
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
   const revision = order.actualizadoEn?.toMillis?.();
@@ -49,10 +51,15 @@ export default function ApprovalPanel({businessId, otId, order, onChanged}) {
 
   const begin = (action) => {
     setConfirmation({action, requestId: createWorkOrderRequestId(), revision: summary.revision});
-    setReason(""); setError(""); setNotice("");
+    setReason(""); setReasonError(""); setError(""); setNotice("");
   };
   const confirm = useCallback(async () => {
     if (!confirmation || busy) return;
+    // Rechazar exige el motivo (la Function también lo valida).
+    if (confirmation.action === "rechazar" && !reason.trim()) {
+      setReasonError("Indica el motivo del rechazo.");
+      return;
+    }
     setBusy(true); setError("");
     try {
       const result = await ejecutarAccionAprobacionOT(businessId, otId, confirmation.action,
@@ -92,15 +99,18 @@ export default function ApprovalPanel({businessId, otId, order, onChanged}) {
             <tr><td><strong>{service.servicioSnapshot?.nombre || "Servicio no disponible"}</strong></td><td>1</td><td>{amount(service.precioUnitario, summary.moneda)}</td><td>{amount(service.precioUnitario, summary.moneda)}</td></tr>
             {service.productos.map((product) => <tr key={product.productoOtId}><td>{product.productoSnapshot?.nombre || "Producto no disponible"}</td><td>{product.cantidad}</td><td>{amount(product.precioUnitario, summary.moneda)}</td><td>{amount(product.precioUnitario * product.cantidad, summary.moneda)}</td></tr>)}
           </React.Fragment>)}</tbody>
+          <tfoot><tr className="work-order-approval-total"><th scope="row" colSpan={3}>Total</th><td>{amount(calculateWorkOrderScopeTotal(summary.alcance), summary.moneda)}</td></tr></tfoot>
         </table></div>}
+      {summary.alcance.length > 0 && <p className="erp-secondary-text">El total suma los valores del alcance. No se calcula IVA en esta vista.</p>}
       {summary.estado === "esperando_repuestos" && <div className="vehicle-message vehicle-message--warning" role="status">{summary.estadoAprobacion === "aprobada"
         ? "El alcance está aprobado. Revalida la disponibilidad para continuar cuando existan repuestos."
         : "Faltan repuestos. Revalida la disponibilidad antes de solicitar la decisión de aprobación."}</div>}
       {summary.estadoAprobacion === "rechazada" && <div className="vehicle-message vehicle-message--warning" role="status">Alcance rechazado. Revisa los servicios y repuestos antes de reenviarlo.</div>}
+      {summary.estado === "esperando_aprobacion" && <p className="erp-secondary-text">El alcance ya fue enviado y espera una decisión de aprobación.</p>}
       {!summary.puedeEnviar && !summary.congelado && <p className="erp-secondary-text">Para enviar se requiere Recepción, al menos un Diagnóstico completado y servicios definidos.</p>}
       {awaitingDecision && !summary.puedeAprobar && <p className="erp-secondary-text">Tu membresía permite consultar el alcance, pero no aprobarlo ni rechazarlo.</p>}
       <div className="vehicle-form-actions work-order-approval-actions">
-        {summary.puedeEnviar && <Button type="button" disabled={busy} onClick={() => begin("enviar")}>Enviar a aprobación</Button>}
+        {(summary.puedeEnviar || summary.estado === "esperando_aprobacion") && <Button type="button" disabled={busy || !summary.puedeEnviar} onClick={() => begin("enviar")}>Enviar a aprobación</Button>}
         {awaitingDecision && summary.puedeAprobar && <><Button type="button" variant="secondary" disabled={busy} onClick={() => begin("rechazar")}>Rechazar</Button><Button type="button" disabled={busy} onClick={() => begin("aprobar")}>Aprobar</Button></>}
         {summary.estado === "esperando_repuestos" && summary.estadoAprobacion !== "rechazada" && <Button type="button" disabled={busy} onClick={() => begin("revalidar")}>Revalidar disponibilidad</Button>}
       </div>
@@ -108,7 +118,7 @@ export default function ApprovalPanel({businessId, otId, order, onChanged}) {
     <ResponsiveDialog open={Boolean(confirmation)} onClose={() => !busy && setConfirmation(null)} size="small" eyebrow="Taller" title={ACTIONS[confirmation?.action] || "Confirmar acción"}
       description={confirmation?.action === "enviar" ? "Se consultarán nuevamente los precios de Inventario y se congelará el alcance vigente." : "La operación se validará en el servidor sobre esta versión del alcance."}
       footer={<><Button type="button" variant="secondary" disabled={busy} onClick={() => setConfirmation(null)}>Cancelar</Button><Button type="button" disabled={busy} onClick={confirm}>{busy ? "Procesando..." : "Confirmar"}</Button></>}>
-      {confirmation?.action === "rechazar" && <label className="erp-field"><span className="erp-field__label">Motivo (opcional)</span><textarea className="erp-control" value={reason} maxLength={2000} disabled={busy} onChange={(event) => setReason(event.target.value)} /></label>}
+      {confirmation?.action === "rechazar" && <label className="erp-field"><span className="erp-field__label">Motivo *</span><textarea className="erp-control" value={reason} maxLength={2000} disabled={busy} aria-required="true" aria-invalid={Boolean(reasonError)} onChange={(event) => { setReason(event.target.value); setReasonError(""); }} />{reasonError && <span className="work-order-field-error" role="alert">{reasonError}</span>}</label>}
       {error && <div className="vehicle-message vehicle-message--error" role="alert">{error}</div>}
     </ResponsiveDialog>
   </section>;

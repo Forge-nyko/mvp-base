@@ -107,11 +107,25 @@ export async function testWorkOrderApproval({adminDb, businessId, otId, serviceI
   assert.equal((await action("enviarOTAprobacion")).estado, "esperando_aprobacion");
   assert.equal((await service()).precioUnitario, 40000);
   assert.equal((await service()).productos[0].precioUnitario, 9000);
+  await reject("enviar de nuevo con la OT esperando aprobación", "enviarOTAprobacion", await payload());
+  const waitingEvents = (await events()).filter((event) => event.tipo === "ot_enviada_aprobacion").length;
+  await reject("rechazar sin motivo", "rechazarOT", await payload(), admin, ["invalid-argument"]);
+  await reject("rechazar con motivo en blanco", "rechazarOT", await payload({motivo: "   "}), admin, ["invalid-argument"]);
+  assert.equal((await order()).estado, "esperando_aprobacion");
   const rejection = await action("rechazarOT", admin, {motivo: "Revisar el alcance"});
   assert.equal(rejection.estadoAprobacion, "rechazada");
-  assert.notEqual(rejection.estado, "en_reparacion");
+  assert.ok(["en_cola", "en_diagnostico"].includes(rejection.estado), "rechazar devuelve la OT a planificación");
+  assert.equal((await order()).estado, rejection.estado);
+  assert.equal((await order()).estadoAprobacion, "rechazada");
+  const rejectedEvent = (await events()).find((event) => event.tipo === "ot_rechazada");
+  assert.equal(rejectedEvent.detalle.motivo, "Revisar el alcance");
+  assert.equal(rejectedEvent.detalle.estado, rejection.estado);
   await reject("rechazada no se aprueba sin reenvío", "aprobarOT", await payload());
-  await action("enviarOTAprobacion");
+  // Un alcance rechazado se puede reenviar a aprobación.
+  const resent = await action("enviarOTAprobacion");
+  assert.equal(resent.estado, "esperando_aprobacion");
+  assert.equal(resent.estadoAprobacion, "pendiente");
+  assert.equal((await events()).filter((event) => event.tipo === "ot_enviada_aprobacion").length, waitingEvents + 1);
 
   // Stock may change between send and approve. Approval remains independent.
   await productRef.update({stock: 1});
@@ -159,7 +173,7 @@ export async function testWorkOrderApproval({adminDb, businessId, otId, serviceI
   const concurrentPayload = await payload();
   const decisions = await Promise.allSettled([
     callable(owner, "aprobarOT")(concurrentPayload),
-    callable(admin, "rechazarOT")({...concurrentPayload, requestId: requestId()}),
+    callable(admin, "rechazarOT")({...concurrentPayload, requestId: requestId(), motivo: "Decisión concurrente"}),
   ]);
   assert.equal(decisions.filter((result) => result.status === "fulfilled").length, 1);
   assert.equal(decisions.filter((result) => result.status === "rejected").length, 1);

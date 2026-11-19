@@ -111,6 +111,12 @@ for (const action of ["Enviar a aprobación", "Aprobar", "Rechazar", "Revalidar 
   assert.ok(approvalPanel.includes(action));
 }
 assert.match(approvalPanel, /summary\.puedeAprobar/);
+// Total bajo la tabla, motivo obligatorio al rechazar y "Enviar a aprobación" inactivo si ya está enviado.
+assert.match(approvalPanel, /<tfoot>[\s\S]*Total[\s\S]*calculateWorkOrderScopeTotal/);
+assert.match(approvalPanel, /Motivo \*/);
+assert.doesNotMatch(approvalPanel, /Motivo \(opcional\)/);
+assert.match(approvalPanel, /confirmation\.action === "rechazar" && !reason\.trim\(\)/);
+assert.match(approvalPanel, /summary\.estado === "esperando_aprobacion"\) && <Button type="button" disabled=\{busy \|\| !summary\.puedeEnviar\}/);
 assert.match(approvalPanel, /ResponsiveDialog/);
 assert.match(approvalPanel, /<LoadingState variant="section" label="Cargando alcance\.\.\." \/>/);
 assert.match(approvalPanel, /confirmation\.revision/);
@@ -132,6 +138,9 @@ assert.match(planningPanel, /tipoItem === "producto"/);
 assert.match(planningPanel, /cantidad planificada/i);
 assert.match(planningPanel, /Stock actual:/);
 assert.match(planningPanel, /Valor Servicio/);
+assert.match(planningPanel, /Esto retirará la solicitud de aprobación y habrá que reenviarla\./);
+assert.match(planningPanel, /withScopeWarning\(/);
+assert.match(planningPanel, /const cancelProduct = \(\) => \{ setProductServiceId\(null\); setError\(""\); \}/);
 assert.match(planningPanel, /Iniciar servicio/);
 assert.match(planningPanel, /Completar servicio/);
 assert.match(planningPanel, /Eliminar servicio/);
@@ -160,13 +169,17 @@ assert.match(tallerStyles, /\.work-order-products-table__quantity/);
 assert.doesNotMatch(tallerStyles, /\.work-order-material-history/);
 assert.doesNotMatch(interiorStyles, /\.work-order-products-table__quantity/);
 assert.doesNotMatch(detail, /value=\{order\.estado\}/);
+assert.match(detail, /Recepción registrada correctamente\./);
+assert.match(detail, /onSaved=\{refreshOrder\}/);
+assert.doesNotMatch(detail, /¿Confirmas esta acción para/);
+assert.match(detail, /¿Confirmas que la reparación de \$\{otLabel\} está terminada\?/);
 const navigation = fs.readFileSync("src/app/navigation.js", "utf8");
 const layout = fs.readFileSync("src/layout/AppLayout.jsx", "utf8");
 for (const path of ["ordenes", "vehiculos", "plazas"]) {
   assert.ok(navigation.includes(`path: "${path}"`));
 }
 assert.match(navigation, /requiredPermission: BUSINESS_PERMISSIONS\.TALLER_MANAGE/);
-assert.match(navigation, /const to = `\$\{basePath\}\/\$\{path\}`/);
+assert.match(navigation, /const to = path \? `\$\{basePath\}\/\$\{path\}` : basePath;/);
 assert.match(navigation, /pathname === to \|\| pathname\.startsWith\(`\$\{to\}\/`\)/);
 assert.match(layout, /item\.children/);
 assert.match(layout, /nav-module__items/);

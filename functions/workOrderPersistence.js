@@ -1415,7 +1415,8 @@ async function obtenerResumenAprobacionOTHandler(request, dependencies) {
     return {alcance: scope, moneda: order.moneda || businessCurrency({businessSnapshot: {data: () => data.businessData}}),
       congelado: submitted, faltantes, puedeAprobar: canApproveWorkOrder(membership),
       puedeEnviar: Boolean(order.recepcion && services.length && data.hasDiagnosis &&
-        PLANNING_STATES.has(order.estado) && order.estadoAprobacion !== "aprobada"),
+        PLANNING_STATES.has(order.estado) && order.estado !== "esperando_aprobacion" &&
+        order.estadoAprobacion !== "aprobada"),
       estado: order.estado, estadoAprobacion: order.estadoAprobacion,
       revision: order.actualizadoEn?.toMillis?.()};
   });
@@ -1430,7 +1431,10 @@ async function approvalOperation(request, dependencies, action) {
   }
   const otId = identifier(request?.data?.otId, "La OT", HttpsError);
   const requestId = requestIdentifier(request?.data?.requestId, HttpsError);
-  const motivo = text(request?.data?.motivo, "El motivo", 2000, HttpsError);
+  // Rechazar un alcance exige dejar el motivo; en las demás acciones es opcional.
+  const motivo = action === "rechazar"
+    ? text(request?.data?.motivo, "El motivo del rechazo", 2000, HttpsError, {required: true})
+    : text(request?.data?.motivo, "El motivo", 2000, HttpsError);
   const orderRef = context.businessRef.collection("ordenesTrabajo").doc(otId);
   const stateRef = context.businessRef.collection("otApprovalState").doc(otId);
   const requestRef = context.businessRef.collection("otApprovalRequests").doc(requestId);
@@ -1460,6 +1464,9 @@ async function approvalOperation(request, dependencies, action) {
     let envioId = approvalState.data()?.envioId || null;
     if (action === "enviar") {
       if (order.estadoAprobacion === "aprobada") fail(HttpsError, "failed-precondition", "El alcance ya está aprobado.");
+      if (order.estado === "esperando_aprobacion") {
+        fail(HttpsError, "failed-precondition", "El alcance ya fue enviado y espera una decisión de aprobación.");
+      }
       moneda = businessCurrency({businessSnapshot: {data: () => data.businessData}});
       if (!moneda) fail(HttpsError, "failed-precondition", "Configura una moneda válida en el negocio antes de enviar.");
       scope = services.map((service) => {
@@ -1483,6 +1490,8 @@ async function approvalOperation(request, dependencies, action) {
         }
         estadoAprobacion = action === "aprobar" ? "aprobada" : "rechazada";
         if (action === "aprobar") estado = faltantes.length ? "esperando_repuestos" : "en_reparacion";
+        // Un alcance rechazado vuelve a planificación (mismo estado que al invalidar la aprobación) para poder reenviarse.
+        else estado = order.plazaId ? "en_diagnostico" : "en_cola";
       } else {
         if (order.estado !== "esperando_repuestos" || order.estadoAprobacion === "rechazada") {
           fail(HttpsError, "failed-precondition", "Esta OT no requiere revalidación de disponibilidad.");

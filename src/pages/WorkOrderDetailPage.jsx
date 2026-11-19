@@ -72,6 +72,7 @@ function ReceptionPanel({businessId, onSaved, order, otId, role}) {
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState("");
   const canOperate = hasBusinessPermission(role, BUSINESS_PERMISSIONS.TALLER_OPERATE) &&
     !["pendiente_entrega", "cerrada", "cancelada"].includes(order.estado);
   const checklistComplete = isReceptionChecklistComplete(values.checklist);
@@ -87,6 +88,7 @@ function ReceptionPanel({businessId, onSaved, order, otId, role}) {
     setValues((current) => ({...current, [field]: value}));
     setErrors((current) => ({...current, [field]: undefined}));
     setServerError("");
+    setNotice("");
   };
 
   const updateChecklist = (field, value) => {
@@ -106,6 +108,7 @@ function ReceptionPanel({businessId, onSaved, order, otId, role}) {
     });
     setErrors((current) => ({...current, [field]: undefined, danosObservados: undefined}));
     setServerError("");
+    setNotice("");
   };
 
   const submit = async (event) => {
@@ -116,13 +119,17 @@ function ReceptionPanel({businessId, onSaved, order, otId, role}) {
     if (Object.keys(nextErrors).length) return;
     setSaving(true);
     setServerError("");
+    setNotice("");
+    const wasRegistered = Boolean(order.recepcion);
     try {
       await registrarRecepcionOrdenTrabajo(
         businessId,
         otId,
         buildReceptionMutationPayload(values),
       );
+      // onSaved refresca la OT sin desmontar la pantalla, para que el aviso y la posición de scroll se conserven.
       await onSaved();
+      setNotice(wasRegistered ? "Recepción actualizada correctamente." : "Recepción registrada correctamente.");
     } catch (saveError) {
       setServerError(getWorkOrderErrorMessage(saveError));
     } finally {
@@ -149,6 +156,7 @@ function ReceptionPanel({businessId, onSaved, order, otId, role}) {
       </div>
       {checklistComplete && <p className="erp-secondary-text">{hasAnomaly ? "Debes describir las anomalías detectadas antes de guardar." : "No se detectaron anomalías visibles: se registrará Ninguno."}</p>}
       {serverError && <div className="vehicle-message vehicle-message--error" role="alert">{serverError}</div>}
+      {notice && <div className="vehicle-message" role="status">{notice}</div>}
       <div className="vehicle-form-actions"><Button type="submit" icon={Save} disabled={saving}>{saving ? "Guardando recepción..." : order.recepcion ? "Actualizar recepción" : "Registrar recepción"}</Button></div>
     </form> : <dl className="vehicle-detail-grid">
       <DetailItem label="Kilometraje" value={order.recepcion.kilometraje} />
@@ -245,6 +253,12 @@ export default function WorkOrderDetailPage({businessId, role}) {
     void refreshHistory();
   }, [activeSection, refreshHistory]);
 
+  // Refresca solo la OT (estado, recepción) sin la pantalla de carga completa de load().
+  const refreshOrder = useCallback(async () => {
+    const currentOrder = await obtenerOrdenTrabajo(businessId, otId);
+    if (currentOrder) setOrder(currentOrder);
+  }, [businessId, otId]);
+
   const refreshDiagnoses = useCallback(async () => {
     const [items, currentOrder] = await Promise.all([
       listarDiagnosticos(businessId, otId),
@@ -292,6 +306,7 @@ export default function WorkOrderDetailPage({businessId, role}) {
   if (error) return <main className="erp-page"><div className="vehicle-message vehicle-message--error" role="alert"><span>{error}</span><Button type="button" variant="secondary" icon={RefreshCw} onClick={load}>Reintentar</Button></div></main>;
   if (!order) return <main className="erp-page"><div className="erp-empty-state" role="status"><h2>Orden de trabajo no encontrada</h2><p>Puede no existir o no pertenecer al negocio activo.</p><Button type="button" variant="secondary" icon={ArrowLeft} onClick={() => navigate("/taller/ordenes")}>Volver a órdenes</Button></div></main>;
 
+  const otLabel = order.numeroOT ? `la orden ${order.numeroOT}` : "esta orden";
   const vehicleLabel = vehicle ? `${vehicle.marca} ${vehicle.modelo}` : "Vehículo no disponible";
   const plazaLabel = plazas.find((plaza) => plaza.plazaId === order.plazaId)?.nombre || "Sin asignar";
   const completedServices = services.filter((service) => service.estado === "completado").length;
@@ -343,7 +358,7 @@ export default function WorkOrderDetailPage({businessId, role}) {
         <DetailItem label="Servicios completados" value={`${completedServices} de ${services.length}`} />
       </dl>
     </section>}
-    {activeSection === "recepcion" && <ReceptionPanel businessId={businessId} onSaved={load} order={order} otId={otId} role={role} />}
+    {activeSection === "recepcion" && <ReceptionPanel businessId={businessId} onSaved={refreshOrder} order={order} otId={otId} role={role} />}
     {activeSection === "diagnosticos" && <DiagnosisPanel businessId={businessId} diagnoses={diagnoses} onChanged={refreshDiagnoses} order={order} otId={otId} role={role} />}
     {activeSection === "servicios" && <ServicePlanningPanel businessId={businessId}
       canFinalizeWorkOrder={canOperate && order.estado === "en_reparacion" && allServicesCompleted && !closureBusy}
@@ -363,7 +378,11 @@ export default function WorkOrderDetailPage({businessId, role}) {
       title={closureTarget?.action === "finalizar" ? "Finalizar orden de trabajo" : closureTarget?.action === "entregar" ? "Registrar entrega" : "Cancelar orden de trabajo"}
       description={closureTarget?.action === "finalizar" ? "Se comprobará que todos los servicios estén completados." : closureTarget?.action === "entregar" ? "Se registrará la entrega física y la OT quedará cerrada." : "La OT quedará cancelada de forma permanente y se liberará su Plaza, si corresponde."}
       footer={<><Button type="button" variant="secondary" disabled={closureBusy} onClick={() => setClosureTarget(null)}>Volver</Button><Button type="button" variant={closureTarget?.action === "cancelar" ? "danger" : "primary"} disabled={closureBusy} onClick={confirmClosure}>{closureBusy ? "Procesando..." : closureTarget?.action === "cancelar" ? "Cancelar OT" : "Confirmar"}</Button></>}>
-      <p>¿Confirmas esta acción para {order.numeroOT}?</p>
+      <p>{closureTarget?.action === "finalizar"
+        ? `¿Confirmas que la reparación de ${otLabel} está terminada? Todos los servicios están completados y el vehículo quedará pendiente de entrega.`
+        : closureTarget?.action === "entregar"
+          ? `¿Confirmas que el vehículo de ${otLabel} fue entregado al cliente? La OT quedará cerrada.`
+          : `¿Confirmas que quieres cancelar ${otLabel}? Esta acción no se puede deshacer.`}</p>
       {closureActionError && <div className="vehicle-message vehicle-message--error" role="alert">{closureActionError}</div>}
     </ResponsiveDialog>
   </main>;

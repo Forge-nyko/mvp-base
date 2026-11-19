@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {createRequire} from "node:module";
 import {
   adaptStoredWorkOrder,
+  calculateWorkOrderScopeTotal,
   getWorkOrderApprovalLabel,
   getWorkOrderStatusLabel,
   matchesWorkOrderSearch,
@@ -261,4 +262,22 @@ console.log("OK recepción OT: enums, anomalías, NO_REVISADO/NO_PROBADO y trans
   assert.deepEqual(leaks, [], `mensajes de error con «Core»:\n${leaks.join("\n")}`);
   assert.match(persistenceSource, /"El producto de Inventario"/);
 }
+// Total del alcance: servicios (x1) + productos (cantidad x precio), sin IVA.
+assert.equal(calculateWorkOrderScopeTotal([
+  {precioUnitario: 25000, productos: [{precioUnitario: 8000, cantidad: 3}, {precioUnitario: 1500, cantidad: 2}]},
+  {precioUnitario: 5000, productos: []},
+]), 57000);
+assert.equal(calculateWorkOrderScopeTotal([]), 0);
+assert.equal(calculateWorkOrderScopeTotal([{precioUnitario: null, productos: []}]), null, "sin precio no hay total");
+assert.equal(calculateWorkOrderScopeTotal([{precioUnitario: 100, productos: [{precioUnitario: 5, cantidad: undefined}]}]), null);
+{
+  // Rechazar exige motivo y devuelve la OT a planificación; enviar no se repite en esperando_aprobacion.
+  const fs = require("node:fs");
+  const persistenceSource = fs.readFileSync("functions/workOrderPersistence.js", "utf8");
+  assert.match(persistenceSource, /"El motivo del rechazo"[^\n]*\{required: true\}/);
+  assert.match(persistenceSource, /else estado = order\.plazaId \? "en_diagnostico" : "en_cola"/);
+  assert.match(persistenceSource, /El alcance ya fue enviado y espera una decisión de aprobación\./);
+  assert.match(persistenceSource, /order\.estado !== "esperando_aprobacion" &&\s+order\.estadoAprobacion !== "aprobada"/);
+}
+console.log("OK alcance OT: total sin IVA, motivo de rechazo obligatorio, vuelta a planificación y sin reenvío duplicado");
 console.log("WORK_ORDER_MODEL_SMOKE_OK");

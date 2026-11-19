@@ -61,6 +61,23 @@ export function getWorkOrderApprovalVariant(value) {
   return "neutral";
 }
 
+// Total del alcance: suma de cada servicio (cantidad 1) y de cada producto (cantidad x precio),
+// con los valores de Inventario ya congelados o vigentes. No calcula IVA: el alcance de la OT
+// no guarda tasa ni exenciones (el IVA de las ventas se calcula al emitir la venta, no aquí).
+// Devuelve null si algún precio no está disponible.
+export function calculateWorkOrderScopeTotal(scope = []) {
+  let total = 0;
+  for (const service of Array.isArray(scope) ? scope : []) {
+    if (!Number.isFinite(service?.precioUnitario)) return null;
+    total += service.precioUnitario;
+    for (const product of service.productos || []) {
+      if (!Number.isFinite(product?.precioUnitario) || !Number.isFinite(product?.cantidad)) return null;
+      total += Math.round(product.precioUnitario * product.cantidad);
+    }
+  }
+  return Number.isSafeInteger(total) ? total : null;
+}
+
 export function matchesWorkOrderSearch(order, vehicle, rawSearch) {
   const search = normalizedText(rawSearch).toLocaleLowerCase("es-CL");
   if (!search) return true;

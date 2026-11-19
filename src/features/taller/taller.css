@@ -170,6 +170,20 @@
   margin-top: var(--space-4);
 }
 
+.work-order-approval-total th,
+.work-order-approval-total td {
+  border-top: 1px solid var(--color-border-default);
+  color: var(--color-text-strong);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+}
+
+.work-order-approval-total th {
+  background: transparent;
+  text-align: right;
+  text-transform: none;
+}
+
 button.work-order-finalize-button {
   background: var(--color-warning-50);
   border-color: var(--color-warning-200);

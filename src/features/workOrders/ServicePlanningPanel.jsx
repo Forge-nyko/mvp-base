@@ -13,6 +13,10 @@ import {
 } from "../../services/workOrderService";
 
 
+// Mismo criterio que la Function (invalidateWorkOrderScope): un alcance ya enviado, aprobado o en
+// espera de repuestos pierde su solicitud de aprobación cuando cambia.
+const SCOPE_WARNING = "Esto retirará la solicitud de aprobación y habrá que reenviarla.";
+
 const SERVICE_LABELS = {pendiente: "Pendiente", en_progreso: "En progreso", completado: "Completado"};
 
 function priceLabel(value, currency) {
@@ -50,6 +54,7 @@ export default function ServicePlanningPanel({
   const [removeTarget, setRemoveTarget] = useState(null);
   const [removeServiceTarget, setRemoveServiceTarget] = useState(null);
   const [executionTarget, setExecutionTarget] = useState(null);
+  const [scopeChange, setScopeChange] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -72,6 +77,18 @@ export default function ServicePlanningPanel({
   const productOptions = useMemo(() => inventory.filter((item) => item.tipoItem === "producto" && item.estado === "activo"), [inventory]);
   const itemById = (itemId) => inventory.find((item) => item.itemId === itemId);
   const personName = (uid) => people.find((person) => person.uid === uid)?.nombre || "Usuario no disponible";
+  const scopeSubmitted = order.estadoAprobacion === "aprobada" ||
+    ["esperando_aprobacion", "esperando_repuestos"].includes(order.estado);
+  // Si el cambio retira la solicitud de aprobación, pide confirmación antes de aplicarlo.
+  const withScopeWarning = (changesScope, run) => {
+    if (scopeSubmitted && changesScope) setScopeChange(() => run);
+    else run();
+  };
+  const confirmScopeChange = () => {
+    const run = scopeChange;
+    setScopeChange(null);
+    run?.();
+  };
   const currentPrice = (record, item) => frozen ? record.precioUnitario : item?.precioEfectivo;
 
   const startService = (record = null) => {
@@ -87,20 +104,25 @@ export default function ServicePlanningPanel({
     if (!serviceDraft.itemId || !serviceDraft.responsableUid) {
       setError("Selecciona un servicio de Inventario y un responsable."); return;
     }
-    setBusy(true); setError("");
-    try {
-      if (editingService === "new") {
-        await crearServicioOT(businessId, otId, serviceDraft, serviceRequestId);
-      } else {
-        const record = services.find((service) => service.servicioOtId === editingService);
-        await actualizarServicioOT(businessId, otId, editingService, serviceDraft, record?.actualizadoEn?.toMillis?.());
-      }
-      await onChanged();
-      setEditingService(null);
-      setNotice("Servicio guardado correctamente.");
-    } catch (saveError) { setError(getWorkOrderErrorMessage(saveError)); }
-    finally { setBusy(false); }
+    const record = services.find((service) => service.servicioOtId === editingService);
+    // Cambiar solo el responsable no toca el alcance; crear o cambiar el servicio sí.
+    withScopeWarning(editingService === "new" || record?.itemId !== serviceDraft.itemId, async () => {
+      setBusy(true); setError("");
+      try {
+        if (editingService === "new") {
+          await crearServicioOT(businessId, otId, serviceDraft, serviceRequestId);
+        } else {
+          await actualizarServicioOT(businessId, otId, editingService, serviceDraft, record?.actualizadoEn?.toMillis?.());
+        }
+        await onChanged();
+        setEditingService(null);
+        setNotice("Servicio guardado correctamente.");
+      } catch (saveError) { setError(getWorkOrderErrorMessage(saveError)); }
+      finally { setBusy(false); }
+    });
   };
+
+  const cancelService = () => { setEditingService(null); setError(""); };
 
   const startProduct = (serviceId) => {
     setProductServiceId(serviceId);
@@ -116,30 +138,44 @@ export default function ServicePlanningPanel({
     if (!productDraft.itemId || !Number.isInteger(quantity) || quantity <= 0) {
       setError("Selecciona un producto de Inventario e ingresa una cantidad entera positiva."); return;
     }
-    setBusy(true); setError("");
-    try {
-      await agregarProductoOT(businessId, otId, productServiceId, productDraft.itemId, quantity, productRequestId);
-      await onChanged();
-      setProductServiceId(null);
-      setNotice("Producto agregado a la planificación. El stock no se modificó.");
-    } catch (saveError) { setError(getWorkOrderErrorMessage(saveError)); }
-    finally { setBusy(false); }
+    setError("");
+    withScopeWarning(true, async () => {
+      setBusy(true); setError("");
+      try {
+        await agregarProductoOT(businessId, otId, productServiceId, productDraft.itemId, quantity, productRequestId);
+        await onChanged();
+        setProductServiceId(null);
+        setError("");
+        setNotice("Producto agregado a la planificación. El stock no se modificó.");
+      } catch (saveError) { setError(getWorkOrderErrorMessage(saveError)); }
+      finally { setBusy(false); }
+    });
   };
+
+  const cancelProduct = () => { setProductServiceId(null); setError(""); };
 
   const saveQuantity = async (service) => {
     if (busy || !quantityEdit) return;
     const quantity = Number(quantityEdit.cantidad);
     if (!Number.isInteger(quantity) || quantity <= 0) { setError("Ingresa una cantidad entera positiva."); return; }
-    setBusy(true); setError("");
-    try {
-      await actualizarProductoOT(businessId, otId, service.servicioOtId, quantityEdit.productoOtId,
-        quantity, service.actualizadoEn?.toMillis?.());
-      await onChanged();
-      setQuantityEdit(null);
-      setNotice("Cantidad planificada actualizada. El stock no se modificó.");
-    } catch (saveError) { setError(getWorkOrderErrorMessage(saveError)); }
-    finally { setBusy(false); }
+    setError("");
+    const stored = (service.productos || []).find((product) => product.productoOtId === quantityEdit.productoOtId);
+    // Guardar la misma cantidad no cambia el alcance (la Function tampoco lo invalida).
+    withScopeWarning(stored?.cantidad !== quantity, async () => {
+      setBusy(true); setError("");
+      try {
+        await actualizarProductoOT(businessId, otId, service.servicioOtId, quantityEdit.productoOtId,
+          quantity, service.actualizadoEn?.toMillis?.());
+        await onChanged();
+        setQuantityEdit(null);
+        setError("");
+        setNotice("Cantidad planificada actualizada. El stock no se modificó.");
+      } catch (saveError) { setError(getWorkOrderErrorMessage(saveError)); }
+      finally { setBusy(false); }
+    });
   };
+
+  const cancelQuantity = () => { setQuantityEdit(null); setError(""); };
 
   const removeProduct = async () => {
     if (busy || !removeTarget) return;
@@ -228,7 +264,7 @@ export default function ServicePlanningPanel({
       </div>
       {!serviceOptions.length && !loading && <p className="erp-secondary-text">No hay servicios activos en Inventario.</p>}
       <p className="erp-secondary-text">Valor Servicio: {priceLabel(itemById(serviceDraft.itemId)?.precioEfectivo, order.moneda)}</p>
-      <div className="vehicle-form-actions"><Button type="button" variant="secondary" disabled={busy} onClick={() => setEditingService(null)}>Cancelar</Button><Button type="submit" icon={Save} disabled={busy || loading || Boolean(loadError)}>{busy ? "Guardando..." : "Guardar servicio"}</Button></div>
+      <div className="vehicle-form-actions"><Button type="button" variant="secondary" disabled={busy} onClick={cancelService}>Cancelar</Button><Button type="submit" icon={Save} disabled={busy || loading || Boolean(loadError)}>{busy ? "Guardando..." : "Guardar servicio"}</Button></div>
     </form>}
 
     {!services.length && !loading && <div className="erp-empty-state" role="status">Aún no hay servicios planificados para esta OT.</div>}
@@ -246,10 +282,10 @@ export default function ServicePlanningPanel({
           </div>}
           {productServiceId === service.servicioOtId && <form className="vehicle-form work-order-diagnosis-form" onSubmit={saveProduct} noValidate>
             <h4>Producto planificado</h4><div className="work-order-reception-grid">
-              <label className="erp-field"><span className="erp-field__label">Producto *</span><select className="erp-control" value={productDraft.itemId} disabled={busy || loading} onChange={(event) => setProductDraft((current) => ({...current, itemId: event.target.value}))}><option value="">Selecciona un producto</option>{productOptions.map((product) => <option key={product.itemId} value={product.itemId}>{product.codigoInterno ? `${product.codigoInterno} · ` : ""}{product.nombre} · Stock: {product.stock}</option>)}</select></label>
-              <label className="erp-field"><span className="erp-field__label">Cantidad *</span><input className="erp-control" type="number" min="1" step="1" value={productDraft.cantidad} disabled={busy} onChange={(event) => setProductDraft((current) => ({...current, cantidad: event.target.value}))} /></label>
+              <label className="erp-field"><span className="erp-field__label">Producto *</span><select className="erp-control" value={productDraft.itemId} disabled={busy || loading} onChange={(event) => { setProductDraft((current) => ({...current, itemId: event.target.value})); setError(""); }}><option value="">Selecciona un producto</option>{productOptions.map((product) => <option key={product.itemId} value={product.itemId}>{product.codigoInterno ? `${product.codigoInterno} · ` : ""}{product.nombre} · Stock: {product.stock}</option>)}</select></label>
+              <label className="erp-field"><span className="erp-field__label">Cantidad *</span><input className="erp-control" type="number" min="1" step="1" value={productDraft.cantidad} disabled={busy} onChange={(event) => { setProductDraft((current) => ({...current, cantidad: event.target.value})); setError(""); }} /></label>
             </div><p className="erp-secondary-text">Stock actual: {itemById(productDraft.itemId)?.stock ?? "—"} · Precio vigente: {priceLabel(itemById(productDraft.itemId)?.precioEfectivo, order.moneda)}</p>
-            <div className="vehicle-form-actions"><Button type="button" variant="secondary" disabled={busy} onClick={() => setProductServiceId(null)}>Cancelar</Button><Button type="submit" icon={Save} disabled={busy || loading || Boolean(loadError)}>{busy ? "Guardando..." : "Agregar a planificación"}</Button></div>
+            <div className="vehicle-form-actions"><Button type="button" variant="secondary" disabled={busy} onClick={cancelProduct}>Cancelar</Button><Button type="submit" icon={Save} disabled={busy || loading || Boolean(loadError)}>{busy ? "Guardando..." : "Agregar a planificación"}</Button></div>
           </form>}
           {!products.length ? <p className="erp-secondary-text">Sin productos planificados.</p> :
             <div className="erp-table-region"><table className="erp-table work-order-products-table"><thead><tr>
@@ -262,11 +298,11 @@ export default function ServicePlanningPanel({
                 <td>{(frozen ? product.productoSnapshot?.nombre : core?.nombre) || "Producto no disponible"}</td>
                 <td>{editing ? <input className="erp-control work-order-products-table__quantity"
                   aria-label="Cantidad" type="number" min="1" step="1" value={quantityEdit.cantidad}
-                  onChange={(event) => setQuantityEdit((current) => ({...current, cantidad: event.target.value}))} /> : product.cantidad}</td>
+                  onChange={(event) => { setQuantityEdit((current) => ({...current, cantidad: event.target.value})); setError(""); }} /> : product.cantidad}</td>
                 <td>{priceLabel(currentPrice(product, core), order.moneda)}</td>
                 {canEditServicePlanning && <td><div className="erp-actions">
                   {editing ? <><Button type="button" disabled={busy} onClick={() => saveQuantity(service)}>Guardar</Button>
-                    <Button type="button" variant="secondary" disabled={busy} onClick={() => setQuantityEdit(null)}>Cancelar</Button></> : <>
+                    <Button type="button" variant="secondary" disabled={busy} onClick={cancelQuantity}>Cancelar</Button></> : <>
                     <Button type="button" variant="secondary" onClick={() => {setQuantityEdit({servicioOtId: service.servicioOtId, productoOtId: product.productoOtId, cantidad: String(product.cantidad)}); setError("");}}>Modificar</Button>
                     <Button type="button" variant="secondary" onClick={() => setRemoveTarget({servicioOtId: service.servicioOtId, productoOtId: product.productoOtId})}>Eliminar</Button></>}
                 </div></td>}
@@ -275,8 +311,14 @@ export default function ServicePlanningPanel({
         </article>;
       })}
     </div>
-    <ResponsiveDialog open={Boolean(removeTarget)} onClose={() => !busy && setRemoveTarget(null)} size="small" eyebrow="Taller" title="Eliminar producto planificado" description="Se quitará de este servicio. El stock de Inventario no cambiará." footer={<><Button type="button" variant="secondary" disabled={busy} onClick={() => setRemoveTarget(null)}>Volver</Button><Button type="button" disabled={busy} onClick={removeProduct}>{busy ? "Eliminando..." : "Eliminar producto"}</Button></>}><p>¿Confirmas que deseas quitar este producto de la planificación?</p></ResponsiveDialog>
-    <ResponsiveDialog open={Boolean(removeServiceTarget)} onClose={() => !busy && setRemoveServiceTarget(null)} size="small" eyebrow="Taller" title="Eliminar servicio" description="Se quitarán el servicio y sus productos planificados del alcance de la OT." footer={<><Button type="button" variant="secondary" disabled={busy} onClick={() => setRemoveServiceTarget(null)}>Volver</Button><Button type="button" disabled={busy} onClick={removeService}>{busy ? "Eliminando..." : "Eliminar servicio"}</Button></>}><p>Solo es posible eliminar servicios pendientes. Si la OT estaba aprobada, deberá enviarse nuevamente a aprobación.</p></ResponsiveDialog>
+    <ResponsiveDialog open={Boolean(removeTarget)} onClose={() => !busy && setRemoveTarget(null)} size="small" eyebrow="Taller" title="Eliminar producto planificado" description="Se quitará de este servicio. El stock de Inventario no cambiará." footer={<><Button type="button" variant="secondary" disabled={busy} onClick={() => setRemoveTarget(null)}>Volver</Button><Button type="button" disabled={busy} onClick={removeProduct}>{busy ? "Eliminando..." : "Eliminar producto"}</Button></>}><p>¿Confirmas que deseas quitar este producto de la planificación?</p>{scopeSubmitted && <p className="erp-secondary-text">{SCOPE_WARNING}</p>}</ResponsiveDialog>
+    <ResponsiveDialog open={Boolean(removeServiceTarget)} onClose={() => !busy && setRemoveServiceTarget(null)} size="small" eyebrow="Taller" title="Eliminar servicio" description="Se quitarán el servicio y sus productos planificados del alcance de la OT." footer={<><Button type="button" variant="secondary" disabled={busy} onClick={() => setRemoveServiceTarget(null)}>Volver</Button><Button type="button" disabled={busy} onClick={removeService}>{busy ? "Eliminando..." : "Eliminar servicio"}</Button></>}><p>Solo es posible eliminar servicios pendientes. Si la OT estaba aprobada, deberá enviarse nuevamente a aprobación.</p>{scopeSubmitted && <p className="erp-secondary-text">{SCOPE_WARNING}</p>}</ResponsiveDialog>
+    <ResponsiveDialog open={Boolean(scopeChange)} onClose={() => setScopeChange(null)} size="small" eyebrow="Taller" title="Cambiar el alcance enviado"
+      description={SCOPE_WARNING}
+      footer={<><Button type="button" variant="secondary" onClick={() => setScopeChange(null)}>Cancelar</Button>
+        <Button type="button" onClick={confirmScopeChange}>Continuar</Button></>}>
+      <p>El alcance ya fue enviado a aprobación. Si continúas, la OT volverá a planificación y deberás enviarla de nuevo.</p>
+    </ResponsiveDialog>
     <ResponsiveDialog open={Boolean(executionTarget)} onClose={() => !busy && setExecutionTarget(null)} size="small" eyebrow="Taller"
       title={executionTarget?.action === "iniciar" ? "Iniciar servicio" : "Completar servicio"}
       description="Se registrará la transición y su autoría en el historial de la OT."
