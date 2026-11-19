@@ -66,7 +66,7 @@ import {
   getBusinessSession,
   setActiveBusiness,
 } from "../services/businessService";
-import {isPlatformRoute} from "../domain/platformAccess.mjs";
+import {isPlatformRoute, resolvePlatformOnlyRedirect} from "../domain/platformAccess.mjs";
 import {isKnownAppPath} from "../domain/knownRoutes.mjs";
 import {resolveInitialActivationRoute} from "../domain/initialActivationNavigation.mjs";
 import {
@@ -270,8 +270,16 @@ function AppRoutes({
   }
 
   if (businessSession?.needsOnboarding) {
-    if (platformAccess?.isSuperadmin && location.pathname === "/login") {
-      return <Navigate to="/admin/dashboard" replace />;
+    // Superadmin de plataforma sin negocio: la raíz, /login, /onboarding y el comodín
+    // van a la consola. `loading` (que incluye platformState.loading) ya mostró el
+    // LoadingScreen antes de llegar aquí, y con platformAccess sin resolver no redirige.
+    const platformOnlyPath = resolvePlatformOnlyRedirect({
+      platformAccess,
+      needsOnboarding: true,
+      pathname: location.pathname,
+    });
+    if (platformOnlyPath) {
+      return <Navigate to={platformOnlyPath} replace />;
     }
     if (accessHint === ACCESS_HINT.COLABORADOR) {
       return (

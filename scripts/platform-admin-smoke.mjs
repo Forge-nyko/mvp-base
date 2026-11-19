@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {existsSync} from "node:fs";
 import {readFile} from "node:fs/promises";
-import {hasPlatformSuperadminClaim, isPlatformRoute} from "../src/domain/platformAccess.mjs";
+import {hasPlatformSuperadminClaim, isPlatformRoute, resolvePlatformOnlyRedirect, PLATFORM_HOME_PATH} from "../src/domain/platformAccess.mjs";
 import {formatFiscalIdentifierForDisplay} from "../src/domain/fiscalIdentifier.mjs";
 
 assert.equal(hasPlatformSuperadminClaim({platformRole: "PLATFORM_SUPERADMIN"}), true);
@@ -10,6 +10,29 @@ assert.equal(hasPlatformSuperadminClaim({}), false);
 assert.equal(isPlatformRoute("/admin"), true);
 assert.equal(isPlatformRoute("/admin/empresas/abc"), true);
 assert.equal(isPlatformRoute("/empresa"), false);
+// Superadmin sin negocio: raiz, /login, /onboarding y cualquier ruta de respaldo van a la consola.
+const superadmin = {isSuperadmin: true, role: "PLATFORM_SUPERADMIN"};
+const normalUser = {isSuperadmin: false, role: null};
+assert.equal(PLATFORM_HOME_PATH, "/admin/dashboard");
+for (const pathname of ["/", "/login", "/onboarding", "/cotizaciones", "/ruta-que-no-existe", "/empresa"]) {
+  assert.equal(resolvePlatformOnlyRedirect({platformAccess: superadmin, needsOnboarding: true, pathname}), "/admin/dashboard", `superadmin sin negocio en ${pathname}`);
+}
+// Ya dentro de /admin no redirige (el guard de plataforma lo atiende).
+for (const pathname of ["/admin", "/admin/dashboard", "/admin/empresas/abc"]) {
+  assert.equal(resolvePlatformOnlyRedirect({platformAccess: superadmin, needsOnboarding: true, pathname}), null);
+}
+// Superadmin con negocio y usuario normal no cambian.
+for (const pathname of ["/", "/login", "/onboarding", "/cotizaciones"]) {
+  assert.equal(resolvePlatformOnlyRedirect({platformAccess: superadmin, needsOnboarding: false, pathname}), null, `superadmin con negocio en ${pathname}`);
+  assert.equal(resolvePlatformOnlyRedirect({platformAccess: normalUser, needsOnboarding: true, pathname}), null, `usuario normal en ${pathname}`);
+  assert.equal(resolvePlatformOnlyRedirect({platformAccess: normalUser, needsOnboarding: false, pathname}), null);
+}
+// Sin resolver (cargando) o con datos invalidos: no redirige.
+for (const platformAccess of [null, undefined, {}, {isSuperadmin: "true"}, {isSuperadmin: 1}]) {
+  assert.equal(resolvePlatformOnlyRedirect({platformAccess, needsOnboarding: true, pathname: "/"}), null);
+}
+assert.equal(resolvePlatformOnlyRedirect({platformAccess: superadmin, pathname: "/"}), null, "needsOnboarding ausente no redirige");
+assert.equal(resolvePlatformOnlyRedirect(), null);
 assert.equal(formatFiscalIdentifierForDisplay("AR", "30712345678"), "30-71234567-8");
 
 const [layoutSource, appLayoutSource, pagesSource, serviceSource, functionsSource] = await Promise.all([
