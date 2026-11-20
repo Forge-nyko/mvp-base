@@ -7,13 +7,14 @@ import {
   findRegionCodeByName,
   getDefaultFiscalIdentifierLabel,
   getRegionForCountry,
+  getCurrencyAmountDecimals,
   getRegionLabel,
   getRegionsForCountry,
   hasRegionCatalog,
   isSelectableNewBusinessCountry,
 } from "../src/domain/businessCatalog.js";
 
-assert.equal(catalog.schemaVersion, 5);
+assert.equal(catalog.schemaVersion, 6);
 assert.equal(catalog.businessCategoryCatalogVersion, 1);
 assert.equal(catalog.countries.length, 11);
 assert.equal(catalog.countries[0].code, "CL");
@@ -86,6 +87,17 @@ const legacyOtherCountry = catalog.countries.find((country) => country.code === 
 assert.equal(legacyOtherCountry?.active, true);
 assert.equal(legacyOtherCountry?.selectableForNewBusiness, false);
 assert.equal(legacyOtherCountry?.legacy, true);
+// SPEC 036: `decimals` es el formato; `amountDecimals` son los decimales de CÁLCULO de los importes. Nunca supera
+// a `decimals`, y todas las monedas están en 0 hasta que la SPEC active BOB en su última entrega.
+for (const currency of catalog.currencies) {
+  assert.ok(Number.isInteger(currency.amountDecimals), `${currency.code}: amountDecimals definido`);
+  assert.ok(currency.amountDecimals >= 0 && currency.amountDecimals <= currency.decimals, `${currency.code}: amountDecimals <= decimals`);
+  assert.equal(currency.amountDecimals, 0, `${currency.code}: amountDecimals en 0 (cálculo entero como hasta ahora)`);
+  assert.equal(getCurrencyAmountDecimals(currency.code), currency.amountDecimals, `${currency.code}: el helper lee el catálogo`);
+}
+assert.equal(catalog.currencies.find((currency) => currency.code === "BOB").decimals, 2);
+for (const code of ["", "bob-x", null, undefined, "XXX"]) assert.equal(getCurrencyAmountDecimals(code), 0, `moneda desconocida: ${code}`);
+assert.equal(getCurrencyAmountDecimals("bob"), 0);
 assert.equal(catalog.currencies.length, 11);
 assert.equal(catalog.currencies[0].code, "CLP");
 assert.ok(catalog.currencies.some((currency) => currency.code === "BOB"));

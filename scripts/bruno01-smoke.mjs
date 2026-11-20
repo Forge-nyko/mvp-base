@@ -201,6 +201,8 @@ assert.deepEqual(documentLocalizationSnapshot({
   locale: "es-CL",
   impuestoNombre: "IVA",
   tasaIva: 0.19,
+  // SPEC 036: decimales de cálculo congelados (amountDecimals de CLP: 0).
+  montoDecimales: 0,
 });
 assert.equal(documentLocalizationSnapshot({
   contratoJurisdiccionalVersion: 1,

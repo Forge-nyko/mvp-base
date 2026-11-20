@@ -47,13 +47,24 @@ export function adaptBusinessLocalization(raw = {}) {
   };
 }
 
+// `montoDecimales` es el snapshot de los decimales de CÁLCULO del documento (`amountDecimals` de su moneda al
+// crearlo; SPEC 036). Ausente = 0: un documento anterior sigue calculándose entero, sin recalcularse. Un valor
+// inválido, o mayor que los decimales de la moneda, vale 0. No confundir con `decimals` del catálogo (formato).
+export function adaptDocumentAmountDecimals(raw = {}, currencyCode) {
+  const stored = raw.montoDecimales;
+  const limit = getCurrencyByCode(currencyCode)?.decimals ?? 0;
+  return Number.isInteger(stored) && stored > 0 && stored <= limit ? stored : 0;
+}
+
 export function adaptDocumentLocalization(raw = {}) {
   const rate = Number(raw.tasaIva);
+  const moneda = text(raw.moneda || raw.monedaCodigo).toUpperCase() || DEFAULT_CURRENCY;
   return {
     paisCodigo: text(raw.paisCodigo).toUpperCase() || DEFAULT_COUNTRY,
-    moneda: text(raw.moneda || raw.monedaCodigo).toUpperCase() || DEFAULT_CURRENCY,
+    moneda,
     locale: normalizeLocale(raw.locale),
     impuestoNombre: text(raw.impuestoNombre) || "IVA",
     tasaIva: Number.isFinite(rate) && rate >= 0 && rate <= 1 ? rate : 0.19,
+    montoDecimales: adaptDocumentAmountDecimals(raw, moneda),
   };
 }

@@ -51,17 +51,17 @@ export function formatNumber(value, locale = DEFAULT_LOCALE, options = {}) {
   return new Intl.NumberFormat(safeLocale(locale), options).format(Number(value || 0));
 }
 
-// Reemplaza al antiguo formatCLP: moneda y locale del negocio activo. Como
-// máximo muestra los decimales que el catálogo define para la moneda, y como
-// mínimo ninguno: no agrega ",00" a montos que el sistema guarda enteros
-// (los centavos quedan para la SPEC de decimales). Con CLP es idéntico a
-// formatCLP.
+// Reemplaza al antiguo formatCLP: moneda y locale del negocio activo. Muestra
+// siempre los decimales que el catálogo define para la moneda (`decimals`: BOB
+// "Bs 10,50" y "Bs 11,00"; CLP sin decimales, idéntico a formatCLP). Es solo
+// formato: con cuántos decimales se calculan los montos lo decide
+// `amountDecimals` (SPEC 036), no esto.
 export function formatBusinessMoney(value, currency = DEFAULT_CURRENCY, locale = DEFAULT_LOCALE) {
   const code = safeCurrency(currency);
   const catalogDecimals = getCurrencyByCode(code)?.decimals;
   const options = { style: "currency", currency: code };
   if (Number.isInteger(catalogDecimals)) {
-    options.minimumFractionDigits = 0;
+    options.minimumFractionDigits = catalogDecimals;
     options.maximumFractionDigits = catalogDecimals;
   }
   return new Intl.NumberFormat(safeLocale(locale), options).format(Number(value || 0));

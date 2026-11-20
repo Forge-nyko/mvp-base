@@ -61,6 +61,8 @@ function normalizeTaxSettings(raw = {}, business = {}) {
   };
 }
 
+// `montoDecimales` congela los decimales de CÁLCULO del documento (`amountDecimals` de su moneda al crearlo;
+// SPEC 036). Hoy es 0 en todas las monedas. No confundir con `decimals` (formato de presentación).
 function documentLocalizationSnapshot(business = {}, tax = {}) {
   const location = normalizeBusinessLocalization(business);
   const normalizedTax = normalizeTaxSettings(tax, business);
@@ -72,13 +74,25 @@ function documentLocalizationSnapshot(business = {}, tax = {}) {
     tasaIva: normalizedTax.impuestoPredeterminadoTasa === null
       ? null
       : normalizedTax.impuestoPredeterminadoTasa / 100,
+    montoDecimales: currencyAmountDecimals(location.monedaCodigo),
   };
 }
 
-// Decimales que el catálogo define para una moneda (CLP 0, USD 2...). null si el código no está en el catálogo.
+// Decimales de FORMATO que el catálogo define para una moneda (`decimals`: CLP 0, BOB 2...). null si el código
+// no está en el catálogo. Solo decide cómo se muestra el monto.
 function currencyDecimals(code) {
   const decimals = currencies.get(text(code, 10).toUpperCase())?.decimals;
   return Number.isInteger(decimals) && decimals >= 0 ? decimals : null;
+}
+
+// Decimales de CÁLCULO de los importes (`amountDecimals`: con cuántos decimales se redondean y validan los
+// montos de un documento nuevo; SPEC 036). Nunca supera a `decimals`. Una moneda desconocida cuenta 0.
+function currencyAmountDecimals(code) {
+  const currency = currencies.get(text(code, 10).toUpperCase());
+  const amountDecimals = currency?.amountDecimals;
+  return Number.isInteger(amountDecimals) && amountDecimals >= 0 && amountDecimals <= currency.decimals
+    ? amountDecimals
+    : 0;
 }
 
 // Monto para textos (correos): moneda y locale del documento o de la empresa.
@@ -89,7 +103,10 @@ function formatMoneyText(value, currency, locale) {
   let code = text(currency, 10).toUpperCase() || DEFAULT_CURRENCY;
   const options = {style: "currency", currency: code, minimumFractionDigits: 0};
   const decimals = currencyDecimals(code);
-  if (decimals !== null) options.maximumFractionDigits = decimals;
+  if (decimals !== null) {
+    options.minimumFractionDigits = decimals;
+    options.maximumFractionDigits = decimals;
+  }
   const amount = Number(value || 0);
   try {
     return amount.toLocaleString(canonicalLocale(locale, DEFAULT_LOCALE), options);
@@ -103,14 +120,24 @@ function formatMoneyText(value, currency, locale) {
   }
 }
 
+// `montoDecimales` es el snapshot de los decimales de cálculo del documento. Ausente = 0 (un documento anterior
+// sigue calculándose entero); un valor inválido, o mayor que los decimales de la moneda, vale 0.
+function adaptDocumentAmountDecimals(raw = {}, currencyCode) {
+  const stored = raw.montoDecimales;
+  const limit = currencyDecimals(currencyCode) ?? 0;
+  return Number.isInteger(stored) && stored > 0 && stored <= limit ? stored : 0;
+}
+
 function adaptDocumentLocalization(raw = {}) {
   const rate = Number(raw.tasaIva);
+  const moneda = text(raw.moneda || raw.monedaCodigo, 10).toUpperCase() || DEFAULT_CURRENCY;
   return {
     paisCodigo: text(raw.paisCodigo, 10).toUpperCase() || DEFAULT_COUNTRY,
-    moneda: text(raw.moneda || raw.monedaCodigo, 10).toUpperCase() || DEFAULT_CURRENCY,
+    moneda,
     locale: canonicalLocale(raw.locale, DEFAULT_LOCALE),
     impuestoNombre: text(raw.impuestoNombre, 60) || DEFAULT_TAX_NAME,
     tasaIva: Number.isFinite(rate) && rate >= 0 && rate <= 1 ? rate : DEFAULT_TAX_RATE_PERCENT / 100,
+    montoDecimales: adaptDocumentAmountDecimals(raw, moneda),
   };
 }
 
@@ -118,8 +145,10 @@ module.exports = {
   DEFAULT_COUNTRY,
   DEFAULT_CURRENCY,
   DEFAULT_LOCALE,
+  adaptDocumentAmountDecimals,
   adaptDocumentLocalization,
   canonicalLocale,
+  currencyAmountDecimals,
   currencyDecimals,
   documentLocalizationSnapshot,
   formatMoneyText,

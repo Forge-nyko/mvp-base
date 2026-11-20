@@ -43,15 +43,31 @@ for (const value of [0.4, 0.5, 1.5, 1234.4, 1234.5, 1234.6]) {
   assert.equal(formatBusinessMoney(value, "CLP", "es-CL"), oldEditorMoney(value), `redondeo CLP ${value}`);
 }
 
-// --- Bolivia: moneda de la empresa (BOB, es-BO), enteros, sin ",00" y sin símbolo chileno ---
+// --- Bolivia: moneda de la empresa (BOB, es-BO). SPEC 036: el formato muestra siempre los decimales de la
+// moneda (`decimals` = 2: "Bs 11,00" y "Bs 10,50"), aunque los montos se sigan calculando enteros mientras
+// `amountDecimals` sea 0. Sin símbolo chileno. ---
 const bob = formatMoneyText(11, "BOB", "es-BO");
-assert.match(bob, /^Bs\s?11$/);
-assert.match(formatMoneyText(1234567, "BOB", "es-BO"), /^Bs\s?1\.234\.567$/);
+assert.match(bob, /^Bs\s?11,00$/);
+assert.match(formatMoneyText(1234567, "BOB", "es-BO"), /^Bs\s?1\.234\.567,00$/);
+assert.match(formatMoneyText(10.5, "BOB", "es-BO"), /^Bs\s?10,50$/);
+assert.match(formatMoneyText(0, "BOB", "es-BO"), /^Bs\s?0,00$/);
+assert.match(formatMoneyText(null, "BOB", "es-BO"), /^Bs\s?0,00$/);
+for (const value of [0, 0.4, 1, 10.5, 10.555, 1234.5, 99999999.99]) {
+  assert.equal(formatBusinessMoney(value, "BOB", "es-BO"), formatMoneyText(value, "BOB", "es-BO"), `BOB ${value}: pantalla = correo`);
+  assert.equal(formatBusinessMoney(value, "BOB", "es-BO"), new Intl.NumberFormat("es-BO", { style: "currency", currency: "BOB" }).format(value), `BOB ${value}: igual al formato de moneda de Intl`);
+}
+// Otras monedas con decimales (USD) y sin ellos (PYG): mínimo = máximo de la moneda. CLP no cambia.
+assert.match(formatBusinessMoney(7, "USD", "es-EC"), /7,00/);
+assert.match(formatMoneyText(7, "USD", "es-EC"), /7,00/);
+assert.equal(formatBusinessMoney(7000, "PYG", "es-PY"), new Intl.NumberFormat("es-PY", { style: "currency", currency: "PYG", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(7000));
+assert.equal(formatMoneyText(7000, "PYG", "es-PY"), formatBusinessMoney(7000, "PYG", "es-PY"));
+assert.doesNotMatch(formatBusinessMoney(1234.5, "CLP", "es-CL"), /,/, "CLP sin decimales");
+assert.doesNotMatch(formatMoneyText(1234.5, "CLP", "es-CL"), /,/, "CLP sin decimales en el servidor");
 assert.notEqual(bob, oldServerFormat(11));
 assert.equal(formatBusinessMoney(11, "BOB", "es-BO"), bob, "el correo del servidor y la pantalla muestran el mismo monto");
 assert.equal(formatBusinessMoney(1234567, "BOB", "es-BO"), formatMoneyText(1234567, "BOB", "es-BO"));
 for (const text of [bob, formatBusinessMoney(11, "BOB", "es-BO")]) {
-  assert.doesNotMatch(text, /CLP|,00/);
+  assert.doesNotMatch(text, /CLP/);
 }
 // Moneda desconocida o código inválido: cae en CLP/es-CL, como antes.
 assert.equal(formatMoneyText(5000, "no", "zz_ZZ"), formatMoneyText(5000, "no", "es-CL"));

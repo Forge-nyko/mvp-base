@@ -39,6 +39,18 @@ export function getCurrencyByCode(code) {
   return currenciesByCode.get(String(code || "")) || null;
 }
 
+// Decimales de CÁLCULO de los importes de una moneda (`amountDecimals` del catálogo): con cuántos decimales
+// se redondean y validan los montos de los documentos (SPEC 036). No es `decimals`, que solo decide cómo se
+// MUESTRA el monto (CLP 0, BOB 2). amountDecimals nunca supera a decimals, y hoy es 0 en todas las monedas
+// (BOB pasa a 2 al final de la SPEC 036). Una moneda desconocida cuenta 0: el comportamiento entero de siempre.
+export function getCurrencyAmountDecimals(code) {
+  const currency = getCurrencyByCode(String(code || "").toUpperCase());
+  const amountDecimals = currency?.amountDecimals;
+  return Number.isInteger(amountDecimals) && amountDecimals >= 0 && amountDecimals <= currency.decimals
+    ? amountDecimals
+    : 0;
+}
+
 export function getDefaultLocaleForCountry(code) {
   return getCountryByCode(code)?.defaultLocale || "es-CL";
 }

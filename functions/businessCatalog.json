@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 5,
+  "schemaVersion": 6,
   "businessCategoryCatalogVersion": 1,
   "source": {
     "organization": "Subsecretaría de Desarrollo Regional y Administrativo (SUBDERE)",
@@ -25,18 +25,19 @@
       "name": "Peso chileno",
       "symbol": "$",
       "decimals": 0,
+      "amountDecimals": 0,
       "active": true
     },
-    { "code": "BOB", "name": "Boliviano", "symbol": "Bs", "decimals": 2, "active": true },
-    { "code": "BRL", "name": "Real brasileño", "symbol": "R$", "decimals": 2, "active": true },
-    { "code": "PEN", "name": "Sol peruano", "symbol": "S/", "decimals": 2, "active": true },
-    { "code": "ARS", "name": "Peso argentino", "symbol": "$", "decimals": 2, "active": true },
-    { "code": "COP", "name": "Peso colombiano", "symbol": "$", "decimals": 2, "active": true },
-    { "code": "PYG", "name": "Guaraní paraguayo", "symbol": "₲", "decimals": 0, "active": true },
-    { "code": "UYU", "name": "Peso uruguayo", "symbol": "$U", "decimals": 2, "active": true },
-    { "code": "MXN", "name": "Peso mexicano", "symbol": "$", "decimals": 2, "active": true },
-    { "code": "USD", "name": "Dólar estadounidense", "symbol": "US$", "decimals": 2, "active": true },
-    { "code": "EUR", "name": "Euro", "symbol": "€", "decimals": 2, "active": true }
+    { "code": "BOB", "name": "Boliviano", "symbol": "Bs", "decimals": 2, "amountDecimals": 0, "active": true },
+    { "code": "BRL", "name": "Real brasileño", "symbol": "R$", "decimals": 2, "amountDecimals": 0, "active": true },
+    { "code": "PEN", "name": "Sol peruano", "symbol": "S/", "decimals": 2, "amountDecimals": 0, "active": true },
+    { "code": "ARS", "name": "Peso argentino", "symbol": "$", "decimals": 2, "amountDecimals": 0, "active": true },
+    { "code": "COP", "name": "Peso colombiano", "symbol": "$", "decimals": 2, "amountDecimals": 0, "active": true },
+    { "code": "PYG", "name": "Guaraní paraguayo", "symbol": "₲", "decimals": 0, "amountDecimals": 0, "active": true },
+    { "code": "UYU", "name": "Peso uruguayo", "symbol": "$U", "decimals": 2, "amountDecimals": 0, "active": true },
+    { "code": "MXN", "name": "Peso mexicano", "symbol": "$", "decimals": 2, "amountDecimals": 0, "active": true },
+    { "code": "USD", "name": "Dólar estadounidense", "symbol": "US$", "decimals": 2, "amountDecimals": 0, "active": true },
+    { "code": "EUR", "name": "Euro", "symbol": "€", "decimals": 2, "amountDecimals": 0, "active": true }
   ],
   "businessCategorySectors": [
     { "code": "SERVICIOS_PROYECTOS", "name": "Servicios por proyectos", "order": 1 },

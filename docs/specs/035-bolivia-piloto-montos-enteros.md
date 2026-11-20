@@ -1,6 +1,6 @@
 # SPEC 035: Bolivia como piloto con montos enteros redondeados
 
-Estado: **implementada en la rama `ajuste-onboarding-bolivia` (2026-11-20), sin commit ni despliegue.** Decisión verbal de Bruno del 20-nov-2026: opción (a) del acta de entrega, 7.6.1. `AGENTS.md` sigue siendo la autoridad en seguridad y arquitectura multiempresa.
+Estado: **sustituida por la [SPEC 036](036-bolivia-montos-con-decimales.md) en lo que decide sobre los montos enteros (sección 1, el aviso de redondeo del punto 7 de la sección 3 y la sección 5); el resto (rubros, países, región, textos por país) sigue vigente.** Hasta que la entrega D de la SPEC 036 active los decimales en BOB, Bolivia se sigue calculando entero como dice esta SPEC. Estaba implementada en la rama `ajuste-onboarding-bolivia` (2026-11-20), sin commit ni despliegue. Decisión verbal de Bruno del 20-nov-2026: opción (a) del acta de entrega, 7.6.1. `AGENTS.md` sigue siendo la autoridad en seguridad y arquitectura multiempresa.
 
 ## 1. Qué decide
 
