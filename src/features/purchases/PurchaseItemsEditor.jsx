@@ -1,6 +1,6 @@
 import React from "react";
+import {useBusinessMoney} from "../../hooks/useBusinessFormat";
 
-const money = (value) => `$${Math.round(Number(value || 0)).toLocaleString("es-CL")}`;
 const typeLabel = (value) => ({producto: "Producto", servicio: "Servicio", actividad: "Actividad"})[value] || "Producto";
 
 export default function PurchaseItemsEditor({
@@ -11,6 +11,7 @@ export default function PurchaseItemsEditor({
   readOnly,
   referencesLocked = false,
 }) {
+  const money = useBusinessMoney();
   const update = (index, field, value) => onChange(items.map((item, current) =>
     current === index ? {...item, [field]: value} : item
   ));

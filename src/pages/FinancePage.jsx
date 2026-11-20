@@ -38,7 +38,7 @@ import {
   deleteFinancialMovement,
   updateFinancialMovement,
 } from "../services/financialService";
-import { useBusinessMoney } from "../hooks/useBusinessFormat";
+import useBusinessFormat, { useBusinessMoney } from "../hooks/useBusinessFormat";
 import { formatDate } from "../utils/formatters";
 import {userErrorMessage} from "../domain/userFacingError.mjs";
 
@@ -75,6 +75,7 @@ function downloadCsv(csv, filename) {
 
 function FinancePage({ businessId, role }) {
   const formatBusinessAmount = useBusinessMoney();
+  const { currency: businessCurrency } = useBusinessFormat();
   const [searchParams, setSearchParams] = useSearchParams();
   const today = getSantiagoDateKey();
   const selectedPeriod = VALID_PERIODS.has(searchParams.get("period"))
@@ -183,7 +184,7 @@ function FinancePage({ businessId, role }) {
 
   const exportFiltered = () => {
     downloadCsv(
-      buildFinancialCsv(filteredItems),
+      buildFinancialCsv(filteredItems, businessCurrency),
       `valoracloud-movimientos-${businessId}-${range.start}-${range.end}.csv`
     );
     setFeedback(`Se exportaron ${filteredItems.length} movimientos del negocio activo.`);

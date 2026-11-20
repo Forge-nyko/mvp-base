@@ -398,6 +398,11 @@
   overflow-wrap: anywhere;
 }
 
+/* Aviso de redondeo al entero bajo los totales (<AmountRoundingNotice>). */
+.ui-amount-rounding-notice {
+  margin-top: var(--space-3);
+}
+
 .ui-notice__title {
   font-weight: var(--font-weight-semibold);
 }
@@ -2100,9 +2105,20 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* Alta de la primera empresa: 2 columnas (Nombre | Rubro, País | Región o Departamento) y una sola
+   en pantallas de hasta 640px. El cajón de negocio adicional no pasa por aquí: sigue en una columna. */
 .onboarding-card--quick .quick-business-fields {
   align-items: start;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Notas del país (fiscal y redondeo) en un aviso a todo el ancho, debajo de la grilla. */
+.quick-business-notes p {
+  margin: 0;
+}
+
+.quick-business-notes p + p {
+  margin-top: var(--space-2);
 }
 
 .activation-shell {
@@ -2491,10 +2507,6 @@
   text-align: left;
 }
 
-.business-category-option--wide {
-  grid-column: 1 / -1;
-}
-
 .business-category-option:hover {
   background: var(--color-surface-brand);
   border-color: var(--color-brand-200);
@@ -2645,11 +2657,13 @@
   margin: 0;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 640px) {
   .onboarding-card--quick .quick-business-fields {
     grid-template-columns: minmax(0, 1fr);
   }
+}
 
+@media (max-width: 760px) {
   .business-category-group__grid {
     grid-template-columns: minmax(0, 1fr);
   }

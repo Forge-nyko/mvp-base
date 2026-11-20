@@ -4,16 +4,16 @@ import BarcodeInput from "../../components/barcode/BarcodeInput";
 import AppIcon from "../../components/ui/AppIcon";
 import Button from "../../components/ui/Button";
 import {getSaleItemTypeLabel} from "../../domain/saleModel.mjs";
+import {useBusinessMoney} from "../../hooks/useBusinessFormat";
 import {lineDescriptionToShow} from "./saleLineText.mjs";
 import {stepSaleQuantity} from "./saleLineStepper.mjs";
-
-const money = (value) => `$${Math.round(Number(value || 0)).toLocaleString("es-CL")}`;
 
 const sameText = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
 
 // Vista histórica (venta confirmada o cancelada): una fila por ítem con
 // encabezados únicos. Sin stock actual: no es un dato de la venta.
 function SoldItemsTable({items}) {
+  const money = useBusinessMoney();
   return (
     <div className="sale-sold">
       <table className="sale-sold__table">
@@ -57,6 +57,7 @@ function SoldItemsTable({items}) {
 }
 
 export default function SaleItemsEditor({disabled, historical = false, inventory, items, onChange, onOpenCatalog, onScanProduct, readOnly, referencesLocked = false}) {
+  const money = useBusinessMoney();
   const update = (index, field, value) => onChange(items.map((item, current) => current === index ? {...item, [field]: value} : item));
   const inventoryById = new Map(inventory.map((item) => [item.id, item]));
   const canChangeReferences = !disabled && !referencesLocked;

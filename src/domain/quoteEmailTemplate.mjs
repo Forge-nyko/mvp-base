@@ -222,8 +222,9 @@ export function buildQuoteEmailPreview({
     summary: {
       numero: singleLine(quoteNumber),
       fecha: quote?.fecha ? formatDate(quote.fecha) : "",
-      // La caja del servidor siempre formatea en CLP (formatCurrencyClp).
-      total: formatMoney(Number(quote?.total || 0), "CLP", "es-CL"),
+      // Igual que el correo del servidor (formatMoneyText): moneda y formato de la
+      // cotización; sin ellos, CLP / es-CL como siempre.
+      total: formatMoney(Number(quote?.total || 0), quote?.moneda || "CLP", quote?.locale || "es-CL"),
       validezDias: validityDays,
     },
     contact: joinNonEmpty(

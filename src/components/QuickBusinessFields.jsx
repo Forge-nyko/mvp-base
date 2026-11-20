@@ -1,12 +1,16 @@
 import React from "react";
 import {
-  CHILE_REGIONS,
   NEW_BUSINESS_COUNTRIES,
+  getCountryByCode,
+  getRegionLabel,
+  getRegionsForCountry,
+  hasRegionCatalog,
 } from "../domain/businessCatalog";
+import { getAmountRoundingNote } from "../domain/amountRounding.mjs";
+import { getCountryFiscalNote } from "../domain/countryFiscalNote.mjs";
+import { resolveFormCountryCode } from "../domain/businessForm";
 import BusinessCategoryPicker from "./BusinessCategoryPicker";
-
-const NON_CHILE_FISCAL_NOTE =
-  "Moneda y formato disponibles. Las reglas fiscales (facturas, boletas, IVA) están pensadas para Chile y están en revisión.";
+import Notice from "./ui/Notice";
 
 function FieldMessage({ error, help = null, id }) {
   return (
@@ -32,18 +36,24 @@ function QuickBusinessFields({
   showRegion = true,
   values,
 }) {
-  const getCountryHelp = () => {
-    const showFiscalNote = values.paisCodigo && values.paisCodigo !== "CL";
-    if (!countryHint && !showFiscalNote) return "";
-    return (
-      <>
-        {countryHint && <span>{countryHint}</span>}
-        {showFiscalNote && <span>{NON_CHILE_FISCAL_NOTE}</span>}
-      </>
-    );
-  };
+  // La región depende del país (se limpia al cambiarlo). Sin país en los valores
+  // (negocio adicional) es Chile. Un país sin catálogo no pide región de lista.
+  const regionCountryCode = resolveFormCountryCode(values);
+  const regionLabel = getRegionLabel(regionCountryCode);
+  const showRegionField = showRegion && hasRegionCatalog(regionCountryCode);
+
+  // Bajo el país queda solo la línea corta ("Bolivia · BOB"). La nota fiscal y el aviso de
+  // redondeo van en un aviso a todo el ancho debajo de la grilla.
+  const fiscalNote = getCountryFiscalNote(values.paisCodigo);
+  const roundingNote = getAmountRoundingNote(
+    getCountryByCode(values.paisCodigo)?.defaultCurrencyCode
+  );
+  const hasCountryNotes = Boolean(fiscalNote || roundingNote);
+  const countryNotesId = `${idPrefix}-country-notes`;
+  const getCountryHelp = () => (countryHint ? <span>{countryHint}</span> : "");
 
   return (
+    <>
     <div className="quick-business-fields">
       {[
         {
@@ -79,11 +89,13 @@ function QuickBusinessFields({
         },
         {
           field: "regionCodigo",
-          label: "Región",
+          label: regionLabel,
           control: (
             <select>
-              <option value="">Selecciona una región</option>
-              {CHILE_REGIONS.map((region) => (
+              <option value="">
+                {regionCountryCode === "CL" ? "Selecciona una región" : `Selecciona un ${regionLabel.toLowerCase()}`}
+              </option>
+              {getRegionsForCountry(regionCountryCode).map((region) => (
                 <option key={region.code} value={region.code}>
                   {region.name}
                 </option>
@@ -93,7 +105,7 @@ function QuickBusinessFields({
         },
       ]
         .filter(({ field }) => showCountry || field !== "paisCodigo")
-        .filter(({ field }) => showRegion || field !== "regionCodigo")
+        .filter(({ field }) => showRegionField || field !== "regionCodigo")
         .map(({ category, field, label, control }) => {
           const controlId = `${idPrefix}-${field}`;
           const messageId = `${controlId}-message`;
@@ -140,7 +152,10 @@ function QuickBusinessFields({
               disabled,
               required: true,
               "aria-invalid": Boolean(errors[field]),
-              "aria-describedby": messageId,
+              "aria-describedby":
+                field === "paisCodigo" && hasCountryNotes
+                  ? `${messageId} ${countryNotesId}`
+                  : messageId,
             })}
             <FieldMessage
               id={messageId}
@@ -151,6 +166,13 @@ function QuickBusinessFields({
           );
         })}
     </div>
+    {hasCountryNotes && (
+      <Notice variant="info" id={countryNotesId} className="quick-business-notes">
+        {fiscalNote && <p>{fiscalNote}</p>}
+        {roundingNote && <p>{roundingNote}</p>}
+      </Notice>
+    )}
+    </>
   );
 }
 

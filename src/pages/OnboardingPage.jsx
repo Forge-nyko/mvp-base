@@ -7,6 +7,7 @@ import Button from "../components/ui/Button";
 import ResponsiveDialog from "../components/ui/ResponsiveDialog";
 import SkipLink from "../components/ui/SkipLink";
 import {
+  applyQuickBusinessChange,
   getBusinessCreationErrorMessage,
   INITIAL_ONBOARDING_BUSINESS_VALUES,
   normalizeQuickBusinessPayload,
@@ -17,6 +18,7 @@ import {
 import {
   getCountryByCode,
   getCurrencyByCode,
+  getDefaultFiscalIdentifierLabel,
 } from "../domain/businessCatalog";
 import useMyInvitations from "../hooks/useMyInvitations";
 import { logout } from "../services/authService";
@@ -49,24 +51,38 @@ function OnboardingPage({ usuario, onBusinessCreated, onInvitationAccepted }) {
   const selectedCurrency = getCurrencyByCode(
     selectedCountry?.defaultCurrencyCode
   );
+  // RUT en Chile, NIT en Bolivia; sin país elegido, la etiqueta de Chile.
+  const fiscalIdentifierLabel = getDefaultFiscalIdentifierLabel(values.paisCodigo);
 
   const updateValue = (field, value) => {
-    const patch =
-      field && typeof field === "object" ? field : { [field]: value };
+    const patch = applyQuickBusinessChange(
+      values,
+      field && typeof field === "object" ? field : { [field]: value }
+    );
     const nextValues = { ...values, ...patch };
     const nextErrors = validateQuickBusiness(nextValues, {
       requireCountry: true,
-      requireRegion: false,
+      requireRegion: true,
     });
+    // Cambiar el país limpia la región (applyQuickBusinessChange): la región empieza de cero, sin
+    // "editada", sin "tocada" y sin error. Solo avisa si el usuario la toca y la deja vacía, o al enviar.
+    const regionReset =
+      Object.hasOwn(patch, "paisCodigo") && patch.paisCodigo !== values.paisCodigo;
+    if (regionReset) delete nextErrors.regionCodigo;
     setValues(nextValues);
     setDirty((current) => {
       const next = { ...current };
       for (const changedField of Object.keys(patch)) next[changedField] = true;
+      if (regionReset) next.regionCodigo = false;
       return next;
     });
+    if (regionReset) {
+      setTouched((current) => ({ ...current, regionCodigo: false }));
+    }
     setErrors((current) => {
       if (submitted) return nextErrors;
       const next = { ...current };
+      if (regionReset) next.regionCodigo = undefined;
       for (const changedField of Object.keys(patch)) {
         if (touched[changedField]) next[changedField] = nextErrors[changedField];
       }
@@ -90,11 +106,18 @@ function OnboardingPage({ usuario, onBusinessCreated, onInvitationAccepted }) {
     }
     const nextErrors = validateQuickBusiness(
       { ...values, ...patch },
-      { requireCountry: true, requireRegion: false }
+      { requireCountry: true, requireRegion: true }
     );
     setTouched((current) => ({ ...current, [field]: true }));
     setErrors((current) => ({ ...current, [field]: nextErrors[field] }));
   };
+
+  // Salir de la región sin elegir equivale a tocarla y dejarla vacía: se valida aunque no se haya editado.
+  const handleBlur = (field, patch = {}) =>
+    validateField(
+      field,
+      field === "regionCodigo" ? { regionCodigo: values.regionCodigo, ...patch } : patch
+    );
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -102,7 +125,7 @@ function OnboardingPage({ usuario, onBusinessCreated, onInvitationAccepted }) {
 
     const nextErrors = validateQuickBusiness(values, {
       requireCountry: true,
-      requireRegion: false,
+      requireRegion: true,
     });
     setSubmitted(true);
     setTouched(
@@ -220,9 +243,9 @@ function OnboardingPage({ usuario, onBusinessCreated, onInvitationAccepted }) {
                 errors={errors}
                 disabled={isSubmitting}
                 onChange={updateValue}
-                onBlur={validateField}
+                onBlur={handleBlur}
                 showCountry
-                showRegion={false}
+                showRegion
                 countryHint={
                   selectedCountry && selectedCurrency
                     ? `${selectedCountry.name} · ${selectedCurrency.code}`
@@ -236,7 +259,7 @@ function OnboardingPage({ usuario, onBusinessCreated, onInvitationAccepted }) {
               <ol className="onboarding-form__steps">
                 <li className="onboarding-form__step onboarding-form__step--current" aria-current="step">
                   <span className="onboarding-form__step-number" aria-hidden="true">1</span>
-                  <span className="onboarding-form__step-text">Completa los datos de tu empresa (razón social, RUT, domicilio)</span>
+                  <span className="onboarding-form__step-text">{`Completa los datos de tu empresa (razón social, ${fiscalIdentifierLabel}, domicilio)`}</span>
                   <span className="onboarding-form__step-state">Paso actual</span>
                 </li>
                 <li className="onboarding-form__step">

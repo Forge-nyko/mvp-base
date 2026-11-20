@@ -29,32 +29,33 @@ const [picker, quickFields, company, dialog, componentStyles] = await Promise.al
 assert.equal(normalizeCategorySearch("  TECNOLOGÍA  "), "tecnologia");
 assert.equal(normalizeCategorySearch("Cafetería"), "cafeteria");
 const visibleCategories = filterBusinessCategories(catalog.businessCategories, "");
-assert.equal(visibleCategories.length, 9);
+// Bolivia piloto (SPEC 035): seis rubros seleccionables; Seguridad electrónica, Automatización y
+// Mantenimiento quedan ocultos (siguen en el catálogo).
+assert.equal(visibleCategories.length, 6);
 assert.deepEqual(
   visibleCategories.map(({ code }) => code),
   [
     "TECNOLOGIA_INFORMATICA",
-    "SEGURIDAD_TELECOMUNICACIONES",
     "ELECTRICIDAD_ENERGIA_CLIMATIZACION",
-    "AUTOMATIZACION_CONTROL",
-    "MANTENIMIENTO_INSTALACIONES",
     "TALLER_AUTOMOTRIZ",
     "CLINICA_VETERINARIA",
     "INGENIERIA_CONSULTORIA",
     "OTRO_SERVICIO_PROYECTOS",
   ]
 );
+for (const hiddenCode of ["SEGURIDAD_TELECOMUNICACIONES", "AUTOMATIZACION_CONTROL", "MANTENIMIENTO_INSTALACIONES"]) {
+  assert.equal(visibleCategories.some(({ code }) => code === hiddenCode), false, hiddenCode);
+}
 assert.equal(visibleCategories.some(({ code }) => code === "RESTAURANTE"), false);
 assert.equal(
   visibleCategories.find(({ code }) => code === "OTRO_SERVICIO_PROYECTOS")?.name,
   "Otro servicio por proyectos"
 );
 
-const securityResults = filterBusinessCategories(
-  catalog.businessCategories,
-  "ALARMAS"
-);
-assert.ok(securityResults.some(({ code }) => code === "SEGURIDAD_TELECOMUNICACIONES"));
+// Los rubros ocultos siguen en el catálogo pero el buscador ya no los devuelve.
+assert.deepEqual(filterBusinessCategories(catalog.businessCategories, "ALARMAS"), []);
+assert.deepEqual(filterBusinessCategories(catalog.businessCategories, "domotica"), []);
+assert.deepEqual(filterBusinessCategories(catalog.businessCategories, "cctv"), []);
 // "programación" apuntaba a un rubro que ya no es elegible.
 assert.deepEqual(
   filterBusinessCategories(catalog.businessCategories, "PROGRAMACIÓN"),
@@ -113,12 +114,10 @@ const contentRule = componentStyles.match(/\.business-category-dialog__content\s
 assert.doesNotMatch(contentRule, /overflow|max-height/);
 assert.doesNotMatch(componentStyles, /\.business-category-dialog \.responsive-dialog__body/);
 
-// Nota fiscal para países distintos de Chile (solo presentación).
-assert.match(
-  quickFields,
-  /Moneda y formato disponibles\. Las reglas fiscales \(facturas, boletas, IVA\) están pensadas para Chile y están en revisión\./
-);
-assert.match(quickFields, /values\.paisCodigo !== "CL"/);
+// Nota del país distinto de Chile (solo presentación): sale de getCountryFiscalNote (catálogo), sin texto
+// fijo en el componente; el texto exacto se prueba en business-catalog y en el render de business-quick-flow.
+assert.match(quickFields, /getCountryFiscalNote\(values\.paisCodigo\)/);
+assert.doesNotMatch(quickFields, /pensadas para Chile|están en revisión|NON_CHILE_FISCAL_NOTE/);
 
 assert.match(quickFields, /<BusinessCategoryPicker/);
 assert.match(company, /<BusinessCategoryPicker/);
@@ -165,7 +164,10 @@ assert.match(
   componentStyles,
   /\.business-category-option\[aria-checked="true"\]\s*\{[\s\S]*?border-color:\s*var\(--color-brand-500\)/
 );
-assert.match(componentStyles, /\.business-category-option--wide\s*\{/);
+// Con 6 rubros todos van en la grilla de 2 columnas: ninguno ocupa la fila completa.
+assert.doesNotMatch(componentStyles, /business-category-option--wide/);
+assert.doesNotMatch(picker, /business-category-option--wide/);
+assert.match(picker, /className="business-category-option"/);
 assert.match(dialog, /event\.key === "Escape"/);
 assert.match(dialog, /openDialogStack\.at\(-1\)/);
 

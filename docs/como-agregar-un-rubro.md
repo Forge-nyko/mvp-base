@@ -15,11 +15,11 @@ Solo en `functions/businessCatalog.json` (clave `businessCategories`). El servid
 
 Un negocio conserva su `rubroCodigo` y `rubroNombre` aunque el rubro deje de ser seleccionable: el servidor lo acepta si el código es igual al que ya tiene guardado.
 
-## Rubros seleccionables hoy (9)
+## Rubros seleccionables hoy (6, SPEC 035)
 
-`TECNOLOGIA_INFORMATICA`, `SEGURIDAD_TELECOMUNICACIONES`, `ELECTRICIDAD_ENERGIA_CLIMATIZACION`, `AUTOMATIZACION_CONTROL`, `MANTENIMIENTO_INSTALACIONES`, `TALLER_AUTOMOTRIZ`, `CLINICA_VETERINARIA`, `INGENIERIA_CONSULTORIA` y `OTRO_SERVICIO_PROYECTOS`. `TALLER_AUTOMOTRIZ` y `CLINICA_VETERINARIA` además habilitan su módulo vertical al crear el negocio (ver "Cómo se activa un módulo para un rubro").
+`TECNOLOGIA_INFORMATICA`, `ELECTRICIDAD_ENERGIA_CLIMATIZACION`, `TALLER_AUTOMOTRIZ`, `CLINICA_VETERINARIA`, `INGENIERIA_CONSULTORIA` y `OTRO_SERVICIO_PROYECTOS` (en pantalla "Otro servicio técnico o profesional"). Dejaron de ser seleccionables, sin borrarse del catálogo: `SEGURIDAD_TELECOMUNICACIONES`, `AUTOMATIZACION_CONTROL` y `MANTENIMIENTO_INSTALACIONES`; un negocio que ya los tiene los conserva. Para volver a ofrecer uno basta quitarle `"selectable": false`. `TALLER_AUTOMOTRIZ` y `CLINICA_VETERINARIA` además habilitan su módulo vertical al crear el negocio (ver "Cómo se activa un módulo para un rubro").
 
-Existen pero no son seleccionables: `AUTOMOTRIZ_MOVILIDAD`, `CONSTRUCCION_OBRAS`, `SOFTWARE_SOLUCIONES_DIGITALES` y `SERVICIOS_DIGITALES_CREATIVOS`. El picker muestra "Construcción y obras", "Software y soluciones digitales" y "Servicios digitales y creativos" en el grupo "Próximamente" (solo texto, sin código).
+Antes de la SPEC 035 eran 9 (estos seis más los tres ocultos). También existen pero no son seleccionables: `AUTOMOTRIZ_MOVILIDAD`, `CONSTRUCCION_OBRAS`, `SOFTWARE_SOLUCIONES_DIGITALES` y `SERVICIOS_DIGITALES_CREATIVOS`. El picker muestra "Construcción y obras", "Software y soluciones digitales" y "Servicios digitales y creativos" en el grupo "Próximamente" (solo texto, sin código).
 
 ## Cómo habilitar un rubro
 

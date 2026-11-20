@@ -144,6 +144,7 @@ const {
 const {transitionQuoteStatusHandler} = require("./quoteLifecycle");
 const {deleteQuoteDraftHandler} = require("./quoteDeletion");
 const {normalizeBusinessVerificationState} = require("./businessOperations");
+const {formatMoneyText} = require("./localization");
 const {
   createAdditionalBusinessHandler,
   createFirstBusinessHandler,
@@ -2730,12 +2731,10 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-function formatCurrencyClp(value) {
-  return Number(value || 0).toLocaleString("es-CL", {
-    style: "currency",
-    currency: "CLP",
-    minimumFractionDigits: 0,
-  });
+// Total de la cotización en la moneda y el formato que la propia cotización guardó
+// (los de la empresa al crearla). Sin ellos o en CLP da el texto de siempre.
+function formatQuoteTotal(quote = {}) {
+  return formatMoneyText(quote.total, quote.moneda, quote.locale);
 }
 
 function sanitizeAttachmentFileName(value) {
@@ -2838,7 +2837,7 @@ function buildPlainQuoteEmail({ quote, mensaje, proposalUrl }) {
     "",
     `Cotizacion: ${quote.numero || quote.id || "-"}`,
     `Fecha: ${formatQuoteDate(quote.fecha)}`,
-    `Total: ${formatCurrencyClp(quote.total)}`,
+    `Total: ${formatQuoteTotal(quote)}`,
     `Validez: ${validityDays} dias`,
     "",
     "El detalle de los productos, servicios, condiciones comerciales y observaciones se encuentra en el documento PDF adjunto.",
@@ -2881,7 +2880,7 @@ function buildQuoteEmailHtml({ quote, mensaje, proposalUrl }) {
             )}</strong></p>
             <p style="margin:0 0 6px;color:#475569;">Fecha: ${escapeHtml(formatQuoteDate(quote.fecha))}</p>
             <p style="margin:0 0 6px;color:#475569;">Total: <strong style="color:#111827;">${escapeHtml(
-              formatCurrencyClp(quote.total)
+              formatQuoteTotal(quote)
             )}</strong></p>
             <p style="margin:0;color:#475569;">Validez: ${escapeHtml(validityDays)} d&iacute;as</p>
           </div>

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
 import { normalizeQuickBusinessPayload } from "../src/domain/businessQuickPayload.mjs";
 import { resolveInitialActivationRoute } from "../src/domain/initialActivationNavigation.mjs";
@@ -67,7 +69,45 @@ for (const forbidden of [
 
 assert.match(onboarding, /<QuickBusinessFields/);
 assert.match(onboarding, /showCountry/);
-assert.match(onboarding, /showRegion=\{false\}/);
+// La región es obligatoria en el onboarding y depende del país (Chile: regiones; Bolivia: departamentos).
+assert.match(onboarding, /<QuickBusinessFields[\s\S]*?\bshowRegion\b(?!=\{false\})/);
+assert.doesNotMatch(onboarding, /showRegion=\{false\}/);
+assert.doesNotMatch(onboarding, /requireRegion: false/);
+assert.match(onboarding, /applyQuickBusinessChange\(/);
+// El paso 1 nombra el identificador fiscal del país elegido (RUT en Chile, NIT en Bolivia), no "RUT" fijo.
+assert.match(onboarding, /const fiscalIdentifierLabel = getDefaultFiscalIdentifierLabel\(values\.paisCodigo\);/);
+assert.ok(onboarding.includes("razón social, ${fiscalIdentifierLabel}, domicilio"), "el paso 1 usa la etiqueta del país");
+assert.doesNotMatch(onboarding, />Completa los datos de tu empresa \(razón social, RUT, domicilio\)</, "sin RUT fijo en el paso 1");
+assert.doesNotMatch(onboarding.replace(/\/\/.*$/gm, ""), /\bRUT\b/, "ningún otro RUT fijo visible en el onboarding");
+// El panel "Tu negocio ya está creado" no nombra el RUT y el formulario de verificación toma la etiqueta del perfil.
+assert.doesNotMatch(activation, /RUT/);
+assert.match(companyConfig, /label="Tipo de identificación fiscal"\s+value=\{form\.identificadorFiscalTipo\}/);
+assert.match(companyConfig, /Ingresa el \$\{\s*form\.identificadorFiscalTipo \|\| "identificador"\s*\} que será revisado\./);
+assert.match(fields, /getRegionsForCountry\(regionCountryCode\)/);
+
+// Diseño del alta (2 columnas en escritorio, 1 hasta 640px) y notas del país en un aviso aparte.
+const cssText = componentStyles.replace(/\r\n/g, "\n");
+assert.match(cssText, /\.onboarding-card--quick \.quick-business-fields \{\s*align-items: start;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);\s*\}/);
+assert.match(cssText, /@media \(max-width: 640px\) \{\s*\.onboarding-card--quick \.quick-business-fields \{\s*grid-template-columns: minmax\(0, 1fr\);/);
+assert.doesNotMatch(cssText, /\.onboarding-card--quick \.quick-business-fields \{[^}]*repeat\(3/);
+assert.match(cssText, /\.quick-business-notes p \+ p \{\s*margin-top: var\(--space-2\);/, "espacio entre las dos frases del aviso");
+// El cajón de negocio adicional no tiene país ni departamento: sin aviso de país y sin grilla de 2 columnas propia.
+assert.doesNotMatch(cssText, /\.business-create-drawer[^{]*\.quick-business-fields[^{]*\{[^}]*repeat\(2/);
+// Bajo el país solo la línea corta; las notas van en un <Notice> debajo de la grilla, con sus dos frases en párrafos.
+assert.match(fields, /const getCountryHelp = \(\) => \(countryHint \? <span>\{countryHint\}<\/span> : ""\);/);
+assert.match(fields, /<Notice variant="info" id=\{countryNotesId\} className="quick-business-notes">/);
+assert.match(fields, /\{fiscalNote && <p>\{fiscalNote\}<\/p>\}/);
+assert.match(fields, /\{roundingNote && <p>\{roundingNote\}<\/p>\}/);
+assert.ok(fields.indexOf('className="quick-business-fields"') < fields.indexOf("<Notice variant="), "el aviso va debajo de la grilla");
+assert.doesNotMatch(fields, /<span>\{fiscalNote\}<\/span>|<span>\{roundingNote\}<\/span>|NON_CHILE_FISCAL_NOTE/);
+// Cambiar el país reinicia lo "editado", lo "tocado" y el error de la región.
+assert.match(onboarding, /const regionReset =\s*Object\.hasOwn\(patch, "paisCodigo"\) && patch\.paisCodigo !== values\.paisCodigo;/);
+assert.match(onboarding, /if \(regionReset\) delete nextErrors\.regionCodigo;/);
+assert.match(onboarding, /if \(regionReset\) next\.regionCodigo = false;/);
+assert.match(onboarding, /setTouched\(\(current\) => \(\{ \.\.\.current, regionCodigo: false \}\)\);/);
+assert.match(onboarding, /if \(regionReset\) next\.regionCodigo = undefined;/);
+assert.match(onboarding, /onBlur=\{handleBlur\}/);
+assert.doesNotMatch(fields, /CHILE_REGIONS/);
 assert.match(fields, /NEW_BUSINESS_COUNTRIES/);
 assert.doesNotMatch(fields, /COUNTRIES\.filter/);
 assert.match(onboarding, /ONBOARDING_BUSINESS_FIELD_ORDER/);
@@ -451,14 +491,74 @@ const vite = await createServer({ appType: "custom", logLevel: "silent", server:
 let shouldValidateOnBlur;
 let validateQuickBusiness;
 let INITIAL_ONBOARDING_BUSINESS_VALUES;
+let applyQuickBusinessChange;
+let ONBOARDING_BUSINESS_FIELD_ORDER;
+let QuickBusinessFields;
 try {
-  ({ INITIAL_ONBOARDING_BUSINESS_VALUES, shouldValidateOnBlur, validateQuickBusiness } = await vite.ssrLoadModule(
+  QuickBusinessFields = (await vite.ssrLoadModule("/src/components/QuickBusinessFields.jsx")).default;
+  ({ INITIAL_ONBOARDING_BUSINESS_VALUES, ONBOARDING_BUSINESS_FIELD_ORDER, applyQuickBusinessChange, shouldValidateOnBlur, validateQuickBusiness } = await vite.ssrLoadModule(
     "/src/domain/businessForm.js"
   ));
 } finally {
   await vite.close();
 }
 const picker = await readFile(new URL("../src/components/BusinessCategoryPicker.jsx", import.meta.url), "utf8");
+
+// Render real del formulario: Chile, Bolivia y el cajón de negocio adicional (sin país ni departamento).
+const renderFields = (props) =>
+  renderToStaticMarkup(
+    React.createElement(QuickBusinessFields, {
+      errors: {},
+      idPrefix: "t",
+      onBlur() {},
+      onChange() {},
+      values: { nombreComercial: "", rubroCodigo: "", rubroOtro: "", regionCodigo: "" },
+      ...props,
+    })
+  );
+const FISCAL = "ValoraCloud calcula el IVA con la tasa de Bolivia (13 %). La facturación y los impuestos propios de Bolivia, como el IT, no están incluidos.";
+const ROUNDING = "Los montos en Bs se redondean al entero (por ejemplo, Bs 10,50 se guarda como Bs 11).";
+const boliviaHtml = renderFields({
+  showCountry: true,
+  countryHint: "Bolivia · BOB",
+  values: { ...INITIAL_ONBOARDING_BUSINESS_VALUES, paisCodigo: "BO" },
+});
+// Departamento (no Región), con los 9 departamentos y la etiqueta de la lista.
+assert.match(boliviaHtml, /<label for="t-regionCodigo">Departamento/);
+assert.match(boliviaHtml, /Selecciona un departamento/);
+for (const name of ["La Paz", "Cochabamba", "Santa Cruz", "Oruro", "Potosí", "Chuquisaca", "Tarija", "Beni", "Pando"]) {
+  assert.ok(boliviaHtml.includes(`>${name}</option>`), name);
+}
+assert.doesNotMatch(boliviaHtml, /Metropolitana de Santiago/, "la lista de Chile no aparece en Bolivia");
+// Bajo el país solo la línea corta.
+assert.match(boliviaHtml, /<p id="t-paisCodigo-message" class="quick-business-field__hint"><span>Bolivia · BOB<\/span><\/p>/);
+const countryHint = boliviaHtml.match(/<p id="t-paisCodigo-message"[^>]*>(.*?)<\/p>/)?.[1] || "";
+assert.ok(!countryHint.includes("fiscales") && !countryHint.includes("redondean"), "las notas ya no van bajo el país");
+// Aviso informativo debajo de la grilla, con las dos frases como párrafos separados y sin cambiar los textos.
+const gridEnd = boliviaHtml.indexOf("quick-business-notes");
+assert.ok(gridEnd > boliviaHtml.lastIndexOf("t-regionCodigo"), "el aviso va después de la región");
+assert.ok(boliviaHtml.includes(`<p>${FISCAL}</p><p>${ROUNDING}</p>`), "dos párrafos separados: nota fiscal y aviso de redondeo");
+assert.doesNotMatch(boliviaHtml, /pensadas para Chile|están en revisión/);
+assert.match(boliviaHtml, /class="ui-notice ui-notice--info quick-business-notes"/);
+assert.match(boliviaHtml, /aria-describedby="t-paisCodigo-message t-country-notes"/);
+// Chile: región de la lista y ningún aviso.
+const chileHtml = renderFields({
+  showCountry: true,
+  countryHint: "Chile · CLP",
+  values: { ...INITIAL_ONBOARDING_BUSINESS_VALUES, paisCodigo: "CL" },
+});
+assert.match(chileHtml, /<label for="t-regionCodigo">Región/);
+assert.ok(chileHtml.includes(">Metropolitana de Santiago</option>"));
+assert.doesNotMatch(chileHtml, /quick-business-notes|redondean|fiscales/);
+assert.match(chileHtml, /<span>Chile · CLP<\/span>/);
+// Cajón de negocio adicional: sin país ni departamento nuevo, región de Chile como siempre y sin avisos de país.
+const drawerHtml = renderFields({});
+assert.doesNotMatch(drawerHtml, /t-paisCodigo/);
+assert.match(drawerHtml, /<label for="t-regionCodigo">Región/);
+assert.doesNotMatch(drawerHtml, /quick-business-notes|Departamento/);
+// Orden de los campos: Nombre, Rubro, País, Región.
+const order = ["t-nombreComercial", "t-rubroCodigo", "t-paisCodigo", "t-regionCodigo"].map((id) => boliviaHtml.indexOf(`for="${id}"`));
+assert.deepEqual([...order].sort((a, b) => a - b), order, "Nombre | Rubro y País | Región en ese orden");
 
 assert.equal(typeof shouldValidateOnBlur, "function");
 // Salir sin editar (ni intentar enviar): sin error.
@@ -472,15 +572,37 @@ assert.equal(
     .nombreComercial,
   "El nombre debe tener al menos 2 caracteres."
 );
-// Protección temporal (dinero entero): el formulario valida el país con el mismo flag que decide qué países se ofrecen.
+// El formulario valida el país con el mismo flag que decide qué países se ofrecen (Chile y Bolivia).
 const countryError = (paisCodigo) =>
   validateQuickBusiness({ ...INITIAL_ONBOARDING_BUSINESS_VALUES, paisCodigo }, { requireCountry: true, requireRegion: false }).paisCodigo;
-for (const paisCodigo of ["BO", "BR", "PE", "AR", "CO", "EC", "UY", "MX", "OTHER"]) {
+for (const paisCodigo of ["PY", "BR", "PE", "AR", "CO", "EC", "UY", "MX", "OTHER"]) {
   assert.equal(countryError(paisCodigo), "Selecciona un país válido.", paisCodigo + " no es válido al crear una empresa");
 }
-for (const paisCodigo of ["CL", "PY"]) {
+for (const paisCodigo of ["CL", "BO"]) {
   assert.equal(countryError(paisCodigo), undefined, paisCodigo + " sí es válido al crear una empresa");
 }
+
+// Región obligatoria en el onboarding, de la lista del país elegido.
+assert.deepEqual(ONBOARDING_BUSINESS_FIELD_ORDER, ["nombreComercial", "rubroCodigo", "paisCodigo", "regionCodigo"]);
+const regionError = (values) =>
+  validateQuickBusiness(
+    { ...INITIAL_ONBOARDING_BUSINESS_VALUES, nombreComercial: "Taller", rubroCodigo: "TALLER_AUTOMOTRIZ", ...values },
+    { requireCountry: true, requireRegion: true }
+  ).regionCodigo;
+assert.equal(regionError({ paisCodigo: "CL", regionCodigo: "" }), "Selecciona una región.");
+assert.equal(regionError({ paisCodigo: "CL", regionCodigo: "13" }), undefined);
+assert.equal(regionError({ paisCodigo: "CL", regionCodigo: "LP" }), "Selecciona una región.", "un departamento de Bolivia no vale en Chile");
+assert.equal(regionError({ paisCodigo: "BO", regionCodigo: "" }), "Selecciona un departamento.");
+assert.equal(regionError({ paisCodigo: "BO", regionCodigo: "SC" }), undefined);
+assert.equal(regionError({ paisCodigo: "BO", regionCodigo: "13" }), "Selecciona un departamento.", "una región de Chile no vale en Bolivia");
+// Sin país en los valores (negocio adicional) cuenta como Chile: el cajón no cambia.
+assert.equal(validateQuickBusiness({ nombreComercial: "Taller", rubroCodigo: "TALLER_AUTOMOTRIZ", regionCodigo: "" }).regionCodigo, "Selecciona una región.");
+assert.equal(validateQuickBusiness({ nombreComercial: "Taller", rubroCodigo: "TALLER_AUTOMOTRIZ", regionCodigo: "13" }).regionCodigo, undefined);
+// Cambiar el país limpia la región; cambiar otro campo no.
+assert.deepEqual(applyQuickBusinessChange({ paisCodigo: "CL", regionCodigo: "13" }, { paisCodigo: "BO" }), { paisCodigo: "BO", regionCodigo: "" });
+assert.deepEqual(applyQuickBusinessChange({ paisCodigo: "CL", regionCodigo: "13" }, { paisCodigo: "CL" }), { paisCodigo: "CL" }, "mismo país: la región se conserva");
+assert.deepEqual(applyQuickBusinessChange({ paisCodigo: "BO", regionCodigo: "SC" }, { nombreComercial: "X" }), { nombreComercial: "X" });
+assert.deepEqual(applyQuickBusinessChange({ paisCodigo: "BO", regionCodigo: "SC" }, { paisCodigo: "" }), { paisCodigo: "", regionCodigo: "" });
 // Escribir y borrar: el campo sigue editado aunque el valor vuelva a vacío, y entonces sí hay error.
 for (const [name, source, stateName] of [
   ["OnboardingPage", onboarding, "dirty"],
@@ -511,7 +633,11 @@ const withCategory = (rubroCodigo) =>
     { ...INITIAL_ONBOARDING_BUSINESS_VALUES, rubroCodigo, rubroOtro: "" },
     { requireCountry: true, requireRegion: false }
   ).rubroCodigo;
-assert.equal(withCategory("INGENIERIA_CONSULTORIA"), undefined, "el rubro confirmado no da error");
+assert.equal(withCategory("TALLER_AUTOMOTRIZ"), undefined, "el rubro confirmado no da error");
+assert.equal(withCategory("INGENIERIA_CONSULTORIA"), undefined, "Ingeniería y consultoría sigue siendo seleccionable");
+for (const hiddenCode of ["SEGURIDAD_TELECOMUNICACIONES", "AUTOMATIZACION_CONTROL", "MANTENIMIENTO_INSTALACIONES"]) {
+  assert.equal(withCategory(hiddenCode), "Selecciona el rubro principal.", `${hiddenCode} oculto ya no se acepta al crear`);
+}
 assert.equal(withCategory(""), "Selecciona el rubro principal.", "sin rubro elegido el validador sí da error");
 // Después de intentar enviar: siempre valida.
 for (const state of [

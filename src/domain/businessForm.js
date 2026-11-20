@@ -2,7 +2,9 @@ import {
   BUSINESS_CATEGORY_CATALOG_VERSION,
   getBusinessCategoryByCode,
   getCountryByCode,
-  getRegionByCode,
+  getRegionForCountry,
+  getRegionLabel,
+  hasRegionCatalog,
   isSelectableNewBusinessCountry,
 } from "./businessCatalog";
 import {
@@ -36,7 +38,26 @@ export const ONBOARDING_BUSINESS_FIELD_ORDER = Object.freeze([
   "nombreComercial",
   "rubroCodigo",
   "paisCodigo",
+  "regionCodigo",
 ]);
+
+// Sin país en los valores (alta de negocio adicional) cuenta como Chile.
+export function resolveFormCountryCode(values) {
+  return values?.paisCodigo ?? "CL";
+}
+
+// Cambiar el país limpia la región: las listas son distintas por país.
+export function applyQuickBusinessChange(values, patch) {
+  const next = { ...patch };
+  if (
+    Object.prototype.hasOwnProperty.call(next, "paisCodigo") &&
+    next.paisCodigo !== values.paisCodigo &&
+    next.regionCodigo === undefined
+  ) {
+    next.regionCodigo = "";
+  }
+  return next;
+}
 
 export function normalizeChileanRut(value) {
   return normalizeBusinessText(value)
@@ -91,8 +112,15 @@ export function validateQuickBusiness(
   if (!isSelectableBusinessCategory(category, BUSINESS_CATEGORY_CATALOG_VERSION)) {
     errors.rubroCodigo = "Selecciona el rubro principal.";
   }
-  if (requireRegion && !getRegionByCode(values.regionCodigo)) {
-    errors.regionCodigo = "Selecciona una región.";
+  const regionCountryCode = resolveFormCountryCode(values);
+  if (
+    requireRegion &&
+    hasRegionCatalog(regionCountryCode) &&
+    !getRegionForCountry(regionCountryCode, values.regionCodigo)
+  ) {
+    errors.regionCodigo = regionCountryCode === "CL"
+      ? "Selecciona una región."
+      : `Selecciona un ${getRegionLabel(regionCountryCode).toLowerCase()}.`;
   }
   const country = getCountryByCode(values.paisCodigo);
   if (requireCountry && !isSelectableNewBusinessCountry(country)) {

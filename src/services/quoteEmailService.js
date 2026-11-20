@@ -1,7 +1,7 @@
 import { httpsCallable } from "firebase/functions";
 import { assertCloudFunctionAllowed } from "../config/firebaseEnvironment.mjs";
 import { getFirebaseFunctions } from "../firebase/firebaseConfig";
-import { formatDate, formatMoney } from "../utils/formatters";
+import { formatBusinessMoney as formatMoney, formatDate } from "../utils/formatters";
 import {
   buildQuoteEmailFromTemplate,
   buildQuoteEmailPreview,

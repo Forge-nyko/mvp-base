@@ -22,12 +22,12 @@ import {crearRecepcionDesdeOrden, createReceptionRequestId, listarRecepciones} f
 import {buildPurchaseOrderPdfAttachment, downloadPurchaseOrderPdf, getPurchaseOrderWhatsAppAvailability, sharePurchaseOrderWhatsApp} from "../utils/purchaseOrderPdf";
 import "../features/receptions/receptions.css";
 import {userErrorMessage} from "../domain/userFacingError.mjs";
+import {useBusinessMoney} from "../hooks/useBusinessFormat";
 
 const labels = {borrador: "Pendiente de envío", emitida: "Emitida", cancelada: "Cancelada"};
 const MODULE = getRouteMeta("/ordenes-compra");
 // Filtro por defecto de la lista: las canceladas salen con la opción "Canceladas" (mismo patrón que "Activos" en Proveedores).
 const ACTIVE_ORDER_STATES = ["borrador", "emitida"];
-const money = (value) => `$${Math.round(Number(value || 0)).toLocaleString("es-CL")}`;
 const responseLabel = (order) => getSupplierResponseLabel(order);
 
 class PurchaseOrderPreviewBoundary extends React.Component {
@@ -124,6 +124,7 @@ function OrderRowActions({canDelete, onDelete, ...actionProps}) {
 }
 
 export default function PurchaseOrdersPage({businessId, role}) {
+  const money = useBusinessMoney();
   const location = useLocation();
   const navigate = useNavigate();
   const initialCreatedOrder = location.state?.createdOrder?.negocioId === businessId ? location.state.createdOrder : null;

@@ -1,10 +1,11 @@
 import React from "react";
 import BarcodeInput from "../../components/barcode/BarcodeInput";
+import {useBusinessMoney} from "../../hooks/useBusinessFormat";
 
-const money = (value) => `$${Math.round(Number(value || 0)).toLocaleString("es-CL")}`;
 const typeLabel = (value) => ({producto: "Producto", servicio: "Servicio", actividad: "Actividad"})[value] || "Producto";
 
 export default function PurchaseOrderItemsEditor({disabled, items, onChange, onOpenCatalog, onScanProduct, readOnly}) {
+  const money = useBusinessMoney();
   const update = (index, field, value) => onChange(items.map((item, itemIndex) =>
     itemIndex === index ? {...item, [field]: value} : item
   ));

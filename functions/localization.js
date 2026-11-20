@@ -81,6 +81,28 @@ function currencyDecimals(code) {
   return Number.isInteger(decimals) && decimals >= 0 ? decimals : null;
 }
 
+// Monto para textos (correos): moneda y locale del documento o de la empresa.
+// Muestra entre 0 y los decimales que el catálogo define para la moneda, igual
+// que formatBusinessMoney del frontend. Sin datos o con un código inválido cae en
+// CLP/es-CL, que da exactamente el texto que producía el formato fijo anterior.
+function formatMoneyText(value, currency, locale) {
+  let code = text(currency, 10).toUpperCase() || DEFAULT_CURRENCY;
+  const options = {style: "currency", currency: code, minimumFractionDigits: 0};
+  const decimals = currencyDecimals(code);
+  if (decimals !== null) options.maximumFractionDigits = decimals;
+  const amount = Number(value || 0);
+  try {
+    return amount.toLocaleString(canonicalLocale(locale, DEFAULT_LOCALE), options);
+  } catch {
+    code = DEFAULT_CURRENCY;
+    return amount.toLocaleString(DEFAULT_LOCALE, {
+      style: "currency",
+      currency: code,
+      minimumFractionDigits: 0,
+    });
+  }
+}
+
 function adaptDocumentLocalization(raw = {}) {
   const rate = Number(raw.tasaIva);
   return {
@@ -100,6 +122,7 @@ module.exports = {
   canonicalLocale,
   currencyDecimals,
   documentLocalizationSnapshot,
+  formatMoneyText,
   normalizeBusinessLocalization,
   normalizeTaxSettings,
 };

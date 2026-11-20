@@ -9,6 +9,7 @@ import {
   getSantiagoDateKey,
 } from "../../domain/financialMovement.mjs";
 import {userErrorMessage} from "../../domain/userFacingError.mjs";
+import useBusinessFormat from "../../hooks/useBusinessFormat";
 
 const EMPTY_FORM = {
   type: "income",
@@ -45,6 +46,7 @@ function FinancialMovementDialog({
   open,
   preferredType = "income",
 }) {
+  const { currency } = useBusinessFormat();
   const [form, setForm] = React.useState(() =>
     toFormValue(movement, preferredType)
   );
@@ -144,7 +146,7 @@ function FinancialMovementDialog({
           </label>
 
           <label className="erp-field">
-            <span className="erp-field__label">Monto CLP</span>
+            <span className="erp-field__label">Monto {currency}</span>
             <input
               className="erp-control"
               inputMode="numeric"

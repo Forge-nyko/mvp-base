@@ -1,4 +1,5 @@
 import React from "react";
+import AmountRoundingNotice from "../../components/AmountRoundingNotice";
 import { getQuoteStatusLabel } from "../../domain/quoteModel.mjs";
 import { formatMoney } from "../../utils/formatters";
 
@@ -47,6 +48,7 @@ function QuoteSummaryPanel({
           <SummaryRow label={quote.afectaIva === false ? `${taxName || "Impuesto"} (exenta)` : `${taxName || "IVA"} ${taxRate}%`} value={money(totals.iva)} />
           <SummaryRow label="Total" value={money(totals.total)} strong />
         </div>
+        <AmountRoundingNotice currency={currency} />
         {totalsError && <p className="quote-workspace__message quote-workspace__message--error">{totalsError}</p>}
         <div className="quote-summary__actions">
           <button type="button" className="quote-workspace__button quote-workspace__button--primary" onClick={onSave} disabled={saving || saveBlocked} aria-describedby={saveBlockedReason ? "quote-save-blocked-reason" : undefined}>{savingEstado === "borrador" ? (isEditMode ? "Guardando..." : "Creando...") : (isEditMode ? "Guardar cambios" : "Crear cotización")}</button>

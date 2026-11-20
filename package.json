@@ -96,6 +96,7 @@
     "test:business-catalog": "node scripts/business-catalog-smoke.mjs",
     "test:contact-territory": "node scripts/contact-territory-smoke.mjs",
     "test:localization": "node scripts/localization-smoke.mjs",
+    "test:currency-text": "node scripts/currency-text-smoke.mjs",
     "test:fiscal-identifiers": "node scripts/fiscal-identifier-smoke.mjs",
     "test:fiscal-identifiers-integrated": "firebase emulators:exec --only auth,firestore,functions \"node scripts/fiscal-identifiers-integrated-local.mjs\"",
     "test:company-snapshot": "node scripts/company-snapshot-smoke.mjs",

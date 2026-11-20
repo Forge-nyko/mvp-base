@@ -301,14 +301,7 @@ const BusinessCategoryPicker = React.forwardRef(
                                 ? 0
                                 : -1
                             }
-                            className={[
-                              "business-category-option",
-                              category.code === "OTRO_SERVICIO_PROYECTOS"
-                                ? "business-category-option--wide"
-                                : "",
-                            ]
-                              .filter(Boolean)
-                              .join(" ")}
+                            className="business-category-option"
                             key={category.code}
                             onClick={() => chooseOption(category)}
                             onKeyDown={(event) =>

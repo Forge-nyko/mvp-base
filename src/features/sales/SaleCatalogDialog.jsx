@@ -1,11 +1,12 @@
 import React, {useMemo, useState} from "react";
 import ResponsiveDialog from "../../components/ui/ResponsiveDialog";
 import {getSaleItemTypeLabel} from "../../domain/saleModel.mjs";
+import {useBusinessMoney} from "../../hooks/useBusinessFormat";
 
 const searchable = (value) => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-const money = (value) => `$${Math.round(Number(value || 0)).toLocaleString("es-CL")}`;
 
 export default function SaleCatalogDialog({items, onAdd, onClose, open}) {
+  const money = useBusinessMoney();
   const [search, setSearch] = useState("");
   const [type, setType] = useState("todos");
   const filtered = useMemo(() => items.filter((item) => item.estado === "activo" && (type === "todos" || item.tipoItem === type) && searchable(`${item.codigoInterno || item.sku} ${item.nombre}`).includes(searchable(search))).slice(0, 50), [items, search, type]);

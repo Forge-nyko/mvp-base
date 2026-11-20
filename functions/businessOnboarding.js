@@ -45,6 +45,69 @@ function safeText(value, maxLength = 180) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, maxLength);
 }
 
+// Países con catálogo de región distinto de Chile (Chile sigue en catalog.regions,
+// con sus comunas). Hoy solo Bolivia (departamentos). Sin lista de municipios.
+const territoriesByCountry = catalog.territoriesByCountry || {};
+
+function foldText(value) {
+  return safeText(value, 120)
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+}
+
+function hasTerritoryCatalog(countryCode) {
+  return Object.prototype.hasOwnProperty.call(territoriesByCountry, countryCode);
+}
+
+function regionLabelForCountry(countryCode) {
+  return hasTerritoryCatalog(countryCode)
+    ? territoriesByCountry[countryCode].regionLabel || "Región"
+    : "Región";
+}
+
+// Resuelve la región de un país con catálogo (no Chile). Devuelve la región del
+// catálogo, `{code: "", name: ""}` si falta y la región es opcional, o `null`
+// si lo enviado no pertenece al catálogo del país. Compatibilidad: un negocio
+// existente con una región en texto libre puede conservarla sin cambios.
+function resolveCatalogRegion(
+  countryCode,
+  data,
+  { regionRequired, existingBusiness }
+) {
+  const regions = territoriesByCountry[countryCode].regions;
+  const regionCode = safeText(data.regionCodigo, 10).toUpperCase();
+  if (regionCode) {
+    return regions.find((item) => item.code === regionCode) || null;
+  }
+  const submittedName = safeText(data.regionEstado || data.regionNombre, 120);
+  if (submittedName) {
+    const byName = regions.find(
+      (item) => foldText(item.name) === foldText(submittedName)
+    );
+    if (byName) return byName;
+    const existingName = safeText(
+      existingBusiness?.regionEstado || existingBusiness?.regionNombre,
+      120
+    );
+    const existingCountry = safeText(existingBusiness?.paisCodigo, 10)
+      .toUpperCase();
+    if (
+      existingBusiness &&
+      existingCountry === countryCode &&
+      existingName &&
+      foldText(existingName) === foldText(submittedName)
+    ) {
+      return {
+        code: safeText(existingBusiness.regionCodigo, 10),
+        name: existingName,
+      };
+    }
+    return null;
+  }
+  return regionRequired ? null : { code: "", name: "" };
+}
+
 function normalizeRut(value) {
   return safeText(value, 20).toUpperCase().replace(/\./g, "").replace(/\s/g, "");
 }
@@ -203,17 +266,31 @@ function validateRequiredBusinessFields(
     existingBusiness,
   });
   const regionCode = safeText(data.regionCodigo, 2);
-  const region = country.code === "CL"
-    ? regionsByCode.get(regionCode) ||
+  let region;
+  if (country.code === "CL") {
+    region = regionsByCode.get(regionCode) ||
       (!regionRequired && !regionCode
         ? {code: "", name: "", communes: []}
-        : null)
-    : { code: "", name: safeText(data.regionEstado, 120), communes: [] };
+        : null);
+  } else if (hasTerritoryCatalog(country.code)) {
+    const catalogRegion = resolveCatalogRegion(country.code, data, {
+      regionRequired,
+      existingBusiness,
+    });
+    region = catalogRegion ? {...catalogRegion, communes: []} : null;
+  } else {
+    region = { code: "", name: safeText(data.regionEstado, 120), communes: [] };
+  }
   if (
     !region ||
     (country.code !== "CL" && regionRequired && !region.name)
   ) {
-    throw new HttpsError("invalid-argument", "Selecciona una región válida.");
+    throw new HttpsError(
+      "invalid-argument",
+      country.code === "CL" || !hasTerritoryCatalog(country.code)
+        ? "Selecciona una región válida."
+        : `Selecciona un ${regionLabelForCountry(country.code).toLowerCase()} válido.`
+    );
   }
   const communeCode = safeText(data.comunaCodigo, 5);
   const commune = communeCode

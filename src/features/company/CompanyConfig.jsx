@@ -30,8 +30,13 @@ import {
   getBusinessCategoryDisplayName,
   getCommuneByCode,
   getCommunesForRegion,
+  findRegionCodeByName,
   getCountryByCode,
   getRegionByCode,
+  getRegionForCountry,
+  getRegionLabel,
+  getRegionsForCountry,
+  hasRegionCatalog,
 } from "../../domain/businessCatalog";
 import {
   isValidBusinessEmail,
@@ -345,7 +350,18 @@ function BusinessInformationSection({ businessId, canEdit, focusTarget, onBusine
     getCompanyProfile(businessId)
       .then((profile) => {
         if (!active) return;
-        setForm({ ...EMPTY_INFORMATION, ...profile });
+        const loaded = { ...EMPTY_INFORMATION, ...profile };
+        if (
+          loaded.paisCodigo !== "CL" &&
+          hasRegionCatalog(loaded.paisCodigo) &&
+          !getRegionForCountry(loaded.paisCodigo, loaded.regionCodigo)
+        ) {
+          loaded.regionCodigo = findRegionCodeByName(
+            loaded.paisCodigo,
+            loaded.regionEstado || loaded.regionNombre
+          );
+        }
+        setForm(loaded);
       })
       .catch((loadError) => {
         if (active) {
@@ -397,7 +413,13 @@ function BusinessInformationSection({ businessId, canEdit, focusTarget, onBusine
       errors.rubroCodigo = "Describe el rubro del negocio.";
     }
     if (form.paisCodigo === "CL" && !getRegionByCode(form.regionCodigo)) errors.regionCodigo = "Selecciona una región.";
-    if (form.paisCodigo !== "CL" && !form.regionEstado.trim()) errors.regionEstado = "Ingresa la región o estado.";
+    if (form.paisCodigo !== "CL" && hasRegionCatalog(form.paisCodigo)) {
+      if (!getRegionForCountry(form.paisCodigo, form.regionCodigo)) {
+        errors.regionCodigo = `Selecciona un ${getRegionLabel(form.paisCodigo).toLowerCase()}.`;
+      }
+    } else if (form.paisCodigo !== "CL" && !form.regionEstado.trim()) {
+      errors.regionEstado = "Ingresa la región o estado.";
+    }
     if (form.paisCodigo === "CL" && form.comunaCodigo && !getCommuneByCode(form.regionCodigo, form.comunaCodigo)) {
       errors.comunaCodigo = "La comuna no corresponde a la región seleccionada.";
     }
@@ -649,6 +671,18 @@ function BusinessInformationSection({ businessId, canEdit, focusTarget, onBusine
                       <option value="">Selecciona una comuna</option>
                       {communes.map((commune) => <option key={commune.code} value={commune.code}>{commune.name}</option>)}
                     </select>
+                  </SettingsField>
+                </>
+              ) : hasRegionCatalog(form.paisCodigo) ? (
+                <>
+                  <SettingsField label={getRegionLabel(form.paisCodigo)} required error={touched.regionCodigo ? fieldErrors.regionCodigo : ""}>
+                    <select name="regionCodigo" autoComplete="off" value={form.regionCodigo} onChange={change} onBlur={() => touch("regionCodigo")}>
+                      <option value="">{`Selecciona un ${getRegionLabel(form.paisCodigo).toLowerCase()}`}</option>
+                      {getRegionsForCountry(form.paisCodigo).map((region) => <option key={region.code} value={region.code}>{region.name}</option>)}
+                    </select>
+                  </SettingsField>
+                  <SettingsField label="Ciudad" optional>
+                    <input name="ciudad" value={form.ciudad} onChange={change} placeholder="Ej.: Santa Cruz de la Sierra" />
                   </SettingsField>
                 </>
               ) : (

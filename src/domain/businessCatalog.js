@@ -102,3 +102,55 @@ export function getCommuneByCode(regionCode, communeCode) {
     ) || null
   );
 }
+
+// Regiones por país (SPEC de rubros y países, Bolivia piloto). Chile sigue en
+// `catalog.regions` (con comunas); los demás países con catálogo salen de
+// `territoriesByCountry` (hoy solo Bolivia, departamentos, sin municipios).
+// Un país sin catálogo devuelve lista vacía: su región no se elige de una lista.
+export const TERRITORIES_BY_COUNTRY = Object.freeze(
+  catalog.territoriesByCountry || {}
+);
+
+function foldName(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+export function getRegionsForCountry(countryCode) {
+  const code = String(countryCode || "").toUpperCase();
+  if (code === "CL") return CHILE_REGIONS;
+  return TERRITORIES_BY_COUNTRY[code]?.regions || [];
+}
+
+export function hasRegionCatalog(countryCode) {
+  return getRegionsForCountry(countryCode).length > 0;
+}
+
+// "Región" en Chile y en países sin etiqueta propia; "Departamento" en Bolivia.
+export function getRegionLabel(countryCode) {
+  return (
+    TERRITORIES_BY_COUNTRY[String(countryCode || "").toUpperCase()]
+      ?.regionLabel || "Región"
+  );
+}
+
+export function getRegionForCountry(countryCode, regionCode) {
+  const code = String(regionCode || "");
+  return getRegionsForCountry(countryCode).find((region) => region.code === code) || null;
+}
+
+// Para perfiles antiguos con la región en texto libre: devuelve el código del
+// catálogo si el nombre coincide (sin tildes ni mayúsculas), o "".
+export function findRegionCodeByName(countryCode, name) {
+  const wanted = foldName(name);
+  if (!wanted) return "";
+  return (
+    getRegionsForCountry(countryCode).find(
+      (region) => foldName(region.name) === wanted
+    )?.code || ""
+  );
+}

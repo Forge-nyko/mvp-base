@@ -394,7 +394,7 @@ function escapeCsvCell(value) {
   return /[";,\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-export function buildFinancialCsv(movements) {
+export function buildFinancialCsv(movements, currency = "CLP") {
   const header = [
     "Fecha",
     "Concepto",
@@ -404,7 +404,7 @@ export function buildFinancialCsv(movements) {
     "Método",
     "Contraparte",
     "Referencia",
-    "Monto CLP",
+    `Monto ${currency}`,
     "Origen",
   ];
   const rows = movements.map((movement) => [

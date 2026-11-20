@@ -3,6 +3,8 @@ import Button from "../../components/ui/Button";
 import LoadingState from "../../components/ui/LoadingState";
 import ResponsiveDialog from "../../components/ui/ResponsiveDialog";
 import {calculateWorkOrderScopeTotal} from "../../domain/workOrderModel.mjs";
+import useBusinessFormat from "../../hooks/useBusinessFormat";
+import {formatBusinessMoney} from "../../utils/formatters";
 import {
   createWorkOrderRequestId, ejecutarAccionAprobacionOT, getWorkOrderErrorMessage,
   obtenerResumenAprobacionOT,
@@ -13,13 +15,14 @@ const ACTIONS = {
   revalidar: "Revalidar disponibilidad",
 };
 
-function amount(value, currency) {
+function amount(value, currency, locale) {
   return Number.isFinite(value) && currency
-    ? new Intl.NumberFormat("es-CL", {style: "currency", currency}).format(value)
+    ? formatBusinessMoney(value, currency, locale)
     : "No disponible";
 }
 
 export default function ApprovalPanel({businessId, otId, order, onChanged}) {
+  const {locale} = useBusinessFormat();
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -96,10 +99,10 @@ export default function ApprovalPanel({businessId, otId, order, onChanged}) {
         <div className="erp-table-region work-order-approval-table"><table className="erp-table">
           <thead><tr><th>Servicio / producto</th><th>Cantidad</th><th>Precio</th><th>Subtotal</th></tr></thead>
           <tbody>{summary.alcance.map((service) => <React.Fragment key={service.servicioOtId}>
-            <tr><td><strong>{service.servicioSnapshot?.nombre || "Servicio no disponible"}</strong></td><td>1</td><td>{amount(service.precioUnitario, summary.moneda)}</td><td>{amount(service.precioUnitario, summary.moneda)}</td></tr>
-            {service.productos.map((product) => <tr key={product.productoOtId}><td>{product.productoSnapshot?.nombre || "Producto no disponible"}</td><td>{product.cantidad}</td><td>{amount(product.precioUnitario, summary.moneda)}</td><td>{amount(product.precioUnitario * product.cantidad, summary.moneda)}</td></tr>)}
+            <tr><td><strong>{service.servicioSnapshot?.nombre || "Servicio no disponible"}</strong></td><td>1</td><td>{amount(service.precioUnitario, summary.moneda, locale)}</td><td>{amount(service.precioUnitario, summary.moneda, locale)}</td></tr>
+            {service.productos.map((product) => <tr key={product.productoOtId}><td>{product.productoSnapshot?.nombre || "Producto no disponible"}</td><td>{product.cantidad}</td><td>{amount(product.precioUnitario, summary.moneda, locale)}</td><td>{amount(product.precioUnitario * product.cantidad, summary.moneda, locale)}</td></tr>)}
           </React.Fragment>)}</tbody>
-          <tfoot><tr className="work-order-approval-total"><th scope="row" colSpan={3}>Total</th><td>{amount(calculateWorkOrderScopeTotal(summary.alcance), summary.moneda)}</td></tr></tfoot>
+          <tfoot><tr className="work-order-approval-total"><th scope="row" colSpan={3}>Total</th><td>{amount(calculateWorkOrderScopeTotal(summary.alcance), summary.moneda, locale)}</td></tr></tfoot>
         </table></div>}
       {summary.alcance.length > 0 && <p className="erp-secondary-text">El total suma los valores del alcance. No se calcula IVA en esta vista.</p>}
       {summary.estado === "esperando_repuestos" && <div className="vehicle-message vehicle-message--warning" role="status">{summary.estadoAprobacion === "aprobada"
