@@ -16,6 +16,7 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getRouteMeta } from "../../app/navigation";
 import { getCompanyDocumentSuggestions } from "../../domain/companyDocumentSuggestions.mjs";
+import { getCountryFormCopy } from "../../domain/countryFormCopy.mjs";
 import BusinessCategoryPicker, {
   getBusinessCategoryVisibleName,
 } from "../../components/BusinessCategoryPicker";
@@ -532,7 +533,9 @@ function BusinessInformationSection({ businessId, canEdit, focusTarget, onBusine
 
   if (loading) return <LoadingState variant="section" label="Cargando información..." />;
   const isVerified = form.verificacionEmpresa?.estado === BUSINESS_VERIFICATION_STATES.VERIFIED;
-  const documentSuggestions = getCompanyDocumentSuggestions(form, { canEdit });
+  // Etiquetas y ejemplos según el país de la empresa (Bolivia: "Actividad económica", teléfono +591, .com.bo).
+  const countryCopy = getCountryFormCopy(form.paisCodigo);
+  const documentSuggestions = getCompanyDocumentSuggestions(form, { canEdit, countryCode: form.paisCodigo });
   const commercialSuggestions = documentSuggestions.filter((item) => item.section === "comerciales");
   const contactSuggestions = documentSuggestions.filter((item) => item.section === "contacto");
 
@@ -655,7 +658,7 @@ function BusinessInformationSection({ businessId, canEdit, focusTarget, onBusine
                   ) : "Selecciona la actividad que mejor representa los servicios de tu empresa."}
                 </span>
               </div>
-              <SettingsField label="Giro" optional wide>
+              <SettingsField label={countryCopy.businessActivityLabel} optional wide>
                 <input name="giro" value={form.giro} onChange={change} placeholder="Ej.: Servicios de ingeniería" />
               </SettingsField>
               {form.paisCodigo === "CL" ? (
@@ -699,7 +702,7 @@ function BusinessInformationSection({ businessId, canEdit, focusTarget, onBusine
                 <input name="direccion" value={form.direccion} onChange={change} placeholder="Calle y número" />
               </SettingsField>
               <SettingsField label="Código postal" optional>
-                <input name="codigoPostal" value={form.codigoPostal} onChange={change} placeholder="Ej.: 1100000" />
+                <input name="codigoPostal" value={form.codigoPostal} onChange={change} placeholder={countryCopy.companyPostalCodeExample || undefined} />
               </SettingsField>
             </div>
             <div id="empresa-logo" className="settings-logo-card settings-logo-card--embedded">
@@ -753,13 +756,13 @@ function BusinessInformationSection({ businessId, canEdit, focusTarget, onBusine
             </div>
             <div className="settings-form-grid">
               <SettingsField label="Teléfono comercial" optional targetId="empresa-contacto">
-                <input name="telefono" type="tel" value={form.telefono} onChange={change} placeholder="+56 9 1234 5678" />
+                <input name="telefono" type="tel" value={form.telefono} onChange={change} placeholder={countryCopy.companyPhoneExample} />
               </SettingsField>
               <SettingsField label="Correo comercial" optional error={touched.email ? fieldErrors.email : ""}>
-                <input name="email" type="email" value={form.email} onChange={change} onBlur={() => touch("email")} aria-invalid={Boolean(touched.email && fieldErrors.email)} placeholder="contacto@empresa.cl" />
+                <input name="email" type="email" value={form.email} onChange={change} onBlur={() => touch("email")} aria-invalid={Boolean(touched.email && fieldErrors.email)} placeholder={countryCopy.companyEmailExample} />
               </SettingsField>
               <SettingsField label="Sitio web" optional wide error={touched.sitioWeb ? fieldErrors.sitioWeb : ""}>
-                <input name="sitioWeb" type="url" placeholder="https://www.empresa.cl" value={form.sitioWeb} onChange={change} onBlur={() => touch("sitioWeb")} aria-invalid={Boolean(touched.sitioWeb && fieldErrors.sitioWeb)} />
+                <input name="sitioWeb" type="url" placeholder={countryCopy.companyWebsiteExample} value={form.sitioWeb} onChange={change} onBlur={() => touch("sitioWeb")} aria-invalid={Boolean(touched.sitioWeb && fieldErrors.sitioWeb)} />
               </SettingsField>
             </div>
             <CompanySuggestions items={contactSuggestions} />
@@ -819,6 +822,9 @@ function BusinessVerificationSection({
       observaciones: "",
     });
   }, [businessId]);
+
+  // Ejemplos según el país de la empresa (Chile: sin ejemplos, como antes).
+  const countryCopy = getCountryFormCopy(form.paisCodigo);
 
   const load = React.useCallback(async () => {
     const [value, personalProfile] = await Promise.all([
@@ -1019,6 +1025,7 @@ function BusinessVerificationSection({
         <input
           value={form.identificadorFiscalValor}
           maxLength={form.paisCodigo === "CL" ? 12 : 20}
+          placeholder={countryCopy.declaredFiscalIdExample || undefined}
           onChange={(event) =>
             update("identificadorFiscalValor", event.target.value)
           }
@@ -1045,6 +1052,7 @@ function BusinessVerificationSection({
       <SettingsField label="Correo del solicitante" required>
         <input
           type="email"
+          placeholder={countryCopy.requesterEmailExample || undefined}
           value={form.correoSolicitante}
           onChange={(event) =>
             update("correoSolicitante", event.target.value)
@@ -1055,6 +1063,7 @@ function BusinessVerificationSection({
       <SettingsField label="Teléfono del solicitante" required>
         <input
           type="tel"
+          placeholder={countryCopy.requesterPhoneExample || undefined}
           value={form.telefonoSolicitante}
           onChange={(event) =>
             update("telefonoSolicitante", event.target.value)

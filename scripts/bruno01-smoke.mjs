@@ -263,7 +263,9 @@ const ownerVerificationUi = companyUi.slice(
 );
 assert.doesNotMatch(ownerVerificationUi, /razonSocial/);
 assert.doesNotMatch(companyUi, /Acción reservada al OWNER/i);
-assert.match(companyUi, /https:\/\/www\.empresa\.cl/);
+// El ejemplo de sitio web sale del helper por país (Chile conserva https://www.empresa.cl).
+assert.match(companyUi, /placeholder=\{countryCopy\.companyWebsiteExample\}/);
+assert.equal((await import("../src/domain/countryFormCopy.mjs")).getCountryFormCopy("CL").companyWebsiteExample, "https://www.empresa.cl");
 assert.match(ownerVerificationUi, /label="País"/);
 assert.match(ownerVerificationUi, /label="Tipo de identificación fiscal"/);
 assert.match(ownerVerificationUi, /Documento de respaldo/);
@@ -309,8 +311,9 @@ assert.doesNotMatch(companyUi, /OWNER · Puede editar/);
 // (functions/businessOnboarding.js validateBusinessProfileInput), así que se marcan "Opcional" para
 // que los obligatorios (Nombre comercial, Rubro principal, Región con "*") se distingan a simple vista.
 assert.doesNotMatch(companyUi, /label="Razón social"/, "la razón social sigue bloqueada: no hay campo editable");
+// "Giro" es la etiqueta de Chile: sale del helper por país (Bolivia: "Actividad económica") y sigue siendo opcional.
+assert.match(companyUi, /<SettingsField label=\{countryCopy\.businessActivityLabel\} optional/);
 for (const label of [
-  "Giro",
   "Comuna \/ ciudad",
   "Código postal",
   "Dirección comercial",

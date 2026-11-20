@@ -96,6 +96,7 @@
     "test:business-catalog": "node scripts/business-catalog-smoke.mjs",
     "test:contact-territory": "node scripts/contact-territory-smoke.mjs",
     "test:localization": "node scripts/localization-smoke.mjs",
+    "test:country-form-copy": "node scripts/country-form-copy-smoke.mjs",
     "test:auto-refresh": "node scripts/auto-refresh-smoke.mjs",
     "test:currency-text": "node scripts/currency-text-smoke.mjs",
     "test:fiscal-identifiers": "node scripts/fiscal-identifier-smoke.mjs",

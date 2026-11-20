@@ -204,7 +204,7 @@ assert.match(app, /onSessionRefresh=\{onBusinessCreated\}/);
   const infoSection = company.slice(company.indexOf("function BusinessInformationSection"), company.indexOf("function BusinessVerificationSection"));
   const commercialCard = infoSection.slice(infoSection.indexOf("<h3>Datos comerciales</h3>"), infoSection.indexOf("<h3>Contacto</h3>"));
   const contactCard = infoSection.slice(infoSection.indexOf("<h3>Contacto</h3>"), infoSection.indexOf("</fieldset>"));
-  assert.match(infoSection, /getCompanyDocumentSuggestions\(form, \{ canEdit \}\)/, "se calcula sobre el formulario en pantalla y solo con permiso de edición");
+  assert.match(infoSection, /getCompanyDocumentSuggestions\(form, \{ canEdit, countryCode: form\.paisCodigo \}\)/, "se calcula sobre el formulario en pantalla y solo con permiso de edición");
   assert.match(commercialCard, /<CompanySuggestions items=\{commercialSuggestions\} \/>/);
   assert.match(contactCard, /<CompanySuggestions items=\{contactSuggestions\} \/>/);
   assert.equal((infoSection.match(/<CompanySuggestions\b/g) || []).length, 2, "dos notas, una por tarjeta");

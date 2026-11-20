@@ -88,22 +88,34 @@ try {
   assert.match(commercial, /<SettingsField label="Región" required /);
   assert.match(commercial, /<SettingsField label="Región \/ Estado" required /);
   assert.match(commercial, /Los campos con \* son obligatorios\./, "leyenda de obligatorios");
-  for (const label of ["Giro", "Comuna / ciudad", "Ciudad", "Dirección comercial", "Código postal", "Teléfono comercial", "Correo comercial", "Sitio web"]) {
+  // "Giro" es la etiqueta de Chile: sale del helper por país (Bolivia: "Actividad económica") y sigue siendo opcional.
+assert.match(company, /<SettingsField label=\{countryCopy\.businessActivityLabel\} optional/, "Giro lleva 'Opcional'");
+for (const label of ["Comuna / ciudad", "Ciudad", "Dirección comercial", "Código postal", "Teléfono comercial", "Correo comercial", "Sitio web"]) {
     assert.match(company, new RegExp(`<SettingsField label="${label.replace("/", "\\/")}" optional`), `${label} lleva 'Opcional'`);
   }
   assert.doesNotMatch(company, /<SettingsField label="(Nombre comercial|Región|Región \/ Estado)"[^>]*optional/, "los obligatorios no llevan 'Opcional'");
-  // Placeholders concretos (español de Chile).
+  // Placeholders concretos: los fijos (nombre, giro, dirección) siguen en el componente y los que dependen del
+  // país (código postal, teléfono, correo, sitio web) salen de countryFormCopy (Chile conserva los de siempre).
   for (const [field, placeholder] of [
     ["nombreComercial", "Ej\\.: Servicios Eléctricos Pérez"],
     ["giro", "Ej\\.: Servicios de ingeniería"],
-    ["codigoPostal", "Ej\\.: 1100000"],
     ["direccion", "Calle y número"],
-    ["telefono", "\\+56 9 1234 5678"],
-    ["email", "contacto@empresa\\.cl"],
-    ["sitioWeb", "https:\\/\\/www\\.empresa\\.cl"],
   ]) {
     assert.match(company, new RegExp(`<input name="${field}"[^\\n]*placeholder="${placeholder}"`), `${field} trae su placeholder`);
   }
+  for (const [field, copyKey] of [
+    ["codigoPostal", "companyPostalCodeExample"],
+    ["telefono", "companyPhoneExample"],
+    ["email", "companyEmailExample"],
+    ["sitioWeb", "companyWebsiteExample"],
+  ]) {
+    assert.match(company, new RegExp(`<input name="${field}"[^\\n]*placeholder=\\{countryCopy\\.${copyKey}`), `${field} trae su placeholder del país`);
+  }
+  const chileCopy = (await import("../src/domain/countryFormCopy.mjs")).getCountryFormCopy("CL");
+  assert.equal(chileCopy.companyPostalCodeExample, "Ej.: 1100000");
+  assert.equal(chileCopy.companyPhoneExample, "+56 9 1234 5678");
+  assert.equal(chileCopy.companyEmailExample, "contacto@empresa.cl");
+  assert.equal(chileCopy.companyWebsiteExample, "https://www.empresa.cl");
   // SettingsField no reserva una línea de ayuda vacía y solo usa aria-describedby cuando hay texto.
   const settingsField = company.slice(company.indexOf("function SettingsField("), company.indexOf("function LockedSetting("));
   assert.doesNotMatch(settingsField, /&nbsp;|\u00a0/, "sin línea de ayuda vacía");

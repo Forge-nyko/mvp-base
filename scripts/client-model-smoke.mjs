@@ -262,7 +262,8 @@ assert.match(clientForm, /const isCompany = values\.tipoCliente === "empresa"/);
 assert.match(clientForm, /tipoCliente === "persona" \? \{giro: "", personaContacto: ""\}/);
 assert.match(clientForm, /onChange=\{handleRutChange\}/);
 assert.match(clientForm, /onChange=\{handlePhoneChange\}/);
-assert.match(clientForm, /"Ej\. contacto@empresa\.cl" : "Ej\. nombre@correo\.cl"/);
+// Los ejemplos de correo salen del helper por país (Chile conserva "Ej. contacto@empresa.cl" / "Ej. nombre@correo.cl").
+assert.match(clientForm, /isCompany \? countryCopy\.clientCompanyEmailExample : countryCopy\.clientPersonEmailExample/);
 assert.match(clientForm, /label=\{values\.tipoCliente === "persona" \? "Nombre completo" : "Razón social"\}/);
 assert.doesNotMatch(clientForm, /client-form-field__optional/);
 console.log("OK formulario: Empresa/Persona diferenciadas, formato vivo y sin datos ocultos residuales");

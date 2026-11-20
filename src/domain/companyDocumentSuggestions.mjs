@@ -10,6 +10,8 @@
 // - sitioWeb: solo cotizaciones (pie del PDF y de la vista, correo y propuesta pública); las órdenes de
 //   compra no lo muestran, por eso el texto habla de cotizaciones y no de "documentos".
 // - logo: PDF y vistas de impresión de cotizaciones, órdenes de compra, compras y ventas.
+import { getCountryFormCopy } from "./countryFormCopy.mjs";
+
 const filled = (value) => Boolean(String(value || "").trim());
 
 export const COMPANY_DOCUMENT_SUGGESTIONS = Object.freeze([
@@ -38,6 +40,8 @@ export const COMPANY_DOCUMENT_SUGGESTIONS = Object.freeze([
     id: "giro",
     section: "comerciales",
     label: "Giro",
+    // Etiqueta visible del país (Bolivia: "Actividad económica"); el campo interno sigue siendo `giro`.
+    labelKey: "businessActivityLabel",
     text: "Se muestra en tus cotizaciones y órdenes de compra.",
     isMissing: (profile) => !filled(profile.giro),
   }),
@@ -52,10 +56,11 @@ export const COMPANY_DOCUMENT_SUGGESTIONS = Object.freeze([
 
 // Devuelve solo las sugerencias de los datos que faltan, o [] si la persona no puede editar. Se calcula
 // sobre el formulario en pantalla, así que desaparece apenas el dato se completa.
-export function getCompanyDocumentSuggestions(profile = {}, { canEdit = false } = {}) {
+export function getCompanyDocumentSuggestions(profile = {}, { canEdit = false, countryCode = "CL" } = {}) {
   if (!canEdit) return [];
   const source = profile && typeof profile === "object" ? profile : {};
+  const copy = getCountryFormCopy(countryCode);
   return COMPANY_DOCUMENT_SUGGESTIONS
     .filter((suggestion) => suggestion.isMissing(source))
-    .map(({ id, label, section, text }) => ({ id, label, section, text }));
+    .map(({ id, label, labelKey, section, text }) => ({ id, label: (labelKey && copy[labelKey]) || label, section, text }));
 }
