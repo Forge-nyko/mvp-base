@@ -1,5 +1,6 @@
 import React from "react";
 import { INVITATIONS_LOAD_LIMITS } from "../domain/invitationsLoader.mjs";
+import { REFRESH_INTERVAL_MS } from "../domain/visiblePolling.mjs";
 import useMyInvitations from "../hooks/useMyInvitations";
 import useNotifications from "../hooks/useNotifications";
 import { sendVerificationEmail } from "../services/authService";
@@ -32,6 +33,8 @@ function NotificationBell({ businessId, role, onInvitationAccepted }) {
   // la suscripción de arriba: las ve cualquier rol con una empresa activa.
   const invitationsState = useMyInvitations({
     enabled: Boolean(businessId),
+    // Una invitación nueva aparece sin recargar: consulta cada minuto con la pestaña visible.
+    autoRefreshMs: REFRESH_INTERVAL_MS,
     onAccepted: async (result, invitation) => {
       await onInvitationAccepted?.(result, invitation);
       if (!result?.mensaje) setOpen(false);

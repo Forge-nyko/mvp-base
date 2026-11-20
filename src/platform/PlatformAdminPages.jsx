@@ -22,6 +22,9 @@ import StatusBadge from "../components/ui/StatusBadge";
 import PlatformModulesPanel, {MODULES_EVENT_TYPE, moduleEventSummary} from "./PlatformModulesPanel";
 import {COUNTRIES, getCountryByCode} from "../domain/businessCatalog";
 import {formatFiscalIdentifierForDisplay} from "../domain/fiscalIdentifier.mjs";
+import {isSameListState, mergeRefreshedFirstPage} from "../domain/listRefresh.mjs";
+import {REFRESH_INTERVAL_MS} from "../domain/visiblePolling.mjs";
+import useVisiblePolling from "../hooks/useVisiblePolling";
 import {BUSINESS_ROLE_LABELS} from "../domain/rbac.mjs";
 import {
   createPlatformRequestId,
@@ -339,7 +342,16 @@ export function PlatformBusinessesPage({verificationOnly = false}) {
   const [draft, setDraft] = React.useState(initialFilters);
   const [filters, setFilters] = React.useState(initialFilters);
   const [state, setState] = React.useState({loading: true, items: [], cursor: null, error: ""});
+  // Refresco silencioso (solo en Verificaciones): `loadSeq` cambia con cada carga manual para descartar
+  // una respuesta silenciosa que llegue tarde; `loadedMore` recuerda si hubo "Cargar más".
+  const stateRef = React.useRef(state);
+  stateRef.current = state;
+  const loadSeqRef = React.useRef(0);
+  const loadedMoreRef = React.useRef(false);
+  const silentBusyRef = React.useRef(false);
   const load = React.useCallback(async (cursor = "", append = false) => {
+    loadSeqRef.current += 1;
+    loadedMoreRef.current = append;
     setState((current) => ({...current, loading: true, error: ""}));
     try {
       const data = await listPlatformBusinesses({
@@ -356,6 +368,39 @@ export function PlatformBusinessesPage({verificationOnly = false}) {
     }
   }, [filters, verificationOnly]);
   React.useEffect(() => { load(); }, [load]);
+  // Una solicitud nueva aparece sin recargar: cada minuto, con la pestaña visible y al volver a ella, se pide
+  // otra vez la primera página y se mezcla con lo que hay en pantalla. No toca filtros, texto escrito ni
+  // diálogos; no muestra "cargando"; no hace nada si hay una carga manual en curso o un error visible; y si no
+  // cambió nada no actualiza el estado (sin re-render).
+  const refreshSilently = React.useCallback(async () => {
+    const current = stateRef.current;
+    if (silentBusyRef.current || current.loading || current.error) return;
+    silentBusyRef.current = true;
+    const seq = loadSeqRef.current;
+    try {
+      const data = await listPlatformBusinesses({
+        search: filters.search,
+        country: filters.country,
+        state: filters.state,
+        verification: filters.verification,
+        mode: "VERIFICACIONES",
+      });
+      if (seq !== loadSeqRef.current) return;
+      setState((latest) => {
+        if (latest.loading || latest.error) return latest;
+        const merged = mergeRefreshedFirstPage(
+          {items: latest.items, cursor: latest.cursor, loadedMore: loadedMoreRef.current},
+          {items: data.empresas, cursor: data.cursor}
+        );
+        return isSameListState(latest, merged) ? latest : {...latest, items: merged.items, cursor: merged.cursor};
+      });
+    } catch {
+      // Un fallo del refresco no tapa lo que ya se muestra.
+    } finally {
+      silentBusyRef.current = false;
+    }
+  }, [filters]);
+  useVisiblePolling(refreshSilently, {enabled: verificationOnly, intervalMs: REFRESH_INTERVAL_MS});
   const applyFilters = (event) => {
     event.preventDefault();
     setFilters({...draft, search: draft.search.trim()});

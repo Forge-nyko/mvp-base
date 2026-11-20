@@ -15,6 +15,8 @@ import { RouteErrorBoundary } from "../components/AppErrorBoundary";
 import ThemeToggleButton from "../components/ThemeToggleButton";
 import AppIcon from "../components/ui/AppIcon";
 import Button from "../components/ui/Button";
+import {REFRESH_INTERVAL_MS} from "../domain/visiblePolling.mjs";
+import useVisiblePolling from "../hooks/useVisiblePolling";
 import {logout} from "../services/authService";
 import {getPlatformSummary} from "../services/platformAdminService";
 
@@ -61,25 +63,31 @@ function PlatformAdminLayout({businessSession, onReturnToErp, usuario}) {
     Boolean(businessSession?.activeBusiness);
   React.useEffect(() => setMobileOpen(false), [location.pathname]);
 
-  // El resumen lo comparten el menú (insignia) y el Dashboard. Se pide una sola
-  // vez por navegación y no más de una vez cada 30 s, salvo `force`.
+  // El resumen lo comparten el menú (insignia) y el Dashboard. Se pide una vez por
+  // navegación y no más de una vez cada 30 s, salvo `force`. Además se refresca en silencio cada
+  // minuto con la pestaña visible (y al volver a ella): `silent` no marca "cargando" ni deja
+  // un error en pantalla, así que la insignia y las tarjetas cambian sin parpadear.
   const [summary, setSummary] = React.useState({loading: true, data: null, error: ""});
   const summaryRef = React.useRef({inFlight: false, lastAt: 0});
-  const loadSummary = React.useCallback((force = false) => {
+  const loadSummary = React.useCallback((force = false, {silent = false} = {}) => {
     const control = summaryRef.current;
     if (control.inFlight) return;
     if (!force && Date.now() - control.lastAt < SUMMARY_MIN_INTERVAL_MS) return;
     control.inFlight = true;
-    setSummary((current) => ({...current, loading: true, error: ""}));
+    if (!silent) setSummary((current) => ({...current, loading: true, error: ""}));
     getPlatformSummary()
-      .then((data) => setSummary({loading: false, data, error: ""}))
-      .catch(() => setSummary((current) => ({loading: false, data: current.data, error: "No pudimos cargar el resumen."})))
+      .then((data) => setSummary((current) => silent && current.data && !current.error &&
+        JSON.stringify(current.data) === JSON.stringify(data) ? current : {loading: false, data, error: ""}))
+      .catch(() => {
+        if (!silent) setSummary((current) => ({loading: false, data: current.data, error: "No pudimos cargar el resumen."}));
+      })
       .finally(() => {
         control.inFlight = false;
         control.lastAt = Date.now();
       });
   }, []);
   React.useEffect(() => loadSummary(), [loadSummary, location.pathname]);
+  useVisiblePolling(() => loadSummary(false, {silent: true}), {intervalMs: REFRESH_INTERVAL_MS});
   const badges = {pendingVerifications: summary.data?.empresas?.verificacionesPendientes || 0};
 
   const returnToErp = async () => {

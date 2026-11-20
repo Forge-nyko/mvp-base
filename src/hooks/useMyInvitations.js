@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
+  INVITATIONS_LOAD_LIMITS,
   INVITATIONS_STATUS,
   createInvitationsLoader,
 } from "../domain/invitationsLoader.mjs";
+import useVisiblePolling from "./useVisiblePolling";
 import {
   createRequestId,
   listarMisInvitaciones,
@@ -31,7 +33,10 @@ const logLoadError = (error) => {
 // abandona la consulta pendiente; `{ silent: true }` es una consulta periódica
 // que reutiliza la pendiente y no cambia lo que se ve; `{ maxAgeMs }` no
 // consulta si los datos son más recientes que ese tiempo (al abrir la campana).
-export default function useMyInvitations({ enabled = true, onAccepted } = {}) {
+// `autoRefreshMs` (0 = apagado): vuelve a consultar en silencio cada ese tiempo solo con la pestaña
+// visible y al volver a ella, para que una invitación nueva aparezca sin recargar. Es una consulta
+// silenciosa: no muestra el esqueleto, no mueve la lista abierta y un fallo no tapa lo ya mostrado.
+export default function useMyInvitations({ enabled = true, onAccepted, autoRefreshMs = 0 } = {}) {
   const loaderRef = useRef(null);
   if (!loaderRef.current) {
     loaderRef.current = createInvitationsLoader({
@@ -72,6 +77,11 @@ export default function useMyInvitations({ enabled = true, onAccepted } = {}) {
     loader.load();
     return () => loader.cancel();
   }, [enabled, loader]);
+
+  useVisiblePolling(
+    () => loader.load({ silent: true, maxAgeMs: INVITATIONS_LOAD_LIMITS.FRESH_MS }),
+    { enabled: enabled && autoRefreshMs > 0, intervalMs: autoRefreshMs }
+  );
 
   // Un reintento del mismo clic reutiliza el requestId; cada intento nuevo,
   // tras un éxito o un cambio de motivo, genera uno distinto.
