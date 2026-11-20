@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import { autoTable } from "jspdf-autotable";
 import { getDefaultFiscalIdentifierLabel } from "./businessCatalog.js";
+import { getCountryFormCopy } from "./countryFormCopy.mjs";
 import { resolveDocumentCompany } from "./companySnapshot.mjs";
 import {
   adaptStoredQuote,
@@ -183,7 +184,8 @@ function drawHeader(doc, quote, company, logoDataUrl) {
   }
   const leftLines = [
     company.razonSocial !== brand ? company.razonSocial : "",
-    company.giro ? `Giro: ${company.giro}` : "",
+    // Etiqueta visible según el país de la cotización (Bolivia: "Actividad económica"); el dato sigue siendo `giro`.
+    company.giro ? `${getCountryFormCopy(quote.paisCodigo).businessActivityLabel}: ${company.giro}` : "",
   ].filter(hasText);
   doc.setTextColor(...MUTED);
   doc.setFont("helvetica", "normal");

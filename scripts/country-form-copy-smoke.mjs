@@ -5,6 +5,8 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
 import { getClientFieldErrors } from "../src/domain/clientModel.mjs";
+import { buildPurchaseOrderPdfDocument } from "../src/domain/purchaseOrderDocument.mjs";
+import { buildQuotePdfDocument } from "../src/domain/quoteDocument.mjs";
 import { getCompanyDocumentSuggestions } from "../src/domain/companyDocumentSuggestions.mjs";
 import { getClientFiscalCopy, getCountryFormCopy } from "../src/domain/countryFormCopy.mjs";
 import { isValidFiscalIdentifier } from "../src/domain/fiscalIdentifier.mjs";
@@ -98,9 +100,12 @@ assert.equal(getCompanyDocumentSuggestions({}, { canEdit: true }).find((item) =>
 
 // --- Render real de la región del cliente/proveedor (Bolivia: lista; Chile y otros: sin cambios) ---
 const vite = await createServer({ appType: "custom", logLevel: "silent", server: { middlewareMode: true } });
-let ContactTerritoryFields;
+let ContactTerritoryFields, QuotePrintView, PurchaseOrderPrintView, PurchasePrintView;
 try {
   ContactTerritoryFields = (await vite.ssrLoadModule("/src/components/contacts/ContactTerritoryFields.jsx")).default;
+  QuotePrintView = (await vite.ssrLoadModule("/src/features/quotes/QuotePrintView.jsx")).default;
+  PurchaseOrderPrintView = (await vite.ssrLoadModule("/src/features/purchaseOrders/PurchaseOrderPrintView.jsx")).default;
+  PurchasePrintView = (await vite.ssrLoadModule("/src/features/purchases/PurchasePrintView.jsx")).default;
 } finally {
   await vite.close();
 }
@@ -140,6 +145,61 @@ assert.match(mexico, /data-field="Estado"><input/);
 assert.match(mexico, /data-field="Municipio"><input/);
 assert.doesNotMatch(mexico, /<select/);
 
+// --- "Giro" en documentos: PDF y vistas de impresión de cotización, orden de compra y compra ---
+// Solo cambia la etiqueta visible según el país del documento; el dato (`giro`) es el mismo.
+const documentCompany = {
+  nombreComercial: "Andes Servicios",
+  razonSocial: "Andes Servicios SRL",
+  identificadorFiscalTipo: "NIT",
+  identificadorFiscalValor: "1023456789",
+  giro: "Servicios técnicos",
+};
+// Las líneas de texto del PDF salen del flujo sin comprimir de jsPDF: cada texto va como `(texto) Tj`.
+// Las tildes salen escapadas en octal, por eso se normalizan antes de comparar.
+const pdfLines = (build) => {
+  const content = build().doc.output();
+  return [...content.matchAll(/\(((?:[^()\\]|\\.)*)\)\s*Tj/g)]
+    .map(([, text]) => text.replace(/\\(\d{3})/g, (_, octal) => String.fromCharCode(parseInt(octal, 8))))
+    .filter((line) => /Giro|Actividad econ/.test(line));
+};
+const quoteFor = (paisCodigo) => ({
+  paisCodigo,
+  empresaSnapshot: documentCompany,
+  cliente: { nombre: "Cliente Prueba" },
+  items: [{ descripcion: "Servicio", cantidad: 1, precioUnitario: 1000, tipo: "servicio" }],
+});
+const orderFor = (paisCodigo) => ({
+  paisCodigo,
+  empresaSnapshot: documentCompany,
+  items: [{ descripcion: "Insumo", cantidad: 1, costoUnitario: 1000 }],
+});
+assert.deepEqual(pdfLines(() => buildQuotePdfDocument({ quote: quoteFor("BO") })), ["Actividad económica: Servicios técnicos"], "PDF de cotización, Bolivia");
+assert.deepEqual(pdfLines(() => buildQuotePdfDocument({ quote: quoteFor("CL") })), ["Giro: Servicios técnicos"], "PDF de cotización, Chile");
+assert.deepEqual(pdfLines(() => buildQuotePdfDocument({ quote: quoteFor("PY") })), ["Giro: Servicios técnicos"], "PDF de cotización, otro país");
+assert.deepEqual(pdfLines(() => buildQuotePdfDocument({ quote: quoteFor(undefined) })), ["Giro: Servicios técnicos"], "PDF de cotización antigua sin país");
+assert.deepEqual(pdfLines(() => buildPurchaseOrderPdfDocument({ order: orderFor("BO") })), ["NIT 1023456789 · Actividad económica: Servicios técnicos"], "PDF de orden de compra, Bolivia");
+assert.deepEqual(pdfLines(() => buildPurchaseOrderPdfDocument({ order: orderFor("CL") })), ["NIT 1023456789 · Giro: Servicios técnicos"], "PDF de orden de compra, Chile");
+assert.deepEqual(pdfLines(() => buildPurchaseOrderPdfDocument({ order: orderFor(undefined) })), ["NIT 1023456789 · Giro: Servicios técnicos"], "PDF de orden antigua sin país");
+const html = (element) => renderToStaticMarkup(element);
+const quoteBo = html(React.createElement(QuotePrintView, { quote: quoteFor("BO") }));
+const quoteCl = html(React.createElement(QuotePrintView, { quote: quoteFor("CL") }));
+assert.match(quoteBo, /<strong>Actividad económica: <\/strong>Servicios técnicos/);
+assert.doesNotMatch(quoteBo, /Giro/);
+assert.match(quoteCl, /<strong>Giro: <\/strong>Servicios técnicos/);
+const orderBo = html(React.createElement(PurchaseOrderPrintView, { order: orderFor("BO") }));
+const orderCl = html(React.createElement(PurchaseOrderPrintView, { order: orderFor("CL") }));
+assert.match(orderBo, /<strong>Actividad económica: <\/strong>Servicios técnicos/);
+assert.doesNotMatch(orderBo, /Giro/);
+assert.match(orderCl, /<strong>Giro: <\/strong>Servicios técnicos/);
+// Sin país en el documento (histórico) se usa el de la empresa actual.
+assert.match(html(React.createElement(PurchaseOrderPrintView, { company: { paisCodigo: "BO" }, order: orderFor(undefined) })), /Actividad económica: /);
+const purchaseFor = (paisCodigo) => ({ paisCodigo, empresaSnapshot: documentCompany, items: [], proveedorSnapshot: {} });
+const purchaseBo = html(React.createElement(PurchasePrintView, { purchase: purchaseFor("BO") }));
+const purchaseCl = html(React.createElement(PurchasePrintView, { purchase: purchaseFor("CL") }));
+assert.match(purchaseBo, /<strong>Actividad económica: <\/strong>Servicios técnicos/);
+assert.doesNotMatch(purchaseBo, /Giro/);
+assert.match(purchaseCl, /<strong>Giro: <\/strong>Servicios técnicos/);
+
 // --- Los componentes toman los textos del helper (sin literales de país) ---
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const [clientForm, company, territoryFields] = await Promise.all([
@@ -160,5 +220,33 @@ for (const expression of ["countryCopy.declaredFiscalIdExample", "countryCopy.re
   assert.ok(company.includes(expression), `verificación: ${expression}`);
 }
 assert.ok(territoryFields.includes("getContactRegionOptions(countryCode)"));
+
+// "Giro": ningún documento, detalle ni formulario de proveedor lo escribe fijo; todos piden la etiqueta al helper.
+const giroFiles = [
+  "src/domain/quoteDocument.mjs",
+  "src/domain/purchaseOrderDocument.mjs",
+  "src/features/quotes/QuotePrintView.jsx",
+  "src/features/purchaseOrders/PurchaseOrderPrintView.jsx",
+  "src/features/purchases/PurchasePrintView.jsx",
+  "src/features/purchases/PurchaseDetailView.jsx",
+  "src/pages/NewPurchasePage.jsx",
+  "src/features/providers/ProviderFormDialog.jsx",
+];
+for (const path of giroFiles) {
+  const source = (await read(path)).replace(/\/\/.*$/gm, "");
+  assert.doesNotMatch(source, /label="Giro"|["'`]Giro[:"'`]|\bGiro:/, `${path}: sin "Giro" fijo`);
+  assert.doesNotMatch(source, /Bolivia|===?\s*["']BO["']/, `${path}: sin "si es Bolivia" suelto`);
+  assert.ok(source.includes("getCountryFormCopy(") && source.includes("businessActivityLabel"), `${path}: usa el helper`);
+}
+// El campo interno no cambia: se sigue leyendo `giro` en documentos, detalles y proveedor.
+for (const [path, needle] of [
+  ["src/features/purchases/PurchaseDetailView.jsx", "provider.giro"],
+  ["src/pages/NewPurchasePage.jsx", "provider.giro"],
+  ["src/features/providers/ProviderFormDialog.jsx", 'field="giro"'],
+  ["src/domain/quoteDocument.mjs", "company.giro"],
+  ["src/domain/purchaseOrderDocument.mjs", "company.giro"],
+]) {
+  assert.ok((await read(path)).includes(needle), `${path}: conserva ${needle}`);
+}
 
 console.log("COUNTRY_FORM_COPY_SMOKE_OK");

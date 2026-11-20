@@ -3,6 +3,7 @@ import {useNavigate} from "react-router-dom";
 import Button from "../../components/ui/Button";
 import Notice from "../../components/ui/Notice";
 import StatusBadge from "../../components/ui/StatusBadge";
+import {getCountryFormCopy} from "../../domain/countryFormCopy.mjs";
 import {
   getPurchaseDocumentTypeLabel,
   getPurchaseStatusLabel,
@@ -37,7 +38,7 @@ export default function PurchaseDetailView({company, message, printable, purchas
   const fiscalId = provider.identificadorFiscalValor || provider.rut;
   const providerDetails = [
     [provider.identificadorFiscalTipo || "RUT", fiscalId],
-    ["Giro", provider.giro],
+    [getCountryFormCopy(purchase.paisCodigo || company?.paisCodigo).businessActivityLabel, provider.giro],
     ["Contacto", provider.personaContacto],
     ["Correo", provider.email],
     ["Teléfono", provider.telefono],

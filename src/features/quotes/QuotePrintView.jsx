@@ -5,6 +5,7 @@ import {
   getQuoteDisplayNumber,
 } from "../../domain/quoteModel.mjs";
 import { getDefaultFiscalIdentifierLabel } from "../../domain/businessCatalog";
+import { getCountryFormCopy } from "../../domain/countryFormCopy.mjs";
 import { resolveDocumentCompany } from "../../domain/companySnapshot.mjs";
 import {
   QUOTE_FOOTER_QUESTION,
@@ -78,7 +79,7 @@ function QuotePrintView({ quote: rawQuote, companyProfile }) {
             </div>
           )}
           {company.razonSocial !== brand && <OptionalLine value={company.razonSocial} />}
-          <OptionalLine label="Giro" value={company.giro} />
+          <OptionalLine label={getCountryFormCopy(quote.paisCodigo).businessActivityLabel} value={company.giro} />
         </div>
         <div className="quote-document-preview__identity">
           <div className="quote-document-preview__title">

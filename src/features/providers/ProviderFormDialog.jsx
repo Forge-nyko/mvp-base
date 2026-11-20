@@ -9,6 +9,7 @@ import {
   getProviderFieldErrors,
 } from "../../domain/providerModel.mjs";
 import {formatContactPhoneInput} from "../../domain/contactFormatting.mjs";
+import {getCountryFormCopy} from "../../domain/countryFormCopy.mjs";
 import {getFiscalIdentifierLabel, getFiscalIdentifierPlaceholder, normalizeCountryCode} from "../../domain/fiscalIdentifier.mjs";
 import {
   getCommuneByCode,
@@ -117,6 +118,7 @@ function ProviderFormDialog({countryCode = "CL", onClose, onSubmit, open, provid
   const country = normalizeCountryCode(countryCode);
   const isChile = country === "CL";
   const fiscalLabel = getFiscalIdentifierLabel(country);
+  const countryCopy = getCountryFormCopy(country);
 
   useEffect(() => {
     if (!open) return;
@@ -330,7 +332,7 @@ function ProviderFormDialog({countryCode = "CL", onClose, onSubmit, open, provid
                   <input ref={(node) => setFieldRef("nombreFantasia", node)} value={values.nombreFantasia} onChange={(event) => updateField("nombreFantasia", event.target.value)} />
                 </ProviderField>
 
-                <ProviderField error={errors.giro} field="giro" label="Giro">
+                <ProviderField error={errors.giro} field="giro" label={countryCopy.businessActivityLabel}>
                   <input ref={(node) => setFieldRef("giro", node)} value={values.giro} onChange={(event) => updateField("giro", event.target.value)} />
                 </ProviderField>
 

@@ -32,6 +32,7 @@ import {
   createPurchaseRequestId,
   obtenerCompra,
 } from "../services/purchaseService";
+import {getCountryFormCopy} from "../domain/countryFormCopy.mjs";
 import {formatDate, formatMoney} from "../utils/formatters";
 import "../features/purchases/purchases.css";
 import {userErrorMessage} from "../domain/userFacingError.mjs";
@@ -63,11 +64,11 @@ const visibleObservation = (value, purchase) => {
   return /^originada desde recepci[oó]n$/.test(normalized) ? "" : observation;
 };
 
-function PurchaseProviderSnapshot({provider = {}}) {
+function PurchaseProviderSnapshot({countryCode, provider = {}}) {
   const fiscalId = provider.identificadorFiscalValor || provider.rut;
   const details = [
     [provider.identificadorFiscalTipo || "RUT", fiscalId],
-    ["Giro", provider.giro],
+    [getCountryFormCopy(countryCode).businessActivityLabel, provider.giro],
     ["Contacto", provider.personaContacto],
     ["Correo", provider.email],
     ["Teléfono", provider.telefono],
@@ -393,7 +394,7 @@ export default function NewPurchasePage({businessId, role}) {
       {message && <p className="po-message po-message--error no-print">{message}</p>}
       {purchase && <div className="no-print"><SupplyTrace currentType="purchase" purchase={purchase} /></div>}
       <div className="no-print">
-        {readOnly && purchase ? <PurchaseProviderSnapshot provider={purchase.proveedorSnapshot} /> : <ProviderSelector
+        {readOnly && purchase ? <PurchaseProviderSnapshot countryCode={purchase.paisCodigo || company?.paisCodigo} provider={purchase.proveedorSnapshot} /> : <ProviderSelector
           disabled={readOnly || referencesLocked}
           historicalNote={PROVIDER_AT_PURCHASE_NOTE}
           onChange={(proveedorId) => setDraft((current) => ({...current, proveedorId}))}
