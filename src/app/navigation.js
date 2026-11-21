@@ -169,36 +169,66 @@ export const navigationSections = [
 // "Módulos", antes de "Cuenta". Solo se muestran los habilitados (el filtro lo
 // aplica filterNavigationSections con enabledModules). Con el registro vacío
 // devuelve las secciones del Core sin cambios.
-export function buildNavigationSections(registry = VERTICAL_MODULES) {
-  if (!registry.length) return navigationSections;
-  const modulesSection = {
-    label: "Módulos",
-    items: registry.map(({id, label, basePath}) => {
-      const children = (verticalNavigationItems[id] || []).map(({path, ...item}) => {
-        const to = path ? `${basePath}/${path}` : basePath;
-        return {
-          ...item,
-          to,
-          // Sin path es la ruta base: coincide solo con ella para no quedar activa en las hijas.
-          activeWhen: path
-            ? (pathname) => pathname === to || pathname.startsWith(`${to}/`)
-            : (pathname) => pathname === to || pathname === `${to}/`,
-        };
-      });
-      return {
-        to: basePath,
-        label,
-        title: label,
-        icon: Puzzle,
-        children,
-        activeWhen: (pathname) =>
-          pathname === basePath || pathname.startsWith(`${basePath}/`),
-      };
-    }),
+//
+// Opt-in (SPEC 037): con `primaryModules` (ids de getPrimaryVerticalModules) el
+// módulo del rubro del negocio sale de "Módulos" y pasa a ser la primera sección
+// del menú, con el nombre del módulo y sus ítems planos (sin el nivel anidado).
+// Si "Módulos" queda vacío se omite. Sin la opción (o con lista vacía) la salida
+// es la de siempre.
+function buildModuleChildren({id, basePath}) {
+  return (verticalNavigationItems[id] || []).map(({path, ...item}) => {
+    const to = path ? `${basePath}/${path}` : basePath;
+    return {
+      ...item,
+      to,
+      // Sin path es la ruta base: coincide solo con ella para no quedar activa en las hijas.
+      activeWhen: path
+        ? (pathname) => pathname === to || pathname.startsWith(`${to}/`)
+        : (pathname) => pathname === to || pathname === `${to}/`,
+    };
+  });
+}
+
+function buildModuleEntry(module) {
+  const {label, basePath} = module;
+  return {
+    to: basePath,
+    label,
+    title: label,
+    icon: Puzzle,
+    children: buildModuleChildren(module),
+    activeWhen: (pathname) =>
+      pathname === basePath || pathname.startsWith(`${basePath}/`),
   };
-  return navigationSections.flatMap((section) =>
-    section.label === "Cuenta" ? [modulesSection, section] : [section]
+}
+
+// Sección principal de un módulo: sus hijos planos. Un módulo sin ítems declarados
+// queda con un solo enlace a su ruta base para no producir una sección vacía.
+function buildPrimaryModuleSection(module) {
+  const children = buildModuleChildren(module);
+  const items = children.length ? children : [{
+    to: module.basePath,
+    label: module.label,
+    title: module.label,
+    icon: Puzzle,
+    activeWhen: (pathname) =>
+      pathname === module.basePath || pathname.startsWith(`${module.basePath}/`),
+  }];
+  return {label: module.label, moduleId: module.id, accent: true, items};
+}
+
+export function buildNavigationSections(registry = VERTICAL_MODULES, {primaryModules = []} = {}) {
+  if (!registry.length) return navigationSections;
+  const primaryIds = new Set(Array.isArray(primaryModules) ? primaryModules : []);
+  const primary = registry.filter((module) => primaryIds.has(module.id));
+  const rest = registry.filter((module) => !primaryIds.has(module.id));
+  const modulesSections = rest.length ?
+    [{label: "Módulos", items: rest.map(buildModuleEntry)}] :
+    [];
+  const coreSections = navigationSections.flatMap((section) =>
+    section.label === "Cuenta" ? [...modulesSections, section] : [section]
   );
+  return [...primary.map(buildPrimaryModuleSection), ...coreSections];
 }
 
 const navigationItems = buildNavigationSections().flatMap((section) =>

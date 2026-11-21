@@ -16,6 +16,7 @@ import ResponsiveDialog from "../components/ui/ResponsiveDialog";
 import SkipLink from "../components/ui/SkipLink";
 import { buildNavigationSections } from "../app/navigation";
 import TopbarHeading from "./TopbarHeading";
+import { getPrimaryVerticalModules } from "../domain/categoryModules.mjs";
 import {
   filterNavigationSections,
   getBusinessPathOptions,
@@ -74,7 +75,7 @@ function PrimaryNavigation({
 
         return (
           <div
-            className="nav-section"
+            className={section.accent ? "nav-section nav-section--primary" : "nav-section"}
             key={section.label}
             role="group"
             aria-labelledby={sectionTitleId}
@@ -136,7 +137,9 @@ function AppLayout({
   });
   const allowedNavigationSections = React.useMemo(
     () => {
-      const navigationSections = buildNavigationSections();
+      const navigationSections = buildNavigationSections(undefined, {
+        primaryModules: getPrimaryVerticalModules(negocioActivo),
+      });
       return businessVerified
         ? filterNavigationSections(
           navigationSections,

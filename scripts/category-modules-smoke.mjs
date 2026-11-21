@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {createRequire} from "node:module";
 import {isSelectableBusinessCategory} from "../src/domain/businessCategorySearch.mjs";
+import * as frontendMap from "../src/domain/categoryModules.mjs";
 
 const require = createRequire(import.meta.url);
 const {CATEGORY_MODULES, modulesForCategory} = require("../functions/categoryModules.js");
@@ -74,5 +75,64 @@ assert.deepEqual(
   modulesForCategory("TALLER_AUTOMOTRIZ"),
   normalizeEnabledModules(CATEGORY_MODULES.TALLER_AUTOMOTRIZ)
 );
+
+// --- Espejo cliente (src/domain/categoryModules.mjs, SPEC 037): paridad con Functions ---
+assert.deepEqual(
+  Object.fromEntries(Object.entries(frontendMap.CATEGORY_MODULES).map(([code, ids]) => [code, [...ids]])),
+  Object.fromEntries(Object.entries(CATEGORY_MODULES).map(([code, ids]) => [code, [...ids]])),
+  "el mapa del cliente es idéntico al de Functions"
+);
+assert.equal(Object.isFrozen(frontendMap.CATEGORY_MODULES), true);
+for (const ids of Object.values(frontendMap.CATEGORY_MODULES)) assert.equal(Object.isFrozen(ids), true);
+const parityCodes = [
+  ...catalog.businessCategories.map((item) => item.code),
+  "", "taller_automotriz", "CATEGORIA_INEXISTENTE", undefined, null, 7, {}, [], ["TALLER_AUTOMOTRIZ"],
+  "__proto__", "constructor", "toString", "hasOwnProperty",
+];
+const parityRegistries = [undefined, onlyTaller, onlyVeterinaria, []];
+for (const code of parityCodes) {
+  for (const registry of parityRegistries) {
+    assert.deepEqual(
+      frontendMap.modulesForCategory(code, registry),
+      modulesForCategory(code, registry),
+      `paridad modulesForCategory ${String(code)}`
+    );
+  }
+}
+
+// getPrimaryVerticalModules: el módulo del rubro, solo si está habilitado.
+const primary = frontendMap.getPrimaryVerticalModules;
+assert.deepEqual(primary({rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: ["taller"]}), ["taller"]);
+assert.deepEqual(primary({rubroCodigo: "CLINICA_VETERINARIA", modulosHabilitados: ["veterinaria"]}), ["veterinaria"]);
+assert.deepEqual(
+  primary({activeBusiness: {rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: ["taller"]}}),
+  ["taller"],
+  "acepta la sesión además del negocio"
+);
+// Rubro con módulo pero el módulo no está habilitado (el superadmin lo quitó, o negocio antiguo): nada.
+assert.deepEqual(primary({rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: []}), []);
+assert.deepEqual(primary({rubroCodigo: "TALLER_AUTOMOTRIZ"}), []);
+assert.deepEqual(primary({rubroCodigo: "CLINICA_VETERINARIA", modulosHabilitados: ["taller"]}), [], "el módulo habilitado no es el del rubro");
+// Módulo activado a mano en un negocio de otro rubro: no es principal.
+for (const rubroCodigo of [
+  "TECNOLOGIA_INFORMATICA", "ELECTRICIDAD_ENERGIA_CLIMATIZACION", "INGENIERIA_CONSULTORIA",
+  "OTRO_SERVICIO_PROYECTOS", "OTRO", "TALLER_MECANICO", "AUTOMOTRIZ_MOVILIDAD", "", undefined,
+]) {
+  assert.deepEqual(
+    primary({rubroCodigo, modulosHabilitados: ["taller", "veterinaria"]}),
+    [],
+    `${String(rubroCodigo)} con módulos a mano no tiene módulo principal`
+  );
+}
+// Un rubro con módulo solo marca el suyo aunque el otro también esté habilitado.
+assert.deepEqual(primary({rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: ["veterinaria", "taller"]}), ["taller"]);
+assert.deepEqual(primary({rubroCodigo: "CLINICA_VETERINARIA", modulosHabilitados: ["taller", "veterinaria"]}), ["veterinaria"]);
+// Entradas inválidas.
+for (const input of [undefined, null, "OWNER", 7, {}, [], {activeBusiness: null}, {rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: "taller"}]) {
+  assert.deepEqual(primary(input), [], `entrada inválida ${JSON.stringify(input)}`);
+}
+// Registro inyectado: un id fuera del registro no entra.
+assert.deepEqual(primary({rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: ["taller"]}, onlyVeterinaria), []);
+assert.deepEqual(primary({rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: ["taller"]}, onlyTaller), ["taller"]);
 
 console.log("OK mapa rubro a módulos: ids en el registro, códigos seleccionables, sin mapeo devuelve [] e ids desconocidos se descartan");
