@@ -477,7 +477,7 @@ assert.match(quotePage, /const documentDecimals = savedQuoteId\s+\? adaptDocumen
 assert.match(salePage, /const documentDecimals = sale\s+\? adaptDocumentAmountDecimals\(sale, sale\.moneda\)\s+: businessMoney\.amountDecimals;/);
 assert.equal(String(10 ** -2), "0.01");
 
-// --- useBusinessMoney expone amountDecimals (la moneda del negocio; hoy 0 en el catálogo) ---
+// --- useBusinessMoney expone amountDecimals (la moneda del negocio: 2 en BOB, 0 en el resto) ---
 const vite = await createServer({ appType: "custom", logLevel: "silent", server: { middlewareMode: true } });
 try {
   const hook = await vite.ssrLoadModule("/src/hooks/useBusinessFormat.js");
@@ -495,10 +495,10 @@ try {
   assert.equal(probe({ paisCodigo: "CL", monedaCodigo: "CLP", locale: "es-CL" }).amountDecimals, 0);
   assert.equal(probe({ paisCodigo: "CL", monedaCodigo: "CLP", locale: "es-CL" }).text, "$11");
   const bolivia = probe({ paisCodigo: "BO", monedaCodigo: "BOB", locale: "es-BO" });
-  assert.equal(bolivia.amountDecimals, 0, "BOB sigue en 0 hasta la entrega D");
-  assert.equal(bolivia.format.amountDecimals, 0);
+  assert.equal(bolivia.amountDecimals, 2, "BOB calcula con 2 decimales desde la entrega D");
+  assert.equal(bolivia.format.amountDecimals, 2);
   assert.match(bolivia.text, /^Bs\s?11,00$/);
-  assert.equal(hook.resolveBusinessFormat({ monedaCodigo: "bob" }).amountDecimals, 0);
+  assert.equal(hook.resolveBusinessFormat({ monedaCodigo: "bob" }).amountDecimals, 2);
 } finally {
   await vite.close();
 }

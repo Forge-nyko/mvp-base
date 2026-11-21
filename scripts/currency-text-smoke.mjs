@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { currencyHasDecimals, getAmountRoundingNote } from "../src/domain/amountRounding.mjs";
 import { buildQuoteEmailPreview } from "../src/domain/quoteEmailTemplate.mjs";
 import { formatBusinessMoney } from "../src/utils/formatters.js";
 
@@ -45,7 +45,7 @@ for (const value of [0.4, 0.5, 1.5, 1234.4, 1234.5, 1234.6]) {
 
 // --- Bolivia: moneda de la empresa (BOB, es-BO). SPEC 036: el formato muestra siempre los decimales de la
 // moneda (`decimals` = 2: "Bs 11,00" y "Bs 10,50"), aunque los montos se sigan calculando enteros mientras
-// `amountDecimals` sea 0. Sin símbolo chileno. ---
+// `amountDecimals` sea 0 (hoy BOB calcula con 2). Sin símbolo chileno. ---
 const bob = formatMoneyText(11, "BOB", "es-BO");
 assert.match(bob, /^Bs\s?11,00$/);
 assert.match(formatMoneyText(1234567, "BOB", "es-BO"), /^Bs\s?1\.234\.567,00$/);
@@ -116,29 +116,19 @@ const financeDialog = await read("src/components/finance/FinancialMovementDialog
 assert.doesNotMatch(financeDialog, /Monto CLP/);
 assert.match(financeDialog, /Monto \{currency\}/);
 
-// --- Aviso de redondeo al entero: solo para monedas con decimales ---
-assert.equal(currencyHasDecimals("BOB"), true);
-assert.equal(currencyHasDecimals("bob"), true);
-for (const code of ["CLP", "PYG", "", null, undefined, "XXX"]) {
-  assert.equal(currencyHasDecimals(code), false, `sin decimales o desconocida: ${code}`);
-  assert.equal(getAmountRoundingNote(code), "", `sin aviso para ${code}`);
+// --- Aviso de redondeo al entero: retirado en la entrega D de la SPEC 036 (BOB calcula con 2 decimales) ---
+for (const path of ["src/domain/amountRounding.mjs", "src/components/AmountRoundingNotice.jsx"]) {
+  assert.equal(existsSync(path), false, `${path}: eliminado`);
 }
-assert.equal(
-  getAmountRoundingNote("BOB"),
-  "Los montos en Bs se redondean al entero (por ejemplo, Bs 10,50 se guarda como Bs 11)."
-);
-const noticeSource = await read("src/components/AmountRoundingNotice.jsx");
-assert.ok(noticeSource.includes("if (!note) return null;"), "sin nota no dibuja nada");
-for (const [path, currencyProp] of [
-  ["src/features/sales/SaleSummaryPanel.jsx", "currency={currency}"],
-  ["src/features/quotes/QuoteSummaryPanel.jsx", "currency={currency}"],
-  ["src/features/purchases/PurchaseSummaryPanel.jsx", "currency={currency}"],
+for (const path of [
+  "src/features/sales/SaleSummaryPanel.jsx",
+  "src/features/quotes/QuoteSummaryPanel.jsx",
+  "src/features/purchases/PurchaseSummaryPanel.jsx",
+  "src/components/QuickBusinessFields.jsx",
+  "src/styles/components.css",
 ]) {
   const source = await read(path);
-  assert.ok(source.includes('import AmountRoundingNotice from "../../components/AmountRoundingNotice";'), `${path}: importa el aviso`);
-  assert.ok(source.includes(`<AmountRoundingNotice ${currencyProp} />`), `${path}: muestra el aviso con la moneda del documento`);
+  assert.doesNotMatch(source, /AmountRounding|amountRounding|getAmountRoundingNote|ui-amount-rounding-notice|se redondean al entero/, `${path}: sin restos del aviso`);
 }
-const quickFields = await read("src/components/QuickBusinessFields.jsx");
-assert.ok(quickFields.includes("getAmountRoundingNote(") && quickFields.includes("getCountryByCode(values.paisCodigo)?.defaultCurrencyCode"), "el alta de empresa avisa bajo el país");
 
 console.log("CURRENCY_TEXT_SMOKE_OK", JSON.stringify({ clpValues: clpValues.length, bob }));

@@ -1838,4 +1838,5 @@ module.exports = {
   updateInventoryItemHandler,
   calculateInventoryPriceFormation,
   validateInventoryItemInput,
+  businessAmountDecimals,
 };

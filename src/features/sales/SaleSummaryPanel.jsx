@@ -1,6 +1,5 @@
 import React from "react";
 import {Ellipsis} from "lucide-react";
-import AmountRoundingNotice from "../../components/AmountRoundingNotice";
 import AppIcon from "../../components/ui/AppIcon";
 import Button from "../../components/ui/Button";
 import {formatMoney} from "../../utils/formatters";
@@ -38,7 +37,6 @@ export default function SaleSummaryPanel({
         <div><span>{totals.afectaIva ? `${taxName} ${taxRate}%` : `${taxName} · Exenta`}</span><strong>{money(totals.iva)}</strong></div>
         <div className="po-summary__total"><span>Total</span><strong>{money(totals.total)}</strong></div>
       </div>
-      <AmountRoundingNotice currency={currency} />
       {!disabled && (
         <div className="po-summary__actions">
           {hasInsufficientStock && (

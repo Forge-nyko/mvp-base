@@ -1,12 +1,10 @@
 import React from "react";
 import {
   NEW_BUSINESS_COUNTRIES,
-  getCountryByCode,
   getRegionLabel,
   getRegionsForCountry,
   hasRegionCatalog,
 } from "../domain/businessCatalog";
-import { getAmountRoundingNote } from "../domain/amountRounding.mjs";
 import { getCountryFiscalNote } from "../domain/countryFiscalNote.mjs";
 import { resolveFormCountryCode } from "../domain/businessForm";
 import BusinessCategoryPicker from "./BusinessCategoryPicker";
@@ -42,13 +40,10 @@ function QuickBusinessFields({
   const regionLabel = getRegionLabel(regionCountryCode);
   const showRegionField = showRegion && hasRegionCatalog(regionCountryCode);
 
-  // Bajo el país queda solo la línea corta ("Bolivia · BOB"). La nota fiscal y el aviso de
-  // redondeo van en un aviso a todo el ancho debajo de la grilla.
+  // Bajo el país queda solo la línea corta ("Bolivia · BOB"). La nota fiscal va en un aviso a
+  // todo el ancho debajo de la grilla.
   const fiscalNote = getCountryFiscalNote(values.paisCodigo);
-  const roundingNote = getAmountRoundingNote(
-    getCountryByCode(values.paisCodigo)?.defaultCurrencyCode
-  );
-  const hasCountryNotes = Boolean(fiscalNote || roundingNote);
+  const hasCountryNotes = Boolean(fiscalNote);
   const countryNotesId = `${idPrefix}-country-notes`;
   const getCountryHelp = () => (countryHint ? <span>{countryHint}</span> : "");
 
@@ -169,7 +164,6 @@ function QuickBusinessFields({
     {hasCountryNotes && (
       <Notice variant="info" id={countryNotesId} className="quick-business-notes">
         {fiscalNote && <p>{fiscalNote}</p>}
-        {roundingNote && <p>{roundingNote}</p>}
       </Notice>
     )}
     </>

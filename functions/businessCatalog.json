@@ -28,7 +28,7 @@
       "amountDecimals": 0,
       "active": true
     },
-    { "code": "BOB", "name": "Boliviano", "symbol": "Bs", "decimals": 2, "amountDecimals": 0, "active": true },
+    { "code": "BOB", "name": "Boliviano", "symbol": "Bs", "decimals": 2, "amountDecimals": 2, "active": true },
     { "code": "BRL", "name": "Real brasileño", "symbol": "R$", "decimals": 2, "amountDecimals": 0, "active": true },
     { "code": "PEN", "name": "Sol peruano", "symbol": "S/", "decimals": 2, "amountDecimals": 0, "active": true },
     { "code": "ARS", "name": "Peso argentino", "symbol": "$", "decimals": 2, "amountDecimals": 0, "active": true },

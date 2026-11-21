@@ -39,10 +39,31 @@ export function getCurrencyByCode(code) {
   return currenciesByCode.get(String(code || "")) || null;
 }
 
+// Nombre en plural para frases ("Los montos se registran en pesos chilenos"). El catálogo guarda el nombre en
+// singular; esta tabla cubre cada moneda activa (lo fija business-catalog-smoke) y una moneda sin entrada usa su código.
+const CURRENCY_PLURAL_NAMES = Object.freeze({
+  CLP: "pesos chilenos",
+  BOB: "bolivianos",
+  BRL: "reales brasileños",
+  PEN: "soles peruanos",
+  ARS: "pesos argentinos",
+  COP: "pesos colombianos",
+  PYG: "guaraníes paraguayos",
+  UYU: "pesos uruguayos",
+  MXN: "pesos mexicanos",
+  USD: "dólares estadounidenses",
+  EUR: "euros",
+});
+
+export function getCurrencyPluralName(code) {
+  const normalized = String(code || "").toUpperCase();
+  return CURRENCY_PLURAL_NAMES[normalized] || normalized || "pesos chilenos";
+}
+
 // Decimales de CÁLCULO de los importes de una moneda (`amountDecimals` del catálogo): con cuántos decimales
 // se redondean y validan los montos de los documentos (SPEC 036). No es `decimals`, que solo decide cómo se
-// MUESTRA el monto (CLP 0, BOB 2). amountDecimals nunca supera a decimals, y hoy es 0 en todas las monedas
-// (BOB pasa a 2 al final de la SPEC 036). Una moneda desconocida cuenta 0: el comportamiento entero de siempre.
+// MUESTRA el monto (CLP 0, BOB 2). amountDecimals nunca supera a decimals; hoy es 2 en BOB y 0 en el resto
+// (SPEC 036; el rollback de Bolivia es volver BOB a 0). Una moneda desconocida cuenta 0: el comportamiento entero de siempre.
 export function getCurrencyAmountDecimals(code) {
   const currency = getCurrencyByCode(String(code || "").toUpperCase());
   const amountDecimals = currency?.amountDecimals;

@@ -398,11 +398,6 @@
   overflow-wrap: anywhere;
 }
 
-/* Aviso de redondeo al entero bajo los totales (<AmountRoundingNotice>). */
-.ui-amount-rounding-notice {
-  margin-top: var(--space-3);
-}
-
 .ui-notice__title {
   font-weight: var(--font-weight-semibold);
 }
@@ -2112,13 +2107,9 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-/* Notas del país (fiscal y redondeo) en un aviso a todo el ancho, debajo de la grilla. */
+/* Nota fiscal del país en un aviso a todo el ancho, debajo de la grilla. */
 .quick-business-notes p {
   margin: 0;
-}
-
-.quick-business-notes p + p {
-  margin-top: var(--space-2);
 }
 
 .activation-shell {

@@ -62,7 +62,7 @@ function normalizeTaxSettings(raw = {}, business = {}) {
 }
 
 // `montoDecimales` congela los decimales de CÁLCULO del documento (`amountDecimals` de su moneda al crearlo;
-// SPEC 036). Hoy es 0 en todas las monedas. No confundir con `decimals` (formato de presentación).
+// SPEC 036). Hoy es 2 en BOB y 0 en el resto. No confundir con `decimals` (formato de presentación).
 function documentLocalizationSnapshot(business = {}, tax = {}) {
   const location = normalizeBusinessLocalization(business);
   const normalizedTax = normalizeTaxSettings(tax, business);

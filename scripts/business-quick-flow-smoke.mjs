@@ -90,16 +90,17 @@ const cssText = componentStyles.replace(/\r\n/g, "\n");
 assert.match(cssText, /\.onboarding-card--quick \.quick-business-fields \{\s*align-items: start;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);\s*\}/);
 assert.match(cssText, /@media \(max-width: 640px\) \{\s*\.onboarding-card--quick \.quick-business-fields \{\s*grid-template-columns: minmax\(0, 1fr\);/);
 assert.doesNotMatch(cssText, /\.onboarding-card--quick \.quick-business-fields \{[^}]*repeat\(3/);
-assert.match(cssText, /\.quick-business-notes p \+ p \{\s*margin-top: var\(--space-2\);/, "espacio entre las dos frases del aviso");
+assert.match(cssText, /\.quick-business-notes p \{\s*margin: 0;/, "la nota fiscal es un solo párrafo");
+assert.doesNotMatch(cssText, /\.quick-business-notes p \+ p/, "sin regla para una segunda frase: el aviso de redondeo se retiró");
 // El cajón de negocio adicional no tiene país ni departamento: sin aviso de país y sin grilla de 2 columnas propia.
 assert.doesNotMatch(cssText, /\.business-create-drawer[^{]*\.quick-business-fields[^{]*\{[^}]*repeat\(2/);
 // Bajo el país solo la línea corta; las notas van en un <Notice> debajo de la grilla, con sus dos frases en párrafos.
 assert.match(fields, /const getCountryHelp = \(\) => \(countryHint \? <span>\{countryHint\}<\/span> : ""\);/);
 assert.match(fields, /<Notice variant="info" id=\{countryNotesId\} className="quick-business-notes">/);
 assert.match(fields, /\{fiscalNote && <p>\{fiscalNote\}<\/p>\}/);
-assert.match(fields, /\{roundingNote && <p>\{roundingNote\}<\/p>\}/);
+assert.doesNotMatch(fields, /roundingNote|getAmountRoundingNote|amountRounding/, "el aviso de redondeo se retiró (SPEC 036, entrega D)");
 assert.ok(fields.indexOf('className="quick-business-fields"') < fields.indexOf("<Notice variant="), "el aviso va debajo de la grilla");
-assert.doesNotMatch(fields, /<span>\{fiscalNote\}<\/span>|<span>\{roundingNote\}<\/span>|NON_CHILE_FISCAL_NOTE/);
+assert.doesNotMatch(fields, /<span>\{fiscalNote\}<\/span>|NON_CHILE_FISCAL_NOTE/);
 // Cambiar el país reinicia lo "editado", lo "tocado" y el error de la región.
 assert.match(onboarding, /const regionReset =\s*Object\.hasOwn\(patch, "paisCodigo"\) && patch\.paisCodigo !== values\.paisCodigo;/);
 assert.match(onboarding, /if \(regionReset\) delete nextErrors\.regionCodigo;/);
@@ -517,7 +518,6 @@ const renderFields = (props) =>
     })
   );
 const FISCAL = "ValoraCloud calcula el IVA con la tasa de Bolivia (13 %). La facturación y los impuestos propios de Bolivia, como el IT, no están incluidos.";
-const ROUNDING = "Los montos en Bs se redondean al entero (por ejemplo, Bs 10,50 se guarda como Bs 11).";
 const boliviaHtml = renderFields({
   showCountry: true,
   countryHint: "Bolivia · BOB",
@@ -534,10 +534,11 @@ assert.doesNotMatch(boliviaHtml, /Metropolitana de Santiago/, "la lista de Chile
 assert.match(boliviaHtml, /<p id="t-paisCodigo-message" class="quick-business-field__hint"><span>Bolivia · BOB<\/span><\/p>/);
 const countryHint = boliviaHtml.match(/<p id="t-paisCodigo-message"[^>]*>(.*?)<\/p>/)?.[1] || "";
 assert.ok(!countryHint.includes("fiscales") && !countryHint.includes("redondean"), "las notas ya no van bajo el país");
-// Aviso informativo debajo de la grilla, con las dos frases como párrafos separados y sin cambiar los textos.
+// Aviso informativo debajo de la grilla: solo la nota fiscal (el aviso de redondeo se retiró al activar los decimales).
 const gridEnd = boliviaHtml.indexOf("quick-business-notes");
 assert.ok(gridEnd > boliviaHtml.lastIndexOf("t-regionCodigo"), "el aviso va después de la región");
-assert.ok(boliviaHtml.includes(`<p>${FISCAL}</p><p>${ROUNDING}</p>`), "dos párrafos separados: nota fiscal y aviso de redondeo");
+assert.ok(boliviaHtml.includes(`<p>${FISCAL}</p>`), "la nota fiscal va en su párrafo");
+assert.doesNotMatch(boliviaHtml, /redondean|se guarda como/, "Bolivia ya no avisa de redondeo al entero");
 assert.doesNotMatch(boliviaHtml, /pensadas para Chile|están en revisión/);
 assert.match(boliviaHtml, /class="ui-notice ui-notice--info quick-business-notes"/);
 assert.match(boliviaHtml, /aria-describedby="t-paisCodigo-message t-country-notes"/);

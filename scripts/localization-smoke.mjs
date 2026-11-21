@@ -71,8 +71,8 @@ for (const [country, currency, locale] of [
   assert.equal(snapshot.locale, locale);
   assert.equal(snapshot.impuestoNombre, "Impuesto QA");
   assert.equal(snapshot.tasaIva, 0.125);
-  // SPEC 036: el snapshot congela los decimales de cálculo (amountDecimals de la moneda; hoy 0 en todas).
-  assert.equal(snapshot.montoDecimales, 0, `${currency}: montoDecimales en 0`);
+  // SPEC 036: el snapshot congela los decimales de cálculo (amountDecimals de la moneda; 2 en BOB, 0 en el resto).
+  assert.equal(snapshot.montoDecimales, currency === "BOB" ? 2 : 0, `${currency}: montoDecimales`);
   assert.equal(
 
     new Intl.NumberFormat(locale, {style: "currency", currency}).resolvedOptions().currency,
@@ -129,7 +129,7 @@ assert.equal(adaptDocumentLocalization({moneda: "BOB", montoDecimales: 2}).monto
 assert.equal(serverAdaptDocumentLocalization({moneda: "BOB", montoDecimales: 2}).montoDecimales, 2);
 assert.equal(adaptDocumentLocalization({montoDecimales: 2}).montoDecimales, 0, "sin moneda es CLP: 0");
 for (const code of ["CLP", "BOB", "PYG", "USD", "XXX", ""]) {
-  assert.equal(currencyAmountDecimals(code), 0, `amountDecimals del servidor para ${code}`);
+  assert.equal(currencyAmountDecimals(code), code === "BOB" ? 2 : 0, `amountDecimals del servidor para ${code}`);
 }
 assert.equal(adaptStoredSale({items: [], total: 100, moneda: "BOB", montoDecimales: 2}).montoDecimales, 2);
 assert.equal(adaptStoredQuote({items: [], total: 100}).montoDecimales, 0);

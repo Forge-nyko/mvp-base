@@ -8,6 +8,7 @@ import {
   getFinancialCategories,
   getSantiagoDateKey,
 } from "../../domain/financialMovement.mjs";
+import {getCurrencyPluralName} from "../../domain/businessCatalog.js";
 import {userErrorMessage} from "../../domain/userFacingError.mjs";
 import useBusinessFormat from "../../hooks/useBusinessFormat";
 
@@ -98,7 +99,7 @@ function FinancialMovementDialog({
       onClose={saving ? undefined : onClose}
       initialFocusRef={conceptRef}
       title={movement ? "Editar movimiento" : "Registrar movimiento"}
-      description="Los montos se registran en pesos chilenos y los pendientes no afectan el resultado neto."
+      description={`Los montos se registran en ${getCurrencyPluralName(currency)} y los pendientes no afectan el resultado neto.`}
       eyebrow="Finanzas"
       size="large"
       footer={

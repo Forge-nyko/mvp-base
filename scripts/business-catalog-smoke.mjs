@@ -88,16 +88,16 @@ assert.equal(legacyOtherCountry?.active, true);
 assert.equal(legacyOtherCountry?.selectableForNewBusiness, false);
 assert.equal(legacyOtherCountry?.legacy, true);
 // SPEC 036: `decimals` es el formato; `amountDecimals` son los decimales de CÁLCULO de los importes. Nunca supera
-// a `decimals`, y todas las monedas están en 0 hasta que la SPEC active BOB en su última entrega.
+// a `decimals`. Entrega D: BOB calcula con 2 decimales (el rollback es volver a 0); todas las demás monedas siguen en 0.
 for (const currency of catalog.currencies) {
   assert.ok(Number.isInteger(currency.amountDecimals), `${currency.code}: amountDecimals definido`);
   assert.ok(currency.amountDecimals >= 0 && currency.amountDecimals <= currency.decimals, `${currency.code}: amountDecimals <= decimals`);
-  assert.equal(currency.amountDecimals, 0, `${currency.code}: amountDecimals en 0 (cálculo entero como hasta ahora)`);
+  assert.equal(currency.amountDecimals, currency.code === "BOB" ? 2 : 0, `${currency.code}: amountDecimals (solo BOB calcula con 2 decimales)`);
   assert.equal(getCurrencyAmountDecimals(currency.code), currency.amountDecimals, `${currency.code}: el helper lee el catálogo`);
 }
 assert.equal(catalog.currencies.find((currency) => currency.code === "BOB").decimals, 2);
 for (const code of ["", "bob-x", null, undefined, "XXX"]) assert.equal(getCurrencyAmountDecimals(code), 0, `moneda desconocida: ${code}`);
-assert.equal(getCurrencyAmountDecimals("bob"), 0);
+assert.equal(getCurrencyAmountDecimals("bob"), 2, "el código se normaliza a mayúsculas: BOB calcula con 2 decimales");
 assert.equal(catalog.currencies.length, 11);
 assert.equal(catalog.currencies[0].code, "CLP");
 assert.ok(catalog.currencies.some((currency) => currency.code === "BOB"));

@@ -101,6 +101,8 @@
     "test:quote-sale-decimals": "node scripts/quote-sale-decimals-smoke.mjs",
     "test:purchase-decimals": "node scripts/purchase-decimals-smoke.mjs",
     "test:inventory-workshop-decimals": "node scripts/inventory-workshop-decimals-smoke.mjs",
+    "test:bolivia-decimals": "node scripts/bolivia-decimals-smoke.mjs",
+    "test:bolivia-decimals-integrated": "firebase emulators:exec --only auth,firestore,functions \"node scripts/bolivia-decimals-integrated-local.mjs\"",
     "test:auto-refresh": "node scripts/auto-refresh-smoke.mjs",
     "test:currency-text": "node scripts/currency-text-smoke.mjs",
     "test:fiscal-identifiers": "node scripts/fiscal-identifier-smoke.mjs",
