@@ -4,6 +4,7 @@ import Button from "../../components/ui/Button";
 import MoreActionsMenu from "../../components/ui/MoreActionsMenu";
 import StatusBadge from "../../components/ui/StatusBadge";
 import SupplyTrace from "../../components/ui/SupplyTrace";
+import {getFiscalIdentifierLabel} from "../../domain/fiscalIdentifier.mjs";
 import {getSupplierResponseLabel, getSupplierResponseState} from "../../domain/purchaseOrderModel.mjs";
 import {getOrderReceptionStatusLabel} from "../../domain/receptionModel.mjs";
 import {formatDate, formatMoney, formatTimestamp} from "../../utils/formatters";
@@ -97,7 +98,7 @@ export default function PurchaseOrderDetailView({
   const showTrace = receptions.length > 0 || issued;
   const paymentLabel = PAYMENT_LABELS[provider.condicionesPago] || provider.condicionesPago;
   const providerDetails = [
-    [provider.identificadorFiscalTipo || "RUT", provider.identificadorFiscalValor || provider.rut],
+    [provider.identificadorFiscalTipo || getFiscalIdentifierLabel(printableOrder.paisCodigo || "CL"), provider.identificadorFiscalValor || provider.rut],
     ["Contacto", provider.personaContacto],
     ["Correo", provider.email],
     ["Teléfono", provider.telefono],

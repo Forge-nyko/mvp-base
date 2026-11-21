@@ -16,6 +16,8 @@ import {canManagePurchases, getPurchaseDocumentTypeLabel, getPurchaseStockSemant
 import {cancelarCompraBorrador, confirmarCompra, createPurchaseRequestId, listarCompras, revertirCompra} from "../services/purchaseService";
 import "../features/purchases/purchases.css";
 import {userErrorMessage} from "../domain/userFacingError.mjs";
+import {getFiscalIdentifierLabel} from "../domain/fiscalIdentifier.mjs";
+import useBusinessFormat from "../hooks/useBusinessFormat";
 
 const money = (value, document) => formatMoney(value, document?.moneda, document?.locale);
 const MODULE = getRouteMeta("/compras");
@@ -36,6 +38,8 @@ function Actions({canManage, onAction, purchase, processing}) {
 }
 export default function PurchasesPage({businessId, role}) {
   const navigate = useNavigate();
+  // Identificador fiscal del proveedor según el país del negocio (Chile "RUT", Bolivia "NIT").
+  const fiscalLabel = getFiscalIdentifierLabel(useBusinessFormat().countryCode);
   const confirmIds = useRef(new Map());
   const reversalIds = useRef(new Map());
   const [items, setItems] = useState([]); const [search, setSearch] = useState(""); const [status, setStatus] = useState("todos"); const [origin, setOrigin] = useState("todos"); const [message, setMessage] = useState(""); const [loading, setLoading] = useState(true); const [processing, setProcessing] = useState("");
@@ -134,7 +138,7 @@ export default function PurchasesPage({businessId, role}) {
 
         <div className="erp-filters erp-history-filters erp-history-filters--three po-history__toolbar no-print">
           <label className="erp-field erp-history-search-field">
-            <span className="erp-field__label">Buscar por número, proveedor, RUT o documento</span>
+            <span className="erp-field__label">Buscar por número, proveedor, {fiscalLabel} o documento</span>
             <span className="clients-search-control">
               <AppIcon icon={Search} size={18} />
               <input className="erp-control" placeholder="Ej.: COM-2026-0001 o proveedor" value={search} onChange={(event) => setSearch(event.target.value)} />
@@ -195,7 +199,7 @@ export default function PurchasesPage({businessId, role}) {
             {filtered.map((purchase) => (
               <article className="po-history-card" key={purchase.id}>
                 <header><div><span className="po-history-card__label">Compra</span><button type="button" className="po-inline-link" onClick={() => open(purchase)}>{purchase.numero}</button></div><span className={`po-status po-status--${purchase.estado}`}>{getPurchaseStatusLabel(purchase.estado)}</span></header>
-                <div className="po-history-card__provider"><strong>{purchase.proveedorSnapshot.razonSocial}</strong><span>{purchase.proveedorSnapshot.rut || "Sin RUT"}</span></div>
+                <div className="po-history-card__provider"><strong>{purchase.proveedorSnapshot.razonSocial}</strong><span>{purchase.proveedorSnapshot.rut || `Sin ${fiscalLabel}`}</span></div>
                 <dl><div><dt>Fecha</dt><dd>{purchase.fechaCompra || "—"}</dd></div><div><dt>Total</dt><dd>{money(purchase.total)}</dd></div><div><dt>Documento</dt><dd>{purchase.tipoDocumento === "sin_documento" ? "Sin documento" : purchase.numeroDocumentoProveedor || getPurchaseDocumentTypeLabel(purchase.tipoDocumento)}</dd></div><div><dt>Origen</dt><dd>{purchase.recepcionId ? <button type="button" className="po-inline-link" onClick={() => navigate(`/recepciones/${purchase.recepcionId}`)}>{purchase.recepcionNumero || "Abrir recepción"}</button> : purchase.ordenCompraId ? <button type="button" className="po-inline-link" onClick={() => navigate(`/ordenes-compra/${purchase.ordenCompraId}`)}>{purchase.ordenCompraNumero || "Abrir OC"}</button> : "Directa"}</dd></div></dl>
                 <Actions canManage={canManage} onAction={action} processing={processing === purchase.id} purchase={purchase} />
               </article>

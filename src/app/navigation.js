@@ -9,6 +9,7 @@ import {
   Car,
   HeartPulse,
   History,
+  LayoutDashboard,
   PawPrint,
   ReceiptText,
   PackageCheck,
@@ -23,7 +24,9 @@ import { BUSINESS_PERMISSIONS } from "../domain/rbac.mjs";
 import { VERTICAL_MODULES } from "../domain/verticalModules.mjs";
 
 const verticalNavigationItems = Object.freeze({
+  // path "" = la ruta base del módulo (Inicio, el panel del taller), con coincidencia exacta.
   taller: Object.freeze([
+    {path: "", label: "Inicio", title: "Inicio", icon: LayoutDashboard},
     {path: "ordenes", label: "Órdenes de trabajo", title: "Órdenes de trabajo", icon: ClipboardList},
     {path: "vehiculos", label: "Vehículos", title: "Vehículos", icon: Car},
     {

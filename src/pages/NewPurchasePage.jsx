@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {useLocation, useNavigate, useParams} from "react-router-dom";
-import {adaptDocumentAmountDecimals} from "../domain/localization.mjs";
+import {adaptDocumentAmountDecimals, resolveDocumentTaxRate} from "../domain/localization.mjs";
 import {useBusinessMoney} from "../hooks/useBusinessFormat";
 import {sileo} from "sileo";
 import Button from "../components/ui/Button";
@@ -35,6 +35,7 @@ import {
   obtenerCompra,
 } from "../services/purchaseService";
 import {getCountryFormCopy} from "../domain/countryFormCopy.mjs";
+import {getFiscalIdentifierLabel} from "../domain/fiscalIdentifier.mjs";
 import {formatDate, formatMoney} from "../utils/formatters";
 import "../features/purchases/purchases.css";
 import {userErrorMessage} from "../domain/userFacingError.mjs";
@@ -69,7 +70,7 @@ const visibleObservation = (value, purchase) => {
 function PurchaseProviderSnapshot({countryCode, provider = {}}) {
   const fiscalId = provider.identificadorFiscalValor || provider.rut;
   const details = [
-    [provider.identificadorFiscalTipo || "RUT", fiscalId],
+    [provider.identificadorFiscalTipo || getFiscalIdentifierLabel(countryCode || "CL"), fiscalId],
     [getCountryFormCopy(countryCode).businessActivityLabel, provider.giro],
     ["Contacto", provider.personaContacto],
     ["Correo", provider.email],
@@ -192,7 +193,7 @@ export default function NewPurchasePage({businessId, role}) {
       return draft.items.length ? calculatePurchaseTotals(
         draft.items.map((line) => ({...line, impuestoId: taxIdByItem.get(line.itemId) ?? line.impuestoId})),
         {
-          tasaIva: purchase?.tasaIva ?? Number(company?.impuestoPredeterminadoTasa ?? 19) / 100,
+          tasaIva: resolveDocumentTaxRate(purchase, company),
           tipoDocumento: draft.tipoDocumento,
           montoDecimales: documentDecimals,
         }
@@ -200,7 +201,7 @@ export default function NewPurchasePage({businessId, role}) {
     } catch {
       return EMPTY_TOTALS;
     }
-  }, [company?.impuestoPredeterminadoTasa, draft.items, draft.tipoDocumento, inventory, purchase, readOnly]);
+  }, [company?.impuestoPredeterminadoTasa, company?.paisCodigo, draft.items, draft.tipoDocumento, inventory, purchase, readOnly]);
 
   const printable = useMemo(() => ({
     ...(purchase || {}),
@@ -210,7 +211,7 @@ export default function NewPurchasePage({businessId, role}) {
     moneda: purchase?.moneda || company?.monedaCodigo || "CLP",
     locale: purchase?.locale || company?.locale || "es-CL",
     impuestoNombre: purchase?.impuestoNombre || company?.impuestoPredeterminadoNombre || "IVA",
-    tasaIva: purchase?.tasaIva ?? Number(company?.impuestoPredeterminadoTasa ?? 19) / 100,
+    tasaIva: resolveDocumentTaxRate(purchase, company),
     proveedorSnapshot: purchase?.proveedorId === draft.proveedorId
       ? purchase.proveedorSnapshot
       : providers.find((provider) => provider.proveedorId === draft.proveedorId) || {},

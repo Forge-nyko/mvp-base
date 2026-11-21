@@ -21,7 +21,7 @@ import {SkeletonCards, SkeletonRegion, SkeletonTable} from "../../components/ui/
 import StatusBadge from "../../components/ui/StatusBadge";
 import {getRouteMeta} from "../../app/navigation";
 import { matchesClientSearch } from "../../domain/clientModel.mjs";
-import {getFiscalIdentifierLabel} from "../../domain/fiscalIdentifier.mjs";
+import {getClientFiscalListLabel} from "../../domain/countryFormCopy.mjs";
 import {
   actualizarCliente,
   archivarCliente,
@@ -110,7 +110,8 @@ function ClientsManager({businessId, canCreateQuotes = false, countryCode = "CL"
   const [changingStatus, setChangingStatus] = useState(false);
   const canRead = READ_ROLES.has(role);
   const canManage = WRITE_ROLES.has(role);
-  const fiscalLabel = getFiscalIdentifierLabel(countryCode);
+  // Clientes Persona y Empresa conviven en la lista: Bolivia dice "CI o NIT", Chile y el resto como siempre.
+  const fiscalLabel = getClientFiscalListLabel(countryCode);
 
   const loadClients = useCallback(async () => {
     if (!businessId || !canRead) {

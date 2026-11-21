@@ -75,3 +75,9 @@ export function getClientFiscalCopy(countryCode, clientType) {
     placeholder: isPerson && copy.personFiscalExample ? copy.personFiscalExample : getFiscalIdentifierPlaceholder(code),
   };
 }
+
+// Etiqueta del identificador fiscal en las listas, buscadores y avisos de clientes, donde conviven Personas y
+// Empresas (Bolivia: "CI o NIT"; Chile y el resto: la del país, como siempre).
+export function getClientFiscalListLabel(countryCode) {
+  return getClientFiscalCopy(countryCode, "persona").label;
+}

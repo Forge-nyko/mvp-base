@@ -264,7 +264,8 @@ assert.deepEqual(sidebarRoutes, [
 ]);
 assert.doesNotMatch(navigation, /label: "Análisis"/);
 assert.deepEqual(
-  [...navigation.matchAll(/\blabel: "(Inicio|Operación|Comercial|Abastecimiento|Gestión|Cuenta)"/g)]
+  // Solo etiquetas de SECCIÓN (seguidas de `items:`): el ítem "Inicio" del módulo Taller (entrega B) no es una sección.
+  [...navigation.matchAll(/\blabel: "(Inicio|Operación|Comercial|Abastecimiento|Gestión|Cuenta)",\s*items:/g)]
     .map(([, label]) => label),
   ["Inicio", "Comercial", "Operación", "Abastecimiento", "Gestión", "Cuenta"]
 );
@@ -405,7 +406,8 @@ assert.deepEqual(defaultMenu.map((section) => section.label), ["Inicio", "Comerc
 assert.equal(defaultMenu.some((section) => section.accent || section.moduleId), false, "por defecto ninguna sección es de rubro");
 const defaultModules = defaultMenu.find((section) => section.label === "Módulos");
 assert.deepEqual(defaultModules.items.map((item) => item.to), ["/taller", "/clinica-veterinaria"]);
-assert.deepEqual(defaultModules.items[0].children.map((item) => item.to), ["/taller/ordenes", "/taller/vehiculos", "/taller/plazas"]);
+// Entrega B (SPEC 037): "Inicio" (ruta base, panel del taller) es el primer hijo de Taller.
+assert.deepEqual(defaultModules.items[0].children.map((item) => item.to), ["/taller", "/taller/ordenes", "/taller/vehiculos", "/taller/plazas"]);
 assert.deepEqual(
   defaultModules.items[1].children.map((item) => item.to),
   ["/clinica-veterinaria", "/clinica-veterinaria/pacientes", "/clinica-veterinaria/agenda"]
@@ -466,11 +468,13 @@ assert.deepEqual(
 );
 assert.equal(tallerOwner[0].accent, true);
 assert.equal(tallerOwner[0].moduleId, "taller");
-assert.deepEqual(toList(tallerOwner[0]), ["/taller/ordenes", "/taller/vehiculos", "/taller/plazas"]);
-assert.deepEqual(tallerOwner[0].items.map((item) => item.label), ["Órdenes de trabajo", "Vehículos", "Plazas"]);
+assert.deepEqual(toList(tallerOwner[0]), ["/taller", "/taller/ordenes", "/taller/vehiculos", "/taller/plazas"]);
+assert.deepEqual(tallerOwner[0].items.map((item) => item.label), ["Inicio", "Órdenes de trabajo", "Vehículos", "Plazas"]);
 assert.equal(tallerOwner[0].items.some((item) => item.children), false, "los hijos son planos, sin el nivel anidado");
-assert.equal(tallerOwner[0].items[0].activeWhen("/taller/ordenes/nueva"), true);
-assert.equal(tallerOwner[0].items[0].activeWhen("/taller/vehiculos"), false);
+assert.equal(tallerOwner[0].items[0].activeWhen("/taller"), true, "Inicio activo en la ruta base");
+assert.equal(tallerOwner[0].items[0].activeWhen("/taller/ordenes"), false, "Inicio no queda activo en las pantallas hijas");
+assert.equal(tallerOwner[0].items[1].activeWhen("/taller/ordenes/nueva"), true);
+assert.equal(tallerOwner[0].items[1].activeWhen("/taller/vehiculos"), false);
 // La sección agregada no cambia el resto de secciones del Core.
 assert.deepEqual(
   describeSections(tallerOwner.slice(1)),
@@ -495,10 +499,11 @@ const nestedModuleItemsToday = (business, access, basePath) => {
   return entry?.children.map((item) => item.to) ?? [];
 };
 const expectedTaller = {
-  OWNER: ["/taller/ordenes", "/taller/vehiculos", "/taller/plazas"],
-  ADMIN: ["/taller/ordenes", "/taller/vehiculos", "/taller/plazas"],
-  TECNICO: ["/taller/ordenes", "/taller/vehiculos"],
-  MEMBER: ["/taller/ordenes", "/taller/vehiculos"],
+  // Entrega B: "Inicio" (/taller) es el primero y lo ven los roles con taller.read; Plazas sigue exigiendo taller.manage.
+  OWNER: ["/taller", "/taller/ordenes", "/taller/vehiculos", "/taller/plazas"],
+  ADMIN: ["/taller", "/taller/ordenes", "/taller/vehiculos", "/taller/plazas"],
+  TECNICO: ["/taller", "/taller/ordenes", "/taller/vehiculos"],
+  MEMBER: ["/taller", "/taller/ordenes", "/taller/vehiculos"],
   VENTAS: [],
   COMPRAS: [],
   FINANZAS: [],
@@ -542,7 +547,7 @@ for (const rubroCodigo of ["TECNOLOGIA_INFORMATICA", "OTRO_SERVICIO_PROYECTOS", 
   assert.deepEqual(toList(manualMenu.find((section) => section.label === "Módulos")), ["/taller"]);
   assert.deepEqual(
     manualMenu.find((section) => section.label === "Módulos").items[0].children.map((item) => item.to),
-    ["/taller/ordenes", "/taller/vehiculos", "/taller/plazas"]
+    ["/taller", "/taller/ordenes", "/taller/vehiculos", "/taller/plazas"]
   );
 }
 // Veterinaria con Taller activado a mano: Veterinaria arriba, Taller sigue bajo Módulos.

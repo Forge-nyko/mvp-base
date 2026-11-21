@@ -1,5 +1,6 @@
 import { createContext, createElement, useContext, useMemo } from "react";
 import { getCountryByCode, getCurrencyAmountDecimals, getDefaultLocaleForCountry } from "../domain/businessCatalog.js";
+import { normalizeCountryCode } from "../domain/fiscalIdentifier.mjs";
 import { DEFAULT_CURRENCY, DEFAULT_LOCALE, formatBusinessMoney } from "../utils/formatters.js";
 
 // Moneda y formato regional del negocio activo, para presentar montos que no
@@ -8,7 +9,9 @@ import { DEFAULT_CURRENCY, DEFAULT_LOCALE, formatBusinessMoney } from "../utils/
 // `amountDecimals` son los decimales de CÁLCULO de los importes de la moneda (SPEC 036): con cuántos decimales se
 // arma un borrador antes de que el documento exista (después manda el `montoDecimales` del documento). No es
 // `decimals` del catálogo, que solo decide cómo se muestra el monto.
-const DEFAULT_FORMAT = Object.freeze({ currency: DEFAULT_CURRENCY, locale: DEFAULT_LOCALE, amountDecimals: 0 });
+// `countryCode` es el país del negocio activo ("CL" sin provider o sin país), para los textos que cambian por país
+// (countryFormCopy.mjs). No concede nada: solo decide qué texto se muestra.
+const DEFAULT_FORMAT = Object.freeze({ currency: DEFAULT_CURRENCY, locale: DEFAULT_LOCALE, amountDecimals: 0, countryCode: "CL" });
 const BusinessFormatContext = createContext(DEFAULT_FORMAT);
 
 export function resolveBusinessFormat(business) {
@@ -19,6 +22,7 @@ export function resolveBusinessFormat(business) {
     currency,
     locale: String(business.locale || getDefaultLocaleForCountry(business.paisCodigo) || DEFAULT_LOCALE),
     amountDecimals: getCurrencyAmountDecimals(currency),
+    countryCode: business.paisCodigo ? normalizeCountryCode(business.paisCodigo) : "CL",
   };
 }
 

@@ -18,12 +18,16 @@ import {listarVentas} from "../services/saleService";
 import {formatDate, formatMoney} from "../utils/formatters";
 import "../features/sales/sales.css";
 import {userErrorMessage} from "../domain/userFacingError.mjs";
+import {getClientFiscalListLabel} from "../domain/countryFormCopy.mjs";
+import useBusinessFormat from "../hooks/useBusinessFormat";
 
 const money = (value, document) => formatMoney(value, document?.moneda, document?.locale);
 const MODULE = getRouteMeta("/ventas");
 
 export default function SalesPage({businessId, role}) {
   const navigate = useNavigate();
+  // Identificador fiscal del cliente según el país del negocio (Chile "RUT", Bolivia "CI o NIT").
+  const fiscalLabel = getClientFiscalListLabel(useBusinessFormat().countryCode);
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("todos");
@@ -87,7 +91,7 @@ export default function SalesPage({businessId, role}) {
 
         <div className="erp-filters erp-history-filters erp-history-filters--three po-history__toolbar sale-history-filters no-print">
           <label className="erp-field erp-history-search-field sale-history-search-field">
-            <span className="erp-field__label">Buscar por número, cliente, RUT o documento</span>
+            <span className="erp-field__label">Buscar por número, cliente, {fiscalLabel} o documento</span>
             <span className="clients-search-control">
               <AppIcon icon={Search} size={18} />
               <input className="erp-control" placeholder="Ej.: VTA-2026-0001 o cliente" value={search} onChange={(event) => setSearch(event.target.value)} />
@@ -142,7 +146,7 @@ export default function SalesPage({businessId, role}) {
                   <div><span className="po-history-card__label">Venta</span><button type="button" className="sale-history-link" onClick={() => open(sale)}>{sale.numero}</button><span className="sale-history-card__date">{formatDate(sale.fechaVenta)}</span></div>
                   <span className={`po-status po-status--${sale.estado}`}>{getSaleStatusLabel(sale.estado)}</span>
                 </header>
-                <div className="po-history-card__provider"><strong>{sale.clienteSnapshot.nombreRazonSocial}</strong><span>{sale.clienteSnapshot.rut || "Sin RUT"}</span></div>
+                <div className="po-history-card__provider"><strong>{sale.clienteSnapshot.nombreRazonSocial}</strong><span>{sale.clienteSnapshot.rut || `Sin ${fiscalLabel}`}</span></div>
                 <dl><div><dt>Total</dt><dd>{money(sale.total, sale)}</dd></div><div><dt>Origen</dt><dd>{sale.cotizacionId ? <button type="button" className="sale-history-link sale-origin-link" onClick={() => openOriginQuote(sale)}>{sale.cotizacionNumero || "Ver cotización"}</button> : "Directa"}</dd></div><div><dt>Stock</dt><dd>{getSaleStockStatusLabel(sale.estadoStock, sale)}</dd></div><div><dt>Fecha</dt><dd>{formatDate(sale.fechaVenta)}</dd></div></dl>
               </article>
             ))}

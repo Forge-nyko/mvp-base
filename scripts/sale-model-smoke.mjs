@@ -168,7 +168,9 @@ assert.match(saleClient, /visible\.slice\(0, INLINE_RESULTS_LIMIT\)\.map/);
 assert.match(saleClient, /Mostrando \{INLINE_RESULTS_LIMIT\} de \{visible\.length\} · sigue escribiendo para afinar/);
 assert.match(saleClient, /const searching = search\.trim\(\)\.length > 0;/, "sin escribir no se dibuja ninguna lista");
 assert.match(saleClient, /\{searching && \(\s*<div className="sale-client__list">/, "la lista solo existe al escribir");
-assert.match(saleClient, /Tienes \{activeCount === 1 \? "1 cliente activo" : `\$\{activeCount\} clientes activos`\} · escribe un nombre o RUT para buscar/);
+assert.match(saleClient, /Tienes \{activeCount === 1 \? "1 cliente activo" : `\$\{activeCount\} clientes activos`\} · escribe un nombre o \{fiscalLabel\} para buscar/);
+// Entrega E: el "RUT" fijo pasó a la etiqueta del país (Chile "RUT", Bolivia "CI o NIT"); el texto de Chile se verifica en country-form-copy-smoke.
+assert.match(saleClient, /const fiscalLabel = getClientFiscalListLabel\(useBusinessFormat\(\)\.countryCode\);/);
 assert.match(saleClient, /<p className="sr-only" aria-live="polite">/, "aviso para lectores de pantalla con la cantidad de resultados");
 assert.match(saleClient, /<strong>Aún no tienes clientes<\/strong>/);
 assert.match(saleClient, /<Link className="sale-client__link" to="\/clientes">Ir a Clientes<\/Link>/);

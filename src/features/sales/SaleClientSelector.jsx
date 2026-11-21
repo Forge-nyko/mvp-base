@@ -2,6 +2,8 @@ import React, {useEffect, useMemo, useRef, useState} from "react";
 import {Link} from "react-router-dom";
 import Button from "../../components/ui/Button";
 import ResponsiveDialog from "../../components/ui/ResponsiveDialog";
+import {getClientFiscalListLabel} from "../../domain/countryFormCopy.mjs";
+import useBusinessFormat from "../../hooks/useBusinessFormat";
 
 // En el modo en línea se dibujan solo los primeros resultados; el resto se alcanza escribiendo.
 const INLINE_RESULTS_LIMIT = 6;
@@ -11,6 +13,7 @@ const searchable = (value) => String(value || "").normalize("NFD").replace(/[\u0
 // Editor de la venta (borrador): el cliente se elige en línea, sin diálogo. Misma lista de
 // clientes activos, mismo filtro y mismo onChange que la versión con diálogo.
 function InlineSaleClientSelector({clients, disabled, onChange, originalSnapshot, value}) {
+  const fiscalLabel = getClientFiscalListLabel(useBusinessFormat().countryCode);
   const [changing, setChanging] = useState(false);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -72,7 +75,7 @@ function InlineSaleClientSelector({clients, disabled, onChange, originalSnapshot
           <p className="sr-only" aria-live="polite">{searching ? (visible.length === 0 ? "Sin resultados" : visible.length === 1 ? "1 resultado" : `${visible.length} resultados`) : ""}</p>
           {!searching && (
             <div className="sale-client__count">
-              <p className="sale-client__more">Tienes {activeCount === 1 ? "1 cliente activo" : `${activeCount} clientes activos`} · escribe un nombre o RUT para buscar</p>
+              <p className="sale-client__more">Tienes {activeCount === 1 ? "1 cliente activo" : `${activeCount} clientes activos`} · escribe un nombre o {fiscalLabel} para buscar</p>
               <button type="button" className="sale-client__all" aria-haspopup="dialog" aria-expanded={dialogOpen} onClick={() => setDialogOpen(true)}>Ver todos los clientes</button>
             </div>
           )}

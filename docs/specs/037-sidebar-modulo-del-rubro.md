@@ -1,8 +1,8 @@
 # SPEC 037: El módulo del rubro como sección principal del menú
 
-Estado: **entrega A implementada en la rama `mejora-refresco-avisos` (2026-11-21), sin commit ni despliegue.** Complementa la SPEC 031 (interruptor de módulos) y la 033 (módulos por rubro). No cambia permisos, rutas, reglas ni Functions. `AGENTS.md` sigue siendo la autoridad en seguridad y arquitectura multiempresa.
+Estado: **entrega A (menú) y entrega B (panel de inicio del Taller) implementadas en la rama `mejora-refresco-avisos` (2026-11-21), sin commit ni despliegue.** Complementa la SPEC 031 (interruptor de módulos) y la 033 (módulos por rubro). No cambia permisos, rutas, reglas ni Functions. `AGENTS.md` sigue siendo la autoridad en seguridad y arquitectura multiempresa.
 
-Lecturas previas: `AGENTS.md`, SPEC 016 (visión post-demo), SPEC 031 y SPEC 033. La SPEC 016 marca la vertical Taller como `CONFIRMADO PENDIENTE` y no autoriza fijar esquema, estados ni documentos nuevos; esta SPEC solo reubica entradas de menú que ya existen y no introduce ninguna pantalla ni dato.
+Lecturas previas: `AGENTS.md`, SPEC 016 (visión post-demo), SPEC 031 y SPEC 033. La SPEC 016 marca la vertical Taller como `CONFIRMADO PENDIENTE` y no autoriza fijar esquema, estados ni documentos nuevos; la entrega A solo reubica entradas de menú que ya existen y no introduce ninguna pantalla ni dato; la entrega B (sección 7) agrega una pantalla de solo lectura que únicamente muestra datos ya existentes.
 
 ## 1. Qué sustituye
 
@@ -41,7 +41,7 @@ Todo lo demás de las SPEC 031 y 033 sigue vigente: habilitación, `modulosHabil
 ## 5. Fuera de alcance
 
 - El distintivo "Incluido en tu rubro".
-- El panel de inicio del taller (entrega B).
+- ~~El panel de inicio del taller (entrega B).~~ Implementado (sección 7).
 - `platformAdmin` y el aterrizaje por rubro (sección 4).
 
 ## 6. Notas y riesgos
@@ -50,3 +50,16 @@ Todo lo demás de las SPEC 031 y 033 sigue vigente: habilitación, `modulosHabil
 - **Cambio de rubro después de crear.** Como la SPEC 033 no recalcula `modulosHabilitados`, un negocio que cambia de Taller a otro rubro conserva el módulo habilitado pero lo ve de nuevo bajo "Módulos". Se calcula al cargar la sesión y no se refresca en vivo.
 - **Despliegue.** Solo Hosting (cliente). Sin Functions ni reglas.
 - **Visual.** Cambia el menú de los negocios de Taller y Veterinaria, en escritorio y en el cajón móvil, claro y oscuro. Revisar en el navegador: la sección primera con fondo de marca, el estado activo y el foco de sus enlaces, el contraste del título en oscuro y la sidebar de pantallas bajas (la sección agrega unos 16 px de padding).
+
+## 7. Entrega B: panel de inicio del Taller
+
+Implementada el 2026-11-21, sin commit ni despliegue. Solo lectura de datos existentes: no define esquema, estados ni documentos (SPEC 016: Taller `CONFIRMADO PENDIENTE`), no agrega Functions ni reglas.
+
+1. **Ruta e ítem.** `/taller` (índice) abre `TallerHomePage` en lugar de redirigir a `/taller/ordenes`. El menú agrega "Inicio" como primer hijo de `verticalNavigationItems.taller` (`path: ""`, coincidencia exacta, como "Resumen clínico" de Veterinaria), tanto en la sección del rubro como en "Módulos". Lo ven los roles con `taller.read` (OWNER, ADMIN, TECNICO, MEMBER); VENTAS, COMPRAS y FINANZAS siguen sin sección de Taller. `getDefaultBusinessPath` no cambia: nadie aterriza en `/taller` (sigue abierta la pregunta de la sección 4). Barra superior: `getRouteMeta("/taller")` muestra el nombre del módulo ("Taller automotriz"), igual que la ruta base de Veterinaria; las pantallas hijas conservan sus títulos.
+2. **Contenido.** Órdenes por estado (los 9 estados del modelo, también en cero, y "Sin estado" si hay OT con un estado que el modelo no conoce); alertas con enlaces al detalle de las OT "Esperando aprobación" y "Pendiente de entrega" (hasta 5 enlaces por alerta); Plazas en uso y libres con la OT que ocupa cada una; las últimas 5 OT (número descendente con orden numérico) con vehículo, estado y fecha; y accesos a "Nueva OT" y "Nuevo vehículo".
+3. **Permisos.** Sin `taller.create` no hay accesos de creación. Sin `taller.manage` no se dibuja el bloque de Plazas **ni se consultan las Plazas** (es el mismo permiso de la pantalla de Plazas); con `taller.manage` el bloque incluye el enlace "Administrar Plazas". Una Plaza inactiva no cuenta como libre. La autoridad real sigue en las reglas de Firestore: el panel solo decide qué mostrar.
+4. **Datos y estados.** Usa `listarOrdenesTrabajo`, `listarVehiculos` y `listarPlazasTaller` (sin Function nueva). Orden: cargando (`LoadingState`, un solo `role="status"`), error (alerta con "Reintentar", sin estado de carga colgado), vacío (sin OT ni vehículos; sin skeleton) y datos. Una respuesta tardía de un reintento o de otro negocio se descarta.
+5. **Lógica pura.** `src/domain/workOrderSummary.mjs` (`summarizeWorkOrders`, `summarizeWorkshopPlazas`) reutiliza `WORK_ORDER_STATUSES` y `deriveWorkshopPlazaOccupancy`. La vista (`src/features/taller/TallerHomeView.jsx`) no accede a datos; la página (`src/pages/TallerHomePage.jsx`) carga y decide por permisos. Estilos `taller-home__*` en `taller.css`, solo tokens.
+6. **Pruebas.** `work-order-summary-smoke` (`npm run test:work-order-summary`, sin emuladores): función pura (vacío, estados desconocidos, suma de conteos, orden y límite de las últimas OT, Plazas, entradas inválidas, sin mutar), render real de la vista en sus cuatro estados y por permisos, navegación por rol (Inicio para OWNER, ADMIN, TECNICO y MEMBER; nada para VENTAS, COMPRAS y FINANZAS), aterrizaje sin cambios, `getRouteMeta`, rutas de `App.jsx`, solo lectura y solo tokens. `business-quick-flow-smoke` se ajustó: las listas de hijos de Taller ahora empiezan por `/taller`, y la regex que cuenta etiquetas de sección en `navigation.js` exige `items:` para no confundir el ítem "Inicio" con una sección.
+7. **Riesgos.** (a) Las tres consultas traen **todo** el historial de OT, vehículos y Plazas del negocio: los servicios no aceptan límite y no se cambió su API; las "últimas OT" se recortan en el cliente. Con miles de OT conviene una consulta acotada (por ejemplo `orderBy` + `limit`) y conteos agregados en una entrega futura. (b) El panel no se refresca en vivo: se carga al entrar. (c) "Esperando aprobación" se toma del `estado` de la OT, no de `estadoAprobacion`.
+8. **Despliegue.** Solo Hosting. **Visual:** revisar en el navegador `/taller` en claro y oscuro (tarjetas de estado, alertas, Plazas, últimas OT), el ítem "Inicio" activo solo en la ruta base, y el panel con un rol sin `taller.create` y otro sin `taller.manage`.

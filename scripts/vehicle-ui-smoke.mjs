@@ -130,14 +130,14 @@ assert.match(clientSelector, /nameOnly\s*\? "El vehículo quedará asociado a es
 {
   const inlinePicker = clientSelector.slice(clientSelector.indexOf('client-selector__inline-picker"'), clientSelector.indexOf('client-selector__summary"'));
   assert.ok(inlinePicker.length > 200, "se aísla el selector en línea");
-  assert.match(inlinePicker, /placeholder=\{nameOnly \? "Buscar cliente por nombre" : "Buscar cliente por nombre o RUT"\}/);
-  assert.match(inlinePicker, /· escribe un nombre\{nameOnly \? "" : " o RUT"\} para buscar/, "el contador solo menciona el RUT sin nameOnly");
+  assert.match(inlinePicker, /placeholder=\{nameOnly \? "Buscar cliente por nombre" : `Buscar cliente por nombre o \$\{fiscalLabel\}`\}/);
+  assert.match(inlinePicker, /· escribe un nombre\{nameOnly \? "" : ` o \$\{fiscalLabel\}`\} para buscar/, "el contador solo menciona el RUT sin nameOnly");
   assert.equal((inlinePicker.match(/\{!nameOnly && <span>\{client\.identificadorFiscalValor \|\| client\.rut\}<\/span>\}/g) || []).length, 1, "en línea el RUT del resultado solo sin nameOnly");
   assert.equal((inlinePicker.match(/\{!nameOnly && <small>\{client\.email \|\| client\.telefono \|\| "Sin datos de contacto"\}<\/small>\}/g) || []).length, 1, "en línea el contacto del resultado solo sin nameOnly");
   const sinRamasSinNameOnly = inlinePicker
-    .replace(/\{nameOnly \? "" : " o RUT"\}/g, "")
+    .replace(/\{nameOnly \? "" : ` o \$\{fiscalLabel\}`\}/g, "")
     .replace(/\{!nameOnly && <(span|small)>[\s\S]*?<\/\1>\}/g, "")
-    .replace(/nameOnly \? "[^"]*" : "[^"]*"/g, "");
+    .replace(/nameOnly \? "[^"]*" : ("[^"]*"|`[^`]*`)/g, "");
   assert.doesNotMatch(sinRamasSinNameOnly, /RUT|\brut\b|fiscal|email|telefono|contacto/i, "con nameOnly el selector en línea no menciona RUT, identificación fiscal ni contacto");
 }
 assert.match(newVehiclePage, /requestIdRef = useRef\(""\)/);

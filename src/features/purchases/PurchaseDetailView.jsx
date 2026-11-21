@@ -4,6 +4,7 @@ import Button from "../../components/ui/Button";
 import Notice from "../../components/ui/Notice";
 import StatusBadge from "../../components/ui/StatusBadge";
 import {getCountryFormCopy} from "../../domain/countryFormCopy.mjs";
+import {getFiscalIdentifierLabel} from "../../domain/fiscalIdentifier.mjs";
 import {
   getPurchaseDocumentTypeLabel,
   getPurchaseStatusLabel,
@@ -37,7 +38,7 @@ export default function PurchaseDetailView({company, message, printable, purchas
   const provider = purchase.proveedorSnapshot || {};
   const fiscalId = provider.identificadorFiscalValor || provider.rut;
   const providerDetails = [
-    [provider.identificadorFiscalTipo || "RUT", fiscalId],
+    [provider.identificadorFiscalTipo || getFiscalIdentifierLabel(purchase.paisCodigo || company?.paisCodigo || "CL"), fiscalId],
     [getCountryFormCopy(purchase.paisCodigo || company?.paisCodigo).businessActivityLabel, provider.giro],
     ["Contacto", provider.personaContacto],
     ["Correo", provider.email],

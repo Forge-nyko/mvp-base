@@ -5,7 +5,7 @@ import {sileo} from "sileo";
 import Button from "../components/ui/Button";
 import LoadingState from "../components/ui/LoadingState";
 import ResponsiveDialog from "../components/ui/ResponsiveDialog";
-import {adaptDocumentAmountDecimals} from "../domain/localization.mjs";
+import {adaptDocumentAmountDecimals, resolveDocumentTaxRate} from "../domain/localization.mjs";
 import {useBusinessMoney} from "../hooks/useBusinessFormat";
 import {
   calculateSaleTotals,
@@ -213,14 +213,14 @@ export default function NewSalePage({businessId, role}) {
       return draft.items.length
         ? calculateSaleTotals(draft.items, draft.descuento, {
             afectaIva: draft.afectaIva,
-            tasaIva: sale?.tasaIva ?? Number(company?.impuestoPredeterminadoTasa ?? 19) / 100,
+            tasaIva: resolveDocumentTaxRate(sale, company),
             montoDecimales: documentDecimals,
           })
         : {...EMPTY_TOTALS, descuento: Number(draft.descuento || 0), afectaIva: draft.afectaIva !== false, tasaIva: draft.afectaIva === false ? 0 : 0.19};
     } catch {
       return {...EMPTY_TOTALS, afectaIva: draft.afectaIva !== false, tasaIva: draft.afectaIva === false ? 0 : 0.19};
     }
-  }, [company?.impuestoPredeterminadoTasa, documentDecimals, draft.afectaIva, draft.descuento, draft.items, sale?.tasaIva]);
+  }, [company?.impuestoPredeterminadoTasa, company?.paisCodigo, documentDecimals, draft.afectaIva, draft.descuento, draft.items, sale?.tasaIva]);
 
   const hasInsufficientStock = useMemo(() => {
     const inventoryById = new Map(inventory.map((item) => [item.id, item]));
@@ -240,7 +240,7 @@ export default function NewSalePage({businessId, role}) {
     moneda: sale?.moneda || company?.monedaCodigo || "CLP",
     locale: sale?.locale || company?.locale || "es-CL",
     impuestoNombre: sale?.impuestoNombre || company?.impuestoPredeterminadoNombre || "IVA",
-    tasaIva: sale?.tasaIva ?? Number(company?.impuestoPredeterminadoTasa ?? 19) / 100,
+    tasaIva: resolveDocumentTaxRate(sale, company),
     clienteSnapshot: sale?.clienteId === draft.clienteId
       ? sale.clienteSnapshot
       : clients.find((client) => client.clienteId === draft.clienteId) || {},

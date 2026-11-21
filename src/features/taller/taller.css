@@ -270,3 +270,94 @@ button.work-order-finalize-button:hover:not(:disabled) {
     grid-template-columns: 1fr;
   }
 }
+
+/* Panel de inicio del Taller (SPEC 037, entrega B). Solo tokens. */
+.taller-home {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.taller-home__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.taller-home__alerts {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.taller-home__alert-links {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+
+.taller-home__stats {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin: 0;
+}
+
+.taller-home__stat {
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
+
+.taller-home__stat dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.taller-home__stat dd {
+  color: var(--color-text-strong);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  margin: 0;
+}
+
+.taller-home__plazas,
+.taller-home__recent {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.taller-home__plaza,
+.taller-home__recent-item {
+  align-items: center;
+  border-top: 1px solid var(--color-border-subtle);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  justify-content: space-between;
+  padding-top: var(--space-2);
+}
+
+.taller-home__plaza:first-child,
+.taller-home__recent-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.taller-home__plaza-name {
+  align-items: center;
+  color: var(--color-text-default);
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.taller-home__recent-main {
+  display: grid;
+  flex: 1 1 220px;
+  gap: var(--space-1);
+}

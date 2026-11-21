@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {useLocation, useNavigate, useParams} from "react-router-dom";
-import {adaptDocumentAmountDecimals} from "../domain/localization.mjs";
+import {adaptDocumentAmountDecimals, resolveDocumentTaxRate} from "../domain/localization.mjs";
 import {useBusinessMoney} from "../hooks/useBusinessFormat";
 import {sileo} from "sileo";
 import Button from "../components/ui/Button";
@@ -186,13 +186,13 @@ export default function NewPurchaseOrderPage({businessId, role}) {
   const totals = useMemo(() => {
     try {
       return calculatePurchaseOrderTotals(draft.items, {
-        tasaIva: order?.tasaIva ?? Number(company?.impuestoPredeterminadoTasa ?? 19) / 100,
+        tasaIva: resolveDocumentTaxRate(order, company),
         montoDecimales: documentDecimals,
       });
     } catch {
       return EMPTY_TOTALS;
     }
-  }, [company?.impuestoPredeterminadoTasa, documentDecimals, draft.items, order?.tasaIva]);
+  }, [company?.impuestoPredeterminadoTasa, company?.paisCodigo, documentDecimals, draft.items, order?.tasaIva]);
 
   const memberByUid = useMemo(
     () => new Map(members.map((member) => [member.uid, member])),
@@ -207,7 +207,7 @@ export default function NewPurchaseOrderPage({businessId, role}) {
     moneda: order?.moneda || company?.monedaCodigo || "CLP",
     locale: order?.locale || company?.locale || "es-CL",
     impuestoNombre: order?.impuestoNombre || company?.impuestoPredeterminadoNombre || "IVA",
-    tasaIva: order?.tasaIva ?? Number(company?.impuestoPredeterminadoTasa ?? 19) / 100,
+    tasaIva: resolveDocumentTaxRate(order, company),
     proveedorSnapshot: resolvePurchaseOrderProviderPreview(
       order,
       draft.proveedorId,

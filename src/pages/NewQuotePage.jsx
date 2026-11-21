@@ -19,7 +19,7 @@ import {
   validateQuoteDraft,
 } from "../domain/quoteModel.mjs";
 import { getCategoriesForArea } from "../domain/inventoryCatalog.mjs";
-import { adaptDocumentAmountDecimals } from "../domain/localization.mjs";
+import { adaptDocumentAmountDecimals, resolveDocumentTaxRate } from "../domain/localization.mjs";
 import { roundMoney, sanitizeDecimals } from "../domain/money.mjs";
 import { buildValuationForItem, PRICING_STATUS } from "../domain/pricing";
 import useAiRateLimit from "../hooks/useAiRateLimit";
@@ -721,12 +721,10 @@ function NewQuotePage({ userId }) {
     () =>
       tryCalculateQuoteTotals(quote.items, quote.descuento, {
         afectaIva: quote.afectaIva !== false,
-        tasaIva:
-          quote.tasaIva ??
-          Number(companyProfile?.impuestoPredeterminadoTasa ?? 19) / 100,
+        tasaIva: resolveDocumentTaxRate(quote, companyProfile),
         montoDecimales: documentDecimals,
       }),
-    [companyProfile?.impuestoPredeterminadoTasa, documentDecimals, quote.afectaIva, quote.descuento, quote.items, quote.tasaIva]
+    [companyProfile?.impuestoPredeterminadoTasa, companyProfile?.paisCodigo, documentDecimals, quote.afectaIva, quote.descuento, quote.items, quote.tasaIva]
   );
   const totals = totalsResult.totals;
   const quoteValidation = useMemo(
@@ -2193,7 +2191,7 @@ function NewQuotePage({ userId }) {
         setPlazoRangeOpen={setPlazoRangeOpen}
         setScopeOpen={setScopeOpen}
         taxName={quote.impuestoNombre || companyProfile?.impuestoPredeterminadoNombre || "IVA"}
-        taxRate={Number(quote.tasaIva ?? Number(companyProfile?.impuestoPredeterminadoTasa ?? 19) / 100) * 100}
+        taxRate={Number(resolveDocumentTaxRate(quote, companyProfile)) * 100}
         validezDias={quote.validezDias}
       />
         </main>
@@ -2206,7 +2204,7 @@ function NewQuotePage({ userId }) {
           totals={totals}
           totalsError={totalsResult.userErrorMessage(error, "")}
           taxName={quote.impuestoNombre || companyProfile?.impuestoPredeterminadoNombre || "IVA"}
-          taxRate={Number(quote.tasaIva ?? Number(companyProfile?.impuestoPredeterminadoTasa ?? 19) / 100) * 100}
+          taxRate={Number(resolveDocumentTaxRate(quote, companyProfile)) * 100}
           saving={saving}
           savingEstado={savingEstado}
           quoteDate={isEditMode && quote.fecha ? formatDate(quote.fecha) : ""}

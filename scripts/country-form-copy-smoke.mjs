@@ -8,8 +8,10 @@ import { getClientFieldErrors } from "../src/domain/clientModel.mjs";
 import { buildPurchaseOrderPdfDocument } from "../src/domain/purchaseOrderDocument.mjs";
 import { buildQuotePdfDocument } from "../src/domain/quoteDocument.mjs";
 import { getCompanyDocumentSuggestions } from "../src/domain/companyDocumentSuggestions.mjs";
-import { getClientFiscalCopy, getCountryFormCopy } from "../src/domain/countryFormCopy.mjs";
-import { isValidFiscalIdentifier } from "../src/domain/fiscalIdentifier.mjs";
+import { getClientFiscalCopy, getClientFiscalListLabel, getCountryFormCopy } from "../src/domain/countryFormCopy.mjs";
+import { resolveDocumentTaxRate } from "../src/domain/localization.mjs";
+import { normalizeQuickBusinessPayload } from "../src/domain/businessQuickPayload.mjs";
+import { getFiscalIdentifierLabel, isValidFiscalIdentifier } from "../src/domain/fiscalIdentifier.mjs";
 
 // Textos y ejemplos por país (Bolivia piloto): perfil de empresa, verificación y clientes. Salen de
 // countryFormCopy.mjs, sin "si es Bolivia" en los componentes. Chile y el resto de los países no cambian.
@@ -248,5 +250,159 @@ for (const [path, needle] of [
 ]) {
   assert.ok((await read(path)).includes(needle), `${path}: conserva ${needle}`);
 }
+
+
+// =====================================================================================================
+// Entrega E: pulido final de Bolivia. Chile exactamente como hoy; solo cambian los países con texto propio.
+// =====================================================================================================
+
+// --- 1 y 2. Identificador fiscal en listas, buscadores y avisos de clientes ---
+assert.equal(getClientFiscalListLabel("CL"), "RUT", "Chile: RUT");
+assert.equal(getClientFiscalListLabel("BO"), "CI o NIT", "Bolivia: Persona con CI o NIT");
+assert.equal(getClientFiscalListLabel("MX"), "RFC", "otros países: la etiqueta de siempre");
+assert.equal(getClientFiscalListLabel("CL"), getClientFiscalCopy("CL", "empresa").label);
+assert.equal(getFiscalIdentifierLabel("CL"), "RUT");
+assert.equal(getFiscalIdentifierLabel("BO"), "NIT");
+
+// El país del negocio activo llega a los componentes por el contexto de formato (sin provider: Chile).
+const vite2 = await createServer({ appType: "custom", logLevel: "silent", server: { middlewareMode: true } });
+try {
+  const formatHook = await vite2.ssrLoadModule("/src/hooks/useBusinessFormat.js");
+  assert.equal(formatHook.resolveBusinessFormat(undefined).countryCode, "CL", "sin negocio: Chile");
+  assert.equal(formatHook.resolveBusinessFormat({}).countryCode, "CL", "negocio sin país: Chile");
+  assert.equal(formatHook.resolveBusinessFormat({ paisCodigo: "CL" }).countryCode, "CL");
+  assert.equal(formatHook.resolveBusinessFormat({ paisCodigo: "bo" }).countryCode, "BO");
+  // La moneda y el locale no cambian con el país nuevo del contexto.
+  const { countryCode: chileCountry, ...chileFormat } = formatHook.resolveBusinessFormat({ paisCodigo: "CL", monedaCodigo: "CLP", locale: "es-CL" });
+  assert.equal(chileCountry, "CL");
+  assert.deepEqual(chileFormat, { currency: "CLP", locale: "es-CL", amountDecimals: 0 });
+
+  const { MemoryRouter } = await import("react-router-dom");
+  const SaleClientSelector = (await vite2.ssrLoadModule("/src/features/sales/SaleClientSelector.jsx")).default;
+  const clients = [{ clienteId: "c1", estado: "activo", nombreRazonSocial: "Ana Rojas", rut: "1234567" }];
+  const renderSelector = (business) => {
+    const selector = React.createElement(
+      MemoryRouter,
+      null,
+      React.createElement(SaleClientSelector, { clients, inline: true, onChange() {}, value: "" })
+    );
+    return renderToStaticMarkup(
+      business === undefined ? selector : React.createElement(formatHook.BusinessFormatProvider, { business }, selector)
+    );
+  };
+  const hint = (markup) => markup.replace(/<!-- -->/g, "").match(/escribe un nombre o ([^<]*) para buscar/)?.[1];
+  assert.equal(hint(renderSelector(undefined)), "RUT", "venta, sin provider: como hoy");
+  assert.equal(hint(renderSelector({ paisCodigo: "CL", monedaCodigo: "CLP" })), "RUT", "venta, Chile: como hoy");
+  assert.equal(hint(renderSelector({ paisCodigo: "BO", monedaCodigo: "BOB" })), "CI o NIT", "venta, Bolivia");
+} finally {
+  await vite2.close();
+}
+
+// Ninguna pantalla de la lista conserva "RUT" escrito fijo (ni en etiquetas, ni en buscadores, ni en "Sin RUT").
+const rutFreeFiles = [
+  "src/features/clients/ClientsManager.jsx",
+  "src/features/clients/ClientSelector.jsx",
+  "src/features/sales/SaleClientSelector.jsx",
+  "src/pages/SalesPage.jsx",
+  "src/pages/PurchasesPage.jsx",
+  "src/pages/PurchaseOrdersPage.jsx",
+  "src/features/inventory/InventoryManager.jsx",
+  "src/features/purchaseOrders/PurchaseOrderDetailView.jsx",
+  "src/features/purchases/PurchaseDetailView.jsx",
+  "src/pages/NewPurchasePage.jsx",
+];
+for (const path of rutFreeFiles) {
+  const source = (await read(path)).replace(/\/\/.*$/gm, "");
+  assert.doesNotMatch(source, /\bRUT\b/, `${path}: sin "RUT" fijo`);
+}
+// Las pantallas que no reciben el país por props lo toman del contexto del negocio activo.
+for (const path of [
+  "src/features/clients/ClientSelector.jsx",
+  "src/features/sales/SaleClientSelector.jsx",
+  "src/pages/SalesPage.jsx",
+  "src/pages/PurchasesPage.jsx",
+  "src/pages/PurchaseOrdersPage.jsx",
+  "src/features/inventory/InventoryManager.jsx",
+]) {
+  assert.ok((await read(path)).includes("useBusinessFormat().countryCode"), `${path}: país del negocio activo`);
+}
+// Clientes: "CI o NIT"; proveedores: la etiqueta del país (NIT).
+for (const path of ["src/features/clients/ClientsManager.jsx", "src/features/clients/ClientSelector.jsx", "src/features/sales/SaleClientSelector.jsx", "src/pages/SalesPage.jsx"]) {
+  assert.ok((await read(path)).includes("getClientFiscalListLabel("), `${path}: etiqueta de clientes`);
+}
+for (const path of ["src/pages/PurchasesPage.jsx", "src/pages/PurchaseOrdersPage.jsx", "src/features/inventory/InventoryManager.jsx"]) {
+  assert.ok((await read(path)).includes("getFiscalIdentifierLabel("), `${path}: etiqueta de proveedores`);
+}
+// El respaldo de un proveedor sin tipo guardado (documentos antiguos) es la etiqueta del país; sin país, la de Chile.
+for (const path of ["src/features/purchaseOrders/PurchaseOrderDetailView.jsx", "src/features/purchases/PurchaseDetailView.jsx", "src/pages/NewPurchasePage.jsx"]) {
+  assert.match(await read(path), /identificadorFiscalTipo \|\| getFiscalIdentifierLabel\([^)]*\|\| "CL"\)/, `${path}: respaldo por país`);
+}
+
+// --- 3. Fecha del correo de cotización: locale del documento o de la empresa; Chile idéntico ---
+const { formatDateText } = require("../functions/localization.js");
+const sampleDate = new Date(2026, 10, 21);
+const oldQuoteDate = (date) => date.toLocaleDateString("es-CL", { year: "numeric", month: "2-digit", day: "2-digit" });
+for (const date of [sampleDate, new Date(2026, 0, 5), new Date(2025, 11, 31), new Date(2024, 1, 29)]) {
+  for (const locale of ["es-CL", undefined, "", null, "no es un locale"]) {
+    assert.equal(formatDateText(date, locale), oldQuoteDate(date), `Chile / sin locale: igual que antes (${date.toISOString()} ${locale})`);
+  }
+}
+assert.equal(formatDateText(sampleDate, "es-CL"), "21-11-2026");
+assert.equal(formatDateText(sampleDate, "es-BO"), "21/11/2026", "Bolivia: formato de es-BO");
+const indexSource = await readFile(new URL("../functions/index.js", import.meta.url), "utf8");
+const dateFn = indexSource.slice(indexSource.indexOf("function formatQuoteDate("), indexSource.indexOf("function joinNonEmpty("));
+assert.doesNotMatch(dateFn, /toLocaleDateString\("es-CL"/, "la fecha del correo no fija es-CL");
+assert.ok(dateFn.includes("formatDateText(date, locale)"));
+assert.ok(dateFn.includes("quote?.locale || quote?.empresa?.locale"), "locale del documento o, si no, el de la empresa");
+assert.equal((indexSource.match(/formatQuoteDate\(quote\.fecha, formatQuoteLocale\(quote\)\)/g) || []).length, 2, "correo en texto y en HTML");
+
+// --- 5. Tasa de IVA del borrador: la del documento, la del negocio o la base del país; Chile idéntico ---
+const oldRate = (document, company) => document?.tasaIva ?? Number(company?.impuestoPredeterminadoTasa ?? 19) / 100;
+const documents = [undefined, null, {}, { tasaIva: 0.19 }, { tasaIva: 0.13 }, { tasaIva: 0 }, { tasaIva: 0.16 }];
+const chileCompanies = [undefined, null, {}, { paisCodigo: "CL" }, { paisCodigo: "CL", impuestoPredeterminadoTasa: 19 }, { paisCodigo: "CL", impuestoPredeterminadoTasa: 0 }, { impuestoPredeterminadoTasa: 19 }, { paisCodigo: "CL", impuestoPredeterminadoTasa: "19" }];
+for (const document of documents) {
+  for (const company of chileCompanies) {
+    assert.equal(resolveDocumentTaxRate(document, company), oldRate(document, company), `Chile igual que antes: ${JSON.stringify([document, company])}`);
+  }
+}
+assert.equal(resolveDocumentTaxRate({ tasaIva: 0.13 }, { paisCodigo: "CL", impuestoPredeterminadoTasa: 19 }), 0.13, "manda el documento");
+assert.equal(resolveDocumentTaxRate(undefined, { paisCodigo: "BO", impuestoPredeterminadoTasa: 13 }), 0.13, "Bolivia con perfil cargado");
+assert.equal(resolveDocumentTaxRate(undefined, { paisCodigo: "BO" }), 0.13, "Bolivia con perfil sin tasa: 13 %, no 19 %");
+assert.equal(resolveDocumentTaxRate({}, { paisCodigo: "BO" }), 0.13);
+assert.equal(resolveDocumentTaxRate(undefined, { paisCodigo: "bo" }), 0.13);
+assert.equal(resolveDocumentTaxRate({ tasaIva: 0.19 }, { paisCodigo: "BO" }), 0.19, "un documento antiguo conserva su tasa");
+assert.equal(resolveDocumentTaxRate(undefined, { paisCodigo: "ZZ" }), 0.19, "país desconocido: la de Chile");
+for (const path of ["src/pages/NewPurchasePage.jsx", "src/pages/NewPurchaseOrderPage.jsx", "src/pages/NewSalePage.jsx", "src/pages/NewQuotePage.jsx"]) {
+  const source = await read(path);
+  assert.doesNotMatch(source, /\?\? 19\b/, `${path}: sin fallback de 19 %`);
+  assert.ok(source.includes("resolveDocumentTaxRate("), `${path}: usa el helper`);
+  assert.ok(source.includes("company?.paisCodigo") || source.includes("companyProfile?.paisCodigo"), `${path}: el cálculo depende del país`);
+}
+
+// --- 6. Negocio adicional: país y departamento (Chile por defecto, sin cambios en Functions) ---
+const drawer = await read("src/components/AdditionalBusinessDrawer.jsx");
+assert.match(drawer, /<QuickBusinessFields[\s\S]*showCountry[\s\S]*showRegion/);
+assert.ok(drawer.includes("INITIAL_ONBOARDING_BUSINESS_VALUES"), "parte de Chile, como el alta del primer negocio");
+assert.ok(drawer.includes("requireCountry: true"));
+assert.doesNotMatch(drawer, /Chile y CLP/, "el aviso fijo de Chile ya no está");
+assert.deepEqual(
+  normalizeQuickBusinessPayload({ nombreComercial: "Andes", rubroCodigo: "TALLER_AUTOMOTRIZ", paisCodigo: "BO", regionCodigo: "SC" }),
+  { nombreComercial: "Andes", rubroCodigo: "TALLER_AUTOMOTRIZ", regionCodigo: "SC", paisCodigo: "BO" }
+);
+// Chile: la callable valida y guarda lo mismo con o sin paisCodigo (CL es el valor por defecto del servidor).
+const { validateBusinessCreationInput } = require("../functions/businessOnboarding.js");
+class TestHttpsError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+  }
+}
+const quick = { nombreComercial: "Taller Norte", rubroCodigo: "TALLER_AUTOMOTRIZ", regionCodigo: "13" };
+assert.deepEqual(
+  validateBusinessCreationInput({ ...quick, paisCodigo: "CL" }, TestHttpsError),
+  validateBusinessCreationInput(quick, TestHttpsError),
+  "negocio adicional de Chile: igual con país explícito"
+);
+assert.equal(validateBusinessCreationInput({ ...quick, paisCodigo: "BO", regionCodigo: "SC" }, TestHttpsError).paisCodigo, "BO");
 
 console.log("COUNTRY_FORM_COPY_SMOKE_OK");

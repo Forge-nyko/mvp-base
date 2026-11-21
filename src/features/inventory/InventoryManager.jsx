@@ -32,7 +32,7 @@ import { getCategoriesForArea, getInventoryAreaLabel, getInventoryCategoryLabel,
 import { calculateBasePrice, calculateEffectiveInternalPrice } from "../../domain/pricing.js";
 import { roundMoney } from "../../domain/money.mjs";
 import {BUSINESS_PERMISSIONS, hasBusinessPermission} from "../../domain/rbac.mjs";
-import {formatChileanRut} from "../../domain/fiscalIdentifier.mjs";
+import {formatChileanRut, getFiscalIdentifierLabel} from "../../domain/fiscalIdentifier.mjs";
 import {
   createManagedInventoryItem,
   deactivateInventoryItem,
@@ -116,6 +116,8 @@ const DEFAULT_INVENTORY_FILTERS = Object.freeze({ query: "", type: "todos", area
 function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
   const navigate = useNavigate();
   const formatBusinessAmount = useBusinessMoney();
+  // Identificador fiscal del proveedor según el país del negocio (Chile "RUT", Bolivia "NIT").
+  const providerFiscalLabel = getFiscalIdentifierLabel(useBusinessFormat().countryCode);
   // Decimales de cálculo de la moneda del negocio (SPEC 036): 0 en CLP (todo entero, como siempre). El costo y el
   // precio de venta de Inventario no son documentos y no guardan snapshot: rigen los de la moneda del negocio.
   const amountDecimals = formatBusinessAmount.amountDecimals;
@@ -656,7 +658,7 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
           {draft.tipoItem === "producto" && <section className="inventory-form-section"><h3>Existencias</h3><div className="inventory-form-grid inventory-form-grid--three"><Field field="stock" label={editingItem ? "Stock actual" : "Stock inicial"} error={fieldErrors.stock}><input className="erp-control" type="number" min="0" step="any" value={draft.stock} onChange={(event) => updateDraft("stock", event.target.value)} placeholder="¿Cuántas unidades tienes disponibles?" /></Field><Field field="stockMinimo" label="Stock mínimo" error={fieldErrors.stockMinimo}><input className="erp-control" type="number" min="0" step="any" value={draft.stockMinimo} onChange={(event) => updateDraft("stockMinimo", event.target.value)} placeholder="Alerta desde cuántas unidades" /></Field>{unitField}</div><p className="inventory-stock-helper">{stockHelperText}</p>{unitChangeWarning && <p className="inventory-feedback inventory-feedback--notice" role="status">{unitChangeWarning}</p>}</section>}
           <section className="inventory-form-section"><h3>{isProductDraft ? "Descripción y origen de compra" : "Descripción"}</h3>
             <Field field="descripcion" label="Descripción"><textarea className="erp-control inventory-textarea" rows="2" maxLength={1200} value={draft.descripcion} onChange={(event) => updateDraft("descripcion", event.target.value)} placeholder="Agrega detalles útiles para identificar este producto" /></Field>
-            {draft.tipoItem === "producto" && <div className="inventory-purchase-origin-grid" role="group" aria-label="Origen de compra"><Field field="proveedorNombre" label="Proveedor" error={fieldErrors.proveedorNombre}><input className="erp-control" value={draft.proveedorNombre} onChange={(event) => updateDraft("proveedorNombre", event.target.value)} maxLength={180} placeholder="Ej. Proveedor principal" /></Field><Field field="proveedorRut" label="RUT proveedor" error={fieldErrors.proveedorRut}><input className="erp-control" value={draft.proveedorRut} onChange={(event) => updateDraft("proveedorRut", event.target.value)} onBlur={() => updateDraft("proveedorRut", formatChileanRut(draft.proveedorRut))} maxLength={20} placeholder="Ej. 76.123.456-7" /></Field><Field field="fechaCompraReferencia" label="Fecha de compra" error={fieldErrors.fechaCompraReferencia}><input className="erp-control" type="date" value={draft.fechaCompraReferencia} onChange={(event) => updateDraft("fechaCompraReferencia", event.target.value)} /></Field><Field field="numeroFacturaReferencia" label="Nº factura" error={fieldErrors.numeroFacturaReferencia}><input className="erp-control" value={draft.numeroFacturaReferencia} onChange={(event) => updateDraft("numeroFacturaReferencia", event.target.value)} maxLength={120} placeholder="Ej. 000123" /></Field></div>}
+            {draft.tipoItem === "producto" && <div className="inventory-purchase-origin-grid" role="group" aria-label="Origen de compra"><Field field="proveedorNombre" label="Proveedor" error={fieldErrors.proveedorNombre}><input className="erp-control" value={draft.proveedorNombre} onChange={(event) => updateDraft("proveedorNombre", event.target.value)} maxLength={180} placeholder="Ej. Proveedor principal" /></Field><Field field="proveedorRut" label={`${providerFiscalLabel} proveedor`} error={fieldErrors.proveedorRut}><input className="erp-control" value={draft.proveedorRut} onChange={(event) => updateDraft("proveedorRut", event.target.value)} onBlur={() => updateDraft("proveedorRut", formatChileanRut(draft.proveedorRut))} maxLength={20} placeholder="Ej. 76.123.456-7" /></Field><Field field="fechaCompraReferencia" label="Fecha de compra" error={fieldErrors.fechaCompraReferencia}><input className="erp-control" type="date" value={draft.fechaCompraReferencia} onChange={(event) => updateDraft("fechaCompraReferencia", event.target.value)} /></Field><Field field="numeroFacturaReferencia" label="Nº factura" error={fieldErrors.numeroFacturaReferencia}><input className="erp-control" value={draft.numeroFacturaReferencia} onChange={(event) => updateDraft("numeroFacturaReferencia", event.target.value)} maxLength={120} placeholder="Ej. 000123" /></Field></div>}
           </section>
           {feedback.type === "error" && <p className="inventory-feedback inventory-feedback--error" role="alert">{feedback.message}</p>}
         </form>
@@ -731,7 +733,7 @@ function Actions({ cannotWrite, item, onArchive, onEdit, onReactivate, onViewRef
 
 function ItemDetail({ acquisitions, acquisitionsState, areas, cannotWrite, categories, item, lowStockSettings, onArchive, onClose, onEdit, onReactivate, onViewReferences, showAcquisitions, showCosts, taxRate = null }) {
   const formatBusinessAmount = useBusinessMoney();
-  const { locale: businessLocale } = useBusinessFormat();
+  const { countryCode, locale: businessLocale } = useBusinessFormat();
   if (!item) return null;
   const detailDecimals = formatBusinessAmount.amountDecimals;
   const adapted = adaptInventoryItem(item, {decimals: detailDecimals});
@@ -753,7 +755,7 @@ function ItemDetail({ acquisitions, acquisitionsState, areas, cannotWrite, categ
     <dl className="inventory-detail-grid">
       <Detail label="SKU / código interno" value={adapted.codigoInterno || "No informado"} />
       {adapted.tipoItem === "producto" && <><Detail label="Marca" value={adapted.marca || "No informada"} /><Detail label="Modelo" value={adapted.modelo || "No informado"} /><Detail label="Código de barras" value={adapted.codigoBarras || "No informado"} /></>}
-      {hasPurchaseReference && <><Detail label="Proveedor de referencia" value={adapted.proveedorNombre || "No informado"} /><Detail label="RUT proveedor" value={adapted.proveedorRut || "No informado"} /><Detail label="Fecha de compra" value={adapted.fechaCompraReferencia ? formatDate(adapted.fechaCompraReferencia) : "No informada"} /><Detail label="Nº factura" value={adapted.numeroFacturaReferencia || "No informado"} /></>}
+      {hasPurchaseReference && <><Detail label="Proveedor de referencia" value={adapted.proveedorNombre || "No informado"} /><Detail label={`${getFiscalIdentifierLabel(countryCode)} proveedor`} value={adapted.proveedorRut || "No informado"} /><Detail label="Fecha de compra" value={adapted.fechaCompraReferencia ? formatDate(adapted.fechaCompraReferencia) : "No informada"} /><Detail label="Nº factura" value={adapted.numeroFacturaReferencia || "No informado"} /></>}
       <Detail label="Tipo" value={getInventoryTypeLabel(adapted.tipoItem)} />
       <Detail label="Área" value={getInventoryAreaLabel(adapted, areas)} />
       <Detail label="Categoría" value={getInventoryCategoryLabel(adapted, categories)} />

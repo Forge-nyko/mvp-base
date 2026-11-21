@@ -144,7 +144,7 @@ const {
 const {transitionQuoteStatusHandler} = require("./quoteLifecycle");
 const {deleteQuoteDraftHandler} = require("./quoteDeletion");
 const {normalizeBusinessVerificationState} = require("./businessOperations");
-const {formatMoneyText} = require("./localization");
+const {formatDateText, formatMoneyText} = require("./localization");
 const {
   createAdditionalBusinessHandler,
   createFirstBusinessHandler,
@@ -2796,7 +2796,8 @@ function normalizePdfAttachment(value) {
   };
 }
 
-function formatQuoteDate(value) {
+// `locale` es el del documento o, si no lo trae, el de la empresa (formatQuoteLocale); sin ninguno, es-CL.
+function formatQuoteDate(value, locale) {
   if (!value) return "-";
 
   const date =
@@ -2808,11 +2809,11 @@ function formatQuoteDate(value) {
 
   if (Number.isNaN(date.getTime())) return String(value);
 
-  return date.toLocaleDateString("es-CL", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
+  return formatDateText(date, locale);
+}
+
+function formatQuoteLocale(quote) {
+  return quote?.locale || quote?.empresa?.locale;
 }
 
 function joinNonEmpty(parts, separator = " / ") {
@@ -2836,7 +2837,7 @@ function buildPlainQuoteEmail({ quote, mensaje, proposalUrl }) {
     mensaje,
     "",
     `Cotizacion: ${quote.numero || quote.id || "-"}`,
-    `Fecha: ${formatQuoteDate(quote.fecha)}`,
+    `Fecha: ${formatQuoteDate(quote.fecha, formatQuoteLocale(quote))}`,
     `Total: ${formatQuoteTotal(quote)}`,
     `Validez: ${validityDays} dias`,
     "",
@@ -2878,7 +2879,7 @@ function buildQuoteEmailHtml({ quote, mensaje, proposalUrl }) {
             <p style="margin:0 0 8px;font-size:16px;"><strong>Cotizaci&oacute;n ${escapeHtml(
               quote.numero || quote.id || "-"
             )}</strong></p>
-            <p style="margin:0 0 6px;color:#475569;">Fecha: ${escapeHtml(formatQuoteDate(quote.fecha))}</p>
+            <p style="margin:0 0 6px;color:#475569;">Fecha: ${escapeHtml(formatQuoteDate(quote.fecha, formatQuoteLocale(quote)))}</p>
             <p style="margin:0 0 6px;color:#475569;">Total: <strong style="color:#111827;">${escapeHtml(
               formatQuoteTotal(quote)
             )}</strong></p>

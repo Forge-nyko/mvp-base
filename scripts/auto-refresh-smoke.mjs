@@ -210,4 +210,21 @@ assert.ok(pages.includes("useVisiblePolling(refreshSilently, {enabled: verificat
 assert.ok(pages.includes("if (silentBusyRef.current || current.loading || current.error) return;"));
 assert.ok(pages.includes("if (seq !== loadSeqRef.current) return;"), "una respuesta silenciosa tardía tras una carga manual se descarta");
 assert.ok(pages.includes("mode: \"VERIFICACIONES\""));
+// (c) Primeros pasos (empresa recién creada, a la espera de la verificación): pide la sesión cada minuto, solo con la
+// pestaña visible, mientras la empresa no pueda operar; cuando la plataforma la verifica, la persona pasa sola.
+const [activation, app] = await Promise.all([read("src/pages/InitialBusinessActivationPage.jsx"), read("src/app/App.jsx")]);
+assert.ok(activation.includes('import useVisiblePolling from "../hooks/useVisiblePolling";'), "reutiliza el hook existente");
+assert.ok(activation.includes("useVisiblePolling(() => onRefresh?.(), { enabled: !operable && typeof onRefresh === \"function\" })"), "solo mientras no pueda operar");
+assert.ok(activation.includes("const operable = canBusinessOperate(business || {});"));
+assert.match(activation, /if \(operable && verifiedDestination\) onFinish\?\.\(verifiedDestination\);/, "verificada: abre el destino sin recargar");
+assert.doesNotMatch(activation, /setInterval|REFRESH_INTERVAL_MS/, "el intervalo es el del hook (60 s)");
+assert.ok(app.includes("onRefresh={onBusinessCreated}"), "usa la recarga de getBusinessSession que ya existe");
+assert.ok(app.includes('verifiedDestination={canBusinessOperate(activeBusiness) ? safeLanding : ""}'), "destino solo con la empresa verificada");
+// La condición de refresco sigue la regla de verificación de la app: una empresa sin verificar refresca; una verificada, no.
+const { canBusinessOperate } = await import("../src/domain/businessOperations.mjs");
+assert.equal(canBusinessOperate({ verificacionEmpresa: { estado: "PENDIENTE" } }), false, "pendiente: sigue consultando");
+assert.equal(canBusinessOperate({ verificacionEmpresa: { estado: "NO_VERIFICADA" } }), false);
+assert.equal(canBusinessOperate({ verificacionEmpresa: { estado: "RECHAZADA" } }), false);
+assert.equal(canBusinessOperate({ verificacionEmpresa: { estado: "VERIFICADA" }, puedeOperar: true }), true, "verificada: deja de consultar y pasa");
+assert.equal(canBusinessOperate({ verificacionEmpresa: { estado: "VERIFICADA" }, puedeOperar: false }), false, "verificada pero sin poder operar: sigue");
 console.log("AUTO_REFRESH_SMOKE_OK");

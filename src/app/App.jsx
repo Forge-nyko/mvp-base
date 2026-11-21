@@ -50,6 +50,7 @@ import VehiclesPage from "../pages/VehiclesPage";
 import NewVehiclePage from "../pages/NewVehiclePage";
 import VehicleDetailPage from "../pages/VehicleDetailPage";
 import WorkOrdersPage from "../pages/WorkOrdersPage";
+import TallerHomePage from "../pages/TallerHomePage";
 import NewWorkOrderPage from "../pages/NewWorkOrderPage";
 import WorkOrderDetailPage from "../pages/WorkOrderDetailPage";
 import WorkshopPlazasPage from "../pages/WorkshopPlazasPage";
@@ -320,6 +321,8 @@ function AppRoutes({
         business={activeBusiness}
         ownerEmailVerified={usuario?.emailVerified === true}
         onFinish={onInitialActivationFinished}
+        onRefresh={onBusinessCreated}
+        verifiedDestination={canBusinessOperate(activeBusiness) ? safeLanding : ""}
       />
     );
   }
@@ -429,7 +432,16 @@ function AppRoutes({
             />
           }
         />
-        <Route path="/taller" element={<Navigate to="/taller/ordenes" replace />} />
+        <Route
+          path="/taller"
+          element={
+            <TallerHomePage
+              key={businessId}
+              businessId={businessId}
+              role={activeBusiness}
+            />
+          }
+        />
         <Route
           path="/taller/ordenes"
           element={

@@ -6,6 +6,8 @@ import Button from "../../components/ui/Button";
 import LoadingState from "../../components/ui/LoadingState";
 import ResponsiveDialog from "../../components/ui/ResponsiveDialog";
 import {filterSelectableClients} from "../../domain/clientModel.mjs";
+import {getClientFiscalListLabel} from "../../domain/countryFormCopy.mjs";
+import useBusinessFormat from "../../hooks/useBusinessFormat";
 import {
   getClientErrorMessage,
   listarClientes,
@@ -31,6 +33,8 @@ function ClientSelector({
   snapshot,
   value,
 }) {
+  // País del negocio activo: el texto del identificador fiscal (Chile "RUT", Bolivia "CI o NIT").
+  const fiscalLabel = getClientFiscalListLabel(useBusinessFormat().countryCode);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(Boolean(businessId));
   const [error, setError] = useState("");
@@ -166,7 +170,7 @@ function ClientSelector({
                 onKeyDown={(event) => {
                   if (event.key === "Escape" && hasSelection) finishInlinePicking();
                 }}
-                placeholder={nameOnly ? "Buscar cliente por nombre" : "Buscar cliente por nombre o RUT"}
+                placeholder={nameOnly ? "Buscar cliente por nombre" : `Buscar cliente por nombre o ${fiscalLabel}`}
               />
             </div>
           </label>
@@ -176,7 +180,7 @@ function ClientSelector({
           {!searching && !loading && !error && activeClients.length > 0 && (
             <div className="client-selector__count">
               <p className="client-selector__status">
-                Tienes {activeClients.length === 1 ? "1 cliente activo" : `${activeClients.length} clientes activos`} · escribe un nombre{nameOnly ? "" : " o RUT"} para buscar
+                Tienes {activeClients.length === 1 ? "1 cliente activo" : `${activeClients.length} clientes activos`} · escribe un nombre{nameOnly ? "" : ` o ${fiscalLabel}`} para buscar
               </p>
               <button type="button" className="client-selector__all" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>Ver todos los clientes</button>
             </div>

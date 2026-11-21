@@ -120,6 +120,16 @@ function formatMoneyText(value, currency, locale) {
   }
 }
 
+// Fecha para textos (correos): locale del documento o de la empresa (dd/mm/aaaa con dos dígitos). Sin locale, o con
+// uno inválido, cae en es-CL: exactamente el texto que producía el formato fijo anterior.
+function formatDateText(date, locale) {
+  return date.toLocaleDateString(canonicalLocale(locale, DEFAULT_LOCALE), {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
 // `montoDecimales` es el snapshot de los decimales de cálculo del documento. Ausente = 0 (un documento anterior
 // sigue calculándose entero); un valor inválido, o mayor que los decimales de la moneda, vale 0.
 function adaptDocumentAmountDecimals(raw = {}, currencyCode) {
@@ -151,6 +161,7 @@ module.exports = {
   currencyAmountDecimals,
   currencyDecimals,
   documentLocalizationSnapshot,
+  formatDateText,
   formatMoneyText,
   normalizeBusinessLocalization,
   normalizeTaxSettings,
