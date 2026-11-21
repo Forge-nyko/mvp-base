@@ -18,6 +18,7 @@ import StatusBadge from "../../../components/ui/StatusBadge";
 import {SPARKLINE_MIN_POINTS, trendItemsFor} from "../../../domain/reportTrend.mjs";
 import {
   MONTHLY_EXPLANATIONS,
+  MONTHLY_PROFIT_EXPLANATION_WITHOUT_PROJECTS,
   MONTHLY_SHORT_NOTES,
   NO_PREVIOUS_MONTH_TEXT,
   buildMonthlyProjectResults,
@@ -177,6 +178,8 @@ function ReportsMonthlySummary({
   projects,
   purchaseTimeline = [],
   salesTimeline = [],
+  // Falso en Taller y Veterinaria (SPEC 038): sin "Proyectos del mes" ni mención a proyectos en la ganancia.
+  showProjects = true,
   summary,
   todayKey,
 }) {
@@ -195,8 +198,8 @@ function ReportsMonthlySummary({
     (canViewPurchases ? summary.purchases.withoutNetCount : 0);
   // Proyectos con movimiento que no entran en la ganancia (mismo conteo que Proyectos del mes).
   const incompleteCount = useMemo(
-    () => projects?.status === "ready" ? buildMonthlyProjectResults({projects: projects.meta?.proyectos || [], month, currency}).incompletos : 0,
-    [currency, month, projects]
+    () => showProjects && projects?.status === "ready" ? buildMonthlyProjectResults({projects: projects.meta?.proyectos || [], month, currency}).incompletos : 0,
+    [currency, month, projects, showProjects]
   );
   const servicesByCurrency = useMemo(
     () => new Map(buildServicesWithoutProjectNotices(profit, currency).map((entry) => [entry.moneda, entry.monto])),
@@ -261,11 +264,11 @@ function ReportsMonthlySummary({
         <div className="reports-simple-metrics reports-simple-metrics--visual">
           {canViewSales && <MonthlyCard amount={<strong className="reports-simple-card__amount">{money(group.sales.total)}</strong>} comparison={showComparison ? group.sales.comparison : null} explanation={MONTHLY_EXPLANATIONS.sales} icon={BadgeDollarSign} locale={locale} onOpenDetail={links.sales ? () => onOpenDetail("ventas") : null} referenceText={showComparison ? referenceOf(group.sales) : null} shortNote={MONTHLY_SHORT_NOTES.sales} sparkline={sparklineOf(salesTimeline, "sales", "Ventas")} title="Vendí" variant="sales" />}
           {canViewPurchases && <MonthlyCard amount={<strong className="reports-simple-card__amount">{money(group.purchases.total)}</strong>} chipTone="neutral" comparison={showComparison ? group.purchases.comparison : null} explanation={MONTHLY_EXPLANATIONS.purchases} icon={ShoppingCart} locale={locale} onOpenDetail={links.purchases ? () => onOpenDetail("compras") : null} referenceText={showComparison ? referenceOf(group.purchases) : null} shortNote={MONTHLY_SHORT_NOTES.purchases} sparkline={sparklineOf(purchaseTimeline, "purchases", "Compras")} title="Compré" variant="purchases" />}
-          {canViewProfitability && group.profit && <MonthlyCard amount={<ProfitAmount amountText={money(group.profit.amount)} onRetry={onRetryProfit} profit={group.profit} />} aside={marginDescription.kind === "pending" ? null : <MarginRing description={marginDescription} locale={locale} />} comparison={showComparison && group.profit.status === "ready" ? group.profit.comparison : null} explanation={MONTHLY_EXPLANATIONS.profit} icon={TrendingUp} locale={locale} notice={<ReportsProfitNotice currency={group.currency} lines={profitLines} locale={locale} onNavigate={onNavigate} onOpenDetail={onOpenDetail} />} onOpenDetail={() => onOpenDetail("ganancias")} referenceText={showComparison && group.profit.status === "ready" ? referenceOf(group.profit) : null} shortNote={MONTHLY_SHORT_NOTES.profit} subtitle="Ganancia" title="Me quedó" variant="profit">
+          {canViewProfitability && group.profit && <MonthlyCard amount={<ProfitAmount amountText={money(group.profit.amount)} onRetry={onRetryProfit} profit={group.profit} />} aside={marginDescription.kind === "pending" ? null : <MarginRing description={marginDescription} locale={locale} />} comparison={showComparison && group.profit.status === "ready" ? group.profit.comparison : null} explanation={showProjects ? MONTHLY_EXPLANATIONS.profit : MONTHLY_PROFIT_EXPLANATION_WITHOUT_PROJECTS} icon={TrendingUp} locale={locale} notice={<ReportsProfitNotice currency={group.currency} lines={profitLines} locale={locale} onNavigate={onNavigate} onOpenDetail={onOpenDetail} showProjects={showProjects} />} onOpenDetail={() => onOpenDetail("ganancias")} referenceText={showComparison && group.profit.status === "ready" ? referenceOf(group.profit) : null} shortNote={MONTHLY_SHORT_NOTES.profit} subtitle="Ganancia" title="Me quedó" variant="profit">
             <ProfitDetails description={marginDescription} />
           </MonthlyCard>}
         </div>
-        {!showsProfitCard && <ReportsProfitNotice currency={group.currency} lines={profitLines} locale={locale} onNavigate={onNavigate} onOpenDetail={onOpenDetail} variant="standalone" />}
+        {!showsProfitCard && <ReportsProfitNotice currency={group.currency} lines={profitLines} locale={locale} onNavigate={onNavigate} onOpenDetail={onOpenDetail} showProjects={showProjects} variant="standalone" />}
         <ReportsMonthlyTrend canViewPurchases={canViewPurchases} canViewSales={canViewSales} currency={group.currency} items={operationalTimeline} showCurrency={groups.length > 1} />
       </section>;
     })}</div>}
@@ -277,7 +280,7 @@ function ReportsMonthlySummary({
       {canRegisterPurchase && <Button type="button" variant="secondary" onClick={() => onNavigate("/compras/nueva")}>Registrar compra</Button>}
     </div>}
 
-    <ReportsMonthlyProjects canView={canViewProfitability} currency={currency} inProgress={inProgress} links={links} month={month} notes={projectsNotes} onNavigate={onNavigate} onRetry={onRetryProfit} projects={projects} />
+    {showProjects && <ReportsMonthlyProjects canView={canViewProfitability} currency={currency} inProgress={inProgress} links={links} month={month} notes={projectsNotes} onNavigate={onNavigate} onRetry={onRetryProfit} projects={projects} />}
   </>;
 }
 

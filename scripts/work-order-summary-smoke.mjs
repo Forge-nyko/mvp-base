@@ -229,11 +229,12 @@ const navSource = fs.readFileSync("src/app/navigation.js", "utf8");
 assert.match(navSource, /\{path: "", label: "Inicio", title: "Inicio", icon: LayoutDashboard\}/);
 assert.ok(navSource.indexOf('path: ""') < navSource.indexOf('path: "ordenes"'), "Inicio es el primer hijo");
 assert.match(navSource, /requiredPermission: BUSINESS_PERMISSIONS\.TALLER_MANAGE/);
-// El aterrizaje por defecto no cambia: ningún rol aterriza en /taller.
+// Aterrizaje (SPEC 038, que sustituye SPEC 037 §2.7 solo en esto): el TECNICO de Taller ya no aterriza en
+// /trabajos (el menú del rubro no lo muestra) sino en el inicio del taller; los demás roles, como hoy.
 const landing = (role) => getDefaultBusinessPath({...tallerBusiness, role}, getBusinessPathOptions(tallerBusiness));
 assert.deepEqual(
   Object.fromEntries(["OWNER", "ADMIN", "TECNICO", "VENTAS", "COMPRAS", "FINANZAS"].map((role) => [role, landing(role)])),
-  {OWNER: "/reportes", ADMIN: "/reportes", TECNICO: "/trabajos", VENTAS: "/cotizaciones", COMPRAS: "/ordenes-compra", FINANZAS: "/reportes"}
+  {OWNER: "/reportes", ADMIN: "/reportes", TECNICO: "/taller", VENTAS: "/cotizaciones", COMPRAS: "/ordenes-compra", FINANZAS: "/reportes"}
 );
 
 // --- 4. Rutas y título de la barra superior ---

@@ -16,7 +16,7 @@ import ResponsiveDialog from "../components/ui/ResponsiveDialog";
 import SkipLink from "../components/ui/SkipLink";
 import { buildNavigationSections } from "../app/navigation";
 import TopbarHeading from "./TopbarHeading";
-import { getPrimaryVerticalModules } from "../domain/categoryModules.mjs";
+import { getHiddenCorePaths, getPrimaryVerticalModules } from "../domain/categoryModules.mjs";
 import {
   filterNavigationSections,
   getBusinessPathOptions,
@@ -139,6 +139,7 @@ function AppLayout({
     () => {
       const navigationSections = buildNavigationSections(undefined, {
         primaryModules: getPrimaryVerticalModules(negocioActivo),
+        hiddenCorePaths: getHiddenCorePaths(negocioActivo),
       });
       return businessVerified
         ? filterNavigationSections(

@@ -4,6 +4,7 @@ import {useNavigate, useSearchParams} from "react-router-dom";
 import FinancialPeriodSelector from "../components/finance/FinancialPeriodSelector";
 import Button from "../components/ui/Button";
 import LoadingState from "../components/ui/LoadingState";
+import {getHiddenCorePaths} from "../domain/categoryModules.mjs";
 import {getFinancialPeriodRange, getSantiagoDateKey} from "../domain/financialMovement.mjs";
 import {
   REPORT_PERIOD_OPTIONS,
@@ -127,7 +128,10 @@ function StatisticsPage({businessId, currencyCode = "CLP", role = ""}) {
   const topSalesProducts = useMemo(() => getTopSalesProducts(summary.sales.confirmed, {fallbackCurrency: currencyCode}), [currencyCode, summary.sales.confirmed]);
   const topPurchaseSuppliers = useMemo(() => getTopPurchaseSuppliers(summary.purchases.confirmed, {fallbackCurrency: currencyCode}), [currencyCode, summary.purchases.confirmed]);
   const topPurchaseProducts = useMemo(() => getTopPurchaseProducts(summary.purchases.confirmed, {fallbackCurrency: currencyCode}), [currencyCode, summary.purchases.confirmed]);
-  const links = {purchases: canAccessBusinessPath(role, "/compras"), sales: canAccessBusinessPath(role, "/ventas"), works: canAccessBusinessPath(role, "/trabajos")};
+  // Taller y Veterinaria no usan Proyectos (SPEC 038): sin "Proyectos del mes", sin tabla de proyectos y sin
+  // enlaces a /trabajos. La fórmula de la ganancia no cambia; el resto de rubros queda como siempre.
+  const showProjects = !getHiddenCorePaths(role).includes("/trabajos");
+  const links = {purchases: canAccessBusinessPath(role, "/compras"), sales: canAccessBusinessPath(role, "/ventas"), works: showProjects && canAccessBusinessPath(role, "/trabajos")};
   const profitabilityV4 = useReportProfitabilityV4({businessId, range: profitFetchRange, role});
   const operationalProfit = useOperationalNetProfit(profitabilityV4, range);
   const previousOperationalProfit = useOperationalNetProfit(profitabilityV4, previousMonthRange);
@@ -169,10 +173,10 @@ function StatisticsPage({businessId, currencyCode = "CLP", role = ""}) {
     {loading && !error && <LoadingState variant="section" label="Cargando reportes..." />}
 
     {!loading && !error && <>
-      {isSummary && <ReportsMonthlySummary canRegisterPurchase={canRegisterPurchase} canRegisterSale={canRegisterSale} canViewProfitability={canViewProfitability} canViewPurchases={viewPermissions.canViewPurchases} canViewSales={viewPermissions.canViewSales} currency={selectedCurrency} links={links} month={monthKey} onMonthChange={changeMonth} onNavigate={navigate} onOpenDetail={openDetail} onRetryProfit={profitabilityV4.reload} operationalTimeline={operationalTimeline} previousProfit={previousOperationalProfit} previousSummary={previousSummary} profit={operationalProfit} projects={profitabilityV4.projects} purchaseTimeline={purchaseTimeline} salesTimeline={salesTimeline} summary={summary} todayKey={today} />}
+      {isSummary && <ReportsMonthlySummary canRegisterPurchase={canRegisterPurchase} canRegisterSale={canRegisterSale} canViewProfitability={canViewProfitability} canViewPurchases={viewPermissions.canViewPurchases} canViewSales={viewPermissions.canViewSales} currency={selectedCurrency} links={links} month={monthKey} onMonthChange={changeMonth} onNavigate={navigate} onOpenDetail={openDetail} onRetryProfit={profitabilityV4.reload} operationalTimeline={operationalTimeline} previousProfit={previousOperationalProfit} previousSummary={previousSummary} profit={operationalProfit} projects={profitabilityV4.projects} purchaseTimeline={purchaseTimeline} salesTimeline={salesTimeline} showProjects={showProjects} summary={summary} todayKey={today} />}
       {vista === "ventas" && <ReportsVentasView canOpenSales={links.sales} fallbackCurrency={currencyCode} navigate={navigate} salesTimeline={salesTimeline} summary={summary} topSalesClients={topSalesClients} topSalesProducts={topSalesProducts} />}
       {vista === "compras" && <ReportsComprasView canOpenPurchases={links.purchases} chartGroups={chartGroups} fallbackCurrency={currencyCode} navigate={navigate} purchaseTimeline={purchaseTimeline} summary={summary} topPurchaseProducts={topPurchaseProducts} topPurchaseSuppliers={topPurchaseSuppliers} />}
-      {vista === "ganancias" && <ReportsGananciasView currency={selectedCurrency} currentMonthKey={currentMonthKey(today)} links={links} navigate={navigate} operationalProfit={operationalProfit} profitabilityV4={profitabilityV4} range={range} />}
+      {vista === "ganancias" && <ReportsGananciasView currency={selectedCurrency} currentMonthKey={currentMonthKey(today)} links={links} navigate={navigate} operationalProfit={operationalProfit} profitabilityV4={profitabilityV4} range={range} showProjects={showProjects} />}
     </>}
   </section>;
 }

@@ -89,7 +89,7 @@ export function ServicesWithoutCostNote({group}) {
   </p>;
 }
 
-function CurrencyBreakdown({group}) {
+function CurrencyBreakdown({group, showProjects = true}) {
   const { locale: businessLocale } = useBusinessFormat();
   const partial = group.cobertura === COVERAGE.PARTIAL;
   const sales = group.componentes.ventasSinProyecto;
@@ -118,7 +118,7 @@ function CurrencyBreakdown({group}) {
         ["Costo de lo vendido", sales.costoHistoricoProductos],
         ["Ganancia por productos", sales.margenBrutoProductos, true],
       ]} />
-      <BreakdownTable caption="Proyectos" currency={currency} rows={[
+      {showProjects && <BreakdownTable caption="Proyectos" currency={currency} rows={[
         ["Ingreso neto", projects.ingresoNeto],
         ["Materiales de venta", projects.materialesVenta],
         ["Materiales adicionales", projects.materialesAdicionales],
@@ -126,7 +126,7 @@ function CurrencyBreakdown({group}) {
         ["Gastos directos", projects.gastosDirectos],
         ["Gastos indirectos", projects.gastosIndirectos],
         ["Resultado de proyectos", projects.resultado, true],
-      ]} />
+      ]} />}
       <BreakdownTable caption="Total" currency={currency} rows={[
         ["Ganancia por productos", sales.margenBrutoProductos],
         ["Resultado de proyectos", projects.resultado],
@@ -137,7 +137,8 @@ function CurrencyBreakdown({group}) {
 }
 
 // Puntos 1 a 3 de §6.2. Lo reutilizan Rentabilidad y estado y Ganancias.
-export function OperationalNetProfitBreakdown({canView, currency, onRetry, state}) {
+// `showProjects` en false (Taller y Veterinaria, SPEC 038) oculta solo la tabla "Proyectos"; los números no cambian.
+export function OperationalNetProfitBreakdown({canView, currency, onRetry, showProjects = true, state}) {
   if (!canView) return null;
   if (state.status === "loading") return <LoadingState variant="section" label="Calculando ganancia..." />;
   if (state.status === "error") {
@@ -154,7 +155,7 @@ export function OperationalNetProfitBreakdown({canView, currency, onRetry, state
     {state.result.periodo.proyectosPorMesCompleto && <p className="reports-v4-note">
       El período corta un mes: los proyectos aportan ese mes completo, porque su balance se registra por mes.
     </p>}
-    {groups.map((group) => <CurrencyBreakdown group={group} key={group.moneda || "sin-moneda"} />)}
+    {groups.map((group) => <CurrencyBreakdown group={group} key={group.moneda || "sin-moneda"} showProjects={showProjects} />)}
   </div>;
 }
 

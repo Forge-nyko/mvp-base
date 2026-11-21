@@ -135,4 +135,54 @@ for (const input of [undefined, null, "OWNER", 7, {}, [], {activeBusiness: null}
 assert.deepEqual(primary({rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: ["taller"]}, onlyVeterinaria), []);
 assert.deepEqual(primary({rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: ["taller"]}, onlyTaller), ["taller"]);
 
+// --- Rutas del Core ocultas por rubro (SPEC 038, solo frontend: sin copia en Functions) ---
+const {CATEGORY_HIDDEN_CORE_PATHS, getHiddenCorePaths} = frontendMap;
+assert.deepEqual(
+  Object.fromEntries(Object.entries(CATEGORY_HIDDEN_CORE_PATHS).map(([code, paths]) => [code, [...paths]])),
+  {TALLER_AUTOMOTRIZ: ["/trabajos"], CLINICA_VETERINARIA: ["/trabajos"]},
+  "Taller y Veterinaria ocultan solo Proyectos y trabajos"
+);
+assert.equal(Object.isFrozen(CATEGORY_HIDDEN_CORE_PATHS), true);
+for (const paths of Object.values(CATEGORY_HIDDEN_CORE_PATHS)) assert.equal(Object.isFrozen(paths), true);
+// Solo rubros que tienen módulo propio, así que la ocultación siempre va con la sección del rubro.
+for (const code of Object.keys(CATEGORY_HIDDEN_CORE_PATHS)) {
+  assert.ok(Object.hasOwn(CATEGORY_MODULES, code), `${code} tiene módulo propio`);
+}
+assert.deepEqual(getHiddenCorePaths({rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: ["taller"]}), ["/trabajos"]);
+assert.deepEqual(getHiddenCorePaths({rubroCodigo: "CLINICA_VETERINARIA", modulosHabilitados: ["veterinaria"]}), ["/trabajos"]);
+assert.deepEqual(
+  getHiddenCorePaths({activeBusiness: {rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: ["taller"]}}),
+  ["/trabajos"],
+  "acepta la sesión además del negocio"
+);
+// Misma condición que la sección principal: sin el módulo del rubro habilitado no se oculta nada.
+assert.deepEqual(getHiddenCorePaths({rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: []}), []);
+assert.deepEqual(getHiddenCorePaths({rubroCodigo: "TALLER_AUTOMOTRIZ"}), []);
+assert.deepEqual(getHiddenCorePaths({rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: ["veterinaria"]}), []);
+assert.deepEqual(getHiddenCorePaths({rubroCodigo: "CLINICA_VETERINARIA", modulosHabilitados: ["taller"]}), []);
+for (const rubroCodigo of [
+  "TECNOLOGIA_INFORMATICA", "ELECTRICIDAD_ENERGIA_CLIMATIZACION", "INGENIERIA_CONSULTORIA",
+  "OTRO_SERVICIO_PROYECTOS", "OTRO", "TALLER_MECANICO", "AUTOMOTRIZ_MOVILIDAD", "", undefined,
+]) {
+  assert.deepEqual(
+    getHiddenCorePaths({rubroCodigo, modulosHabilitados: ["taller", "veterinaria"]}),
+    [],
+    `${String(rubroCodigo)}: ni con módulos a mano se oculta nada`
+  );
+}
+for (const input of [undefined, null, "OWNER", 7, {}, [], {activeBusiness: null}, {rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: "taller"}]) {
+  assert.deepEqual(getHiddenCorePaths(input), [], `entrada inválida ${JSON.stringify(input)}`);
+}
+// Los códigos heredados de Object.prototype no cuentan como rubro.
+for (const rubroCodigo of ["__proto__", "constructor", "toString", "hasOwnProperty"]) {
+  assert.deepEqual(getHiddenCorePaths({rubroCodigo, modulosHabilitados: ["taller", "veterinaria"]}), [], rubroCodigo);
+}
+// Devuelve un arreglo nuevo: no se puede mutar el mapa por fuera.
+const hiddenOnce = getHiddenCorePaths({rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: ["taller"]});
+hiddenOnce.push("/ventas");
+assert.deepEqual(getHiddenCorePaths({rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: ["taller"]}), ["/trabajos"]);
+// Registro inyectado: sin el módulo en el registro no hay rubro principal ni ocultación.
+assert.deepEqual(getHiddenCorePaths({rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: ["taller"]}, onlyVeterinaria), []);
+assert.deepEqual(getHiddenCorePaths({rubroCodigo: "TALLER_AUTOMOTRIZ", modulosHabilitados: ["taller"]}, onlyTaller), ["/trabajos"]);
+
 console.log("OK mapa rubro a módulos: ids en el registro, códigos seleccionables, sin mapeo devuelve [] e ids desconocidos se descartan");

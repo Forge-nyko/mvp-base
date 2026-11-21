@@ -220,15 +220,26 @@ function buildPrimaryModuleSection(module) {
   return {label: module.label, moduleId: module.id, accent: true, items};
 }
 
-export function buildNavigationSections(registry = VERTICAL_MODULES, {primaryModules = []} = {}) {
-  if (!registry.length) return navigationSections;
+// Opt-in (SPEC 038): con `hiddenCorePaths` (rutas de getHiddenCorePaths) se quitan del Core los
+// ítems cuyo `to` esté en la lista, y se omite la sección que quede vacía. Solo cambia el menú:
+// la ruta sigue existiendo. Sin la opción (o con lista vacía) la salida es la de siempre.
+function withoutHiddenCoreItems(sections, hiddenCorePaths) {
+  const hidden = new Set(Array.isArray(hiddenCorePaths) ? hiddenCorePaths : []);
+  if (!hidden.size) return sections;
+  return sections
+    .map((section) => ({...section, items: section.items.filter((item) => !hidden.has(item.to))}))
+    .filter((section) => section.items.length > 0);
+}
+
+export function buildNavigationSections(registry = VERTICAL_MODULES, {primaryModules = [], hiddenCorePaths = []} = {}) {
+  if (!registry.length) return withoutHiddenCoreItems(navigationSections, hiddenCorePaths);
   const primaryIds = new Set(Array.isArray(primaryModules) ? primaryModules : []);
   const primary = registry.filter((module) => primaryIds.has(module.id));
   const rest = registry.filter((module) => !primaryIds.has(module.id));
   const modulesSections = rest.length ?
     [{label: "Módulos", items: rest.map(buildModuleEntry)}] :
     [];
-  const coreSections = navigationSections.flatMap((section) =>
+  const coreSections = withoutHiddenCoreItems(navigationSections, hiddenCorePaths).flatMap((section) =>
     section.label === "Cuenta" ? [...modulesSections, section] : [section]
   );
   return [...primary.map(buildPrimaryModuleSection), ...coreSections];

@@ -1,6 +1,7 @@
 import React from "react";
 import {ChevronDown, TriangleAlert} from "lucide-react";
 import Button from "../../../components/ui/Button";
+import {PROFIT_PRODUCTS_ONLY_NOTE} from "../../../domain/reportMonthlySummary.mjs";
 import {formatMoney} from "../../../utils/formatters";
 
 // Aviso único de la ganancia (SPEC 025, Resumen visual). Reemplaza la línea de
@@ -16,7 +17,8 @@ import {formatMoney} from "../../../utils/formatters";
 //
 // `lines`: solo las de placement "profit". `onOpenDetail("ganancias")` abre el
 // estado del sistema; `onNavigate("/ventas")` lleva a Ventas.
-function ReportsProfitNotice({currency, lines, locale, onNavigate, onOpenDetail, variant = "card"}) {
+// `showProjects` en false (Taller y Veterinaria, SPEC 038): el aviso de servicios no aconseja vincularlos a un proyecto.
+function ReportsProfitNotice({currency, lines, locale, onNavigate, onOpenDetail, showProjects = true, variant = "card"}) {
   if (!Array.isArray(lines) || !lines.length) return null;
   const partial = lines.some((line) => line.key === "partial");
   const count = lines.length;
@@ -30,9 +32,11 @@ function ReportsProfitNotice({currency, lines, locale, onNavigate, onOpenDetail,
     </summary>
     <ul className="reports-profit-notice__list">
       {lines.map((line) => <li key={line.key}>
-        {line.key === "services" ? <p>
+        {line.key === "services" ? (showProjects ? <p>
           Hay {formatMoney(line.amount, currency, locale)} en servicios vendidos sin proyecto, y no entran en la ganancia. Vincúlalos a un proyecto para saber si ganas o pierdes con ellos.
-        </p> : <p>{line.text}{line.detail ? ` ${line.detail}` : ""}</p>}
+        </p> : <p>
+          Hay {formatMoney(line.amount, currency, locale)} en servicios vendidos. {PROFIT_PRODUCTS_ONLY_NOTE}
+        </p>) : <p>{line.text}{line.detail ? ` ${line.detail}` : ""}</p>}
         {line.action?.id === "system-state" && <Button type="button" variant="secondary" onClick={() => onOpenDetail("ganancias")}>{line.action.label}</Button>}
         {line.action?.id === "sales" && <Button type="button" variant="secondary" onClick={() => onNavigate("/ventas")}>{line.action.label}</Button>}
       </li>)}

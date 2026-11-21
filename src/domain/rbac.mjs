@@ -1,3 +1,4 @@
+import {getHiddenCorePaths, getPrimaryVerticalModules} from "./categoryModules.mjs";
 import {VERTICAL_MODULES, getEnabledVerticalModules} from "./verticalModules.mjs";
 
 export const BUSINESS_ROLES = Object.freeze([
@@ -279,8 +280,27 @@ function resolveDefaultBusinessPath(access) {
   return "/cotizaciones";
 }
 
+// Aterrizaje cuando el inicio del rol es una ruta que el rubro oculta del menú (SPEC 038: hoy,
+// el TECNICO de Taller y Veterinaria aterrizaría en /trabajos). Primero el módulo del rubro
+// (Taller: /taller), luego Inventario; solo se elige una ruta que el rol puede abrir según
+// canAccessBusinessPath. Si ninguna, /cuenta. `access` es el negocio activo (trae rubroCodigo
+// y modulosHabilitados); con un rol en string no hay rubro y no se llega aquí.
+function resolveVisibleLanding(access, hiddenPaths, options) {
+  const enabledModules = options.enabledModules ?? getEnabledVerticalModules(access);
+  const pathOptions = {...options, enabledModules};
+  const moduleBasePaths = getPrimaryVerticalModules(access)
+    .map((id) => VERTICAL_MODULES.find((module) => module.id === id)?.basePath)
+    .filter(Boolean);
+  const candidate = [...moduleBasePaths, "/inventario"].find((path) =>
+    !hiddenPaths.includes(path) && canAccessBusinessPath(access, path, pathOptions)
+  );
+  return candidate || "/cuenta";
+}
+
 export function getDefaultBusinessPath(access, options = {}) {
   const landing = resolveDefaultBusinessPath(access);
+  const hiddenPaths = getHiddenCorePaths(access);
+  if (hiddenPaths.includes(landing)) return resolveVisibleLanding(access, hiddenPaths, options);
   return isVerticalPathEnabled(access, landing, options) ? landing : "/cuenta";
 }
 

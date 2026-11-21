@@ -17,6 +17,11 @@ export const MONTHLY_EXPLANATIONS = Object.freeze({
   profit: "Lo vendido menos su costo, más lo que dejaron los proyectos. Los servicios sin proyecto no entran.",
 });
 
+// Rubros sin Proyectos (Taller y Veterinaria, SPEC 038): misma ganancia, con la nota en vez de
+// la mención a proyectos y del consejo de vincular los servicios a uno.
+export const PROFIT_PRODUCTS_ONLY_NOTE = "Incluye solo el margen de productos; los servicios vendidos fuera de un proyecto no se cuentan.";
+export const MONTHLY_PROFIT_EXPLANATION_WITHOUT_PROJECTS = `Lo vendido menos su costo. ${PROFIT_PRODUCTS_ONLY_NOTE}`;
+
 // Lo único que queda a la vista bajo cada cifra; la aclaración completa (MONTHLY_EXPLANATIONS) va en el ícono "i".
 export const MONTHLY_SHORT_NOTES = Object.freeze({
   sales: "Sin IVA",

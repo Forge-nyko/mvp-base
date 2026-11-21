@@ -21,7 +21,7 @@ Todo lo demás de las SPEC 031 y 033 sigue vigente: habilitación, `modulosHabil
 4. **Opt-in.** Sin `primaryModules` (o con una lista vacía o con ids que no estén en el registro) la salida es la de siempre, y la firma de `getBusinessPathOptions` no cambia. Solo `AppLayout` pasa `primaryModules`. El menú de escritorio y el del cajón móvil comparten `PrimaryNavigation`, así que ambos muestran la sección.
 5. **Acento visual.** La sección lleva la clase `nav-section--primary` (`src/styles/layout.css`): fondo `--color-surface-brand`, radio `--radius-md` y título con `--color-text-brand-accent`. Solo tokens existentes; no se agregó ninguno.
 6. **Los permisos no cambian.** La sección pasa por el mismo `filterNavigationSections`: un rol sin lectura del módulo no la ve y un negocio sin verificar sigue viendo solo Empresa y Cuenta (la sección no figura en `UNVERIFIED_BUSINESS_PATHS`). Un miembro con perfil personalizado (`modules`) queda como hoy, sin la sección: los perfiles no incluyen verticales (SPEC 031). Roles que ven la sección de Taller: OWNER, ADMIN, TECNICO y MEMBER (este último sin "Plazas", que exige `taller.manage`); la de Veterinaria: OWNER y ADMIN. VENTAS, COMPRAS y FINANZAS no ven ninguna. Es exactamente lo que ya veían bajo "Módulos".
-7. **No cambia el aterrizaje.** `getDefaultBusinessPath` no se toca: el inicio por defecto de cada rol es el de hoy (ver pregunta abierta de la sección 4). Tampoco cambian `platformAdmin`, el título de la barra superior (`getRouteMeta` usa el árbol por defecto) ni las rutas.
+7. **No cambia el aterrizaje.** *(Sustituido solo para el TECNICO de Taller y Veterinaria por la SPEC 038: su inicio ya no es `/trabajos`.)* `getDefaultBusinessPath` no se toca: el inicio por defecto de cada rol es el de hoy (ver pregunta abierta de la sección 4). Tampoco cambian `platformAdmin`, el título de la barra superior (`getRouteMeta` usa el árbol por defecto) ni las rutas.
 
 ## 3. Pruebas
 
@@ -35,6 +35,8 @@ Todo lo demás de las SPEC 031 y 033 sigue vigente: habilitación, `modulosHabil
 - Las pruebas que fijaban la estructura anterior de "Módulos" siguen válidas sin cambios, porque la salida por defecto no cambió.
 
 ## 4. Pregunta abierta para Bruno
+
+> La SPEC 038 resuelve solo el caso del TECNICO (su inicio ya no es `/trabajos` en Taller y Veterinaria). El resto de la pregunta sigue abierta.
 
 **¿Dónde debe aterrizar un usuario de Taller o Veterinaria al entrar?** Hoy aterriza como cualquier otro negocio: OWNER, ADMIN y FINANZAS en `/reportes`, TECNICO en `/trabajos`, VENTAS en `/cotizaciones`, COMPRAS en `/ordenes-compra`. Si el rubro es el centro de su día, tal vez deba aterrizar en su módulo (órdenes de trabajo para Taller, resumen clínico para Veterinaria), quizá solo para algunos roles. No se implementó: cambiar `getDefaultBusinessPath` toca el inicio de la sesión, el cambio de negocio y la activación inicial, y es decisión de producto.
 

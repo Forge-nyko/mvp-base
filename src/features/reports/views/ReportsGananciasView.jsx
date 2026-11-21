@@ -12,7 +12,7 @@ import ProfitSummaryCards from "../ProfitSummaryCards";
 // plegado en "Ver el cálculo paso a paso". La única suma es la que entrega el
 // helper de dominio; esta vista no combina bloques por su cuenta.
 // `currentMonthKey` ("AAAA-MM") lo pasa la página: los helpers no leen el reloj.
-function ReportsGananciasView({currency, currentMonthKey = null, links, navigate, operationalProfit, profitabilityV4, range}) {
+function ReportsGananciasView({currency, currentMonthKey = null, links, navigate, operationalProfit, profitabilityV4, range, showProjects = true}) {
   const {commercial, projects} = profitabilityV4;
   const monthly = useMemo(() => {
     if (operationalProfit.status !== "ready") return null;
@@ -43,7 +43,7 @@ function ReportsGananciasView({currency, currentMonthKey = null, links, navigate
   const calculation = <>
     <section className="erp-card reports-detail-section reports-plain-headings">
       <div className="reports-section-heading"><div><span>Ganancia</span><h2>Ganancia del período</h2><p>Ventas sin proyecto y proyectos del período, cada venta contada una sola vez.</p></div></div>
-      <OperationalNetProfitBreakdown canView={profitabilityV4.canView} currency={currency} onRetry={profitabilityV4.reload} state={operationalProfit} />
+      <OperationalNetProfitBreakdown canView={profitabilityV4.canView} currency={currency} onRetry={profitabilityV4.reload} showProjects={showProjects} state={operationalProfit} />
     </section>
 
     {hasAlerts && <section className="erp-card reports-detail-section reports-plain-headings">

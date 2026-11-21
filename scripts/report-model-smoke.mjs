@@ -61,6 +61,8 @@ import {
   normalizeMonthKey,
   shiftMonthKey,
   summarizeProfitCoverage,
+  MONTHLY_PROFIT_EXPLANATION_WITHOUT_PROJECTS,
+  PROFIT_PRODUCTS_ONLY_NOTE,
 } from "../src/domain/reportMonthlySummary.mjs";
 import {canViewWorkProfitability} from "../src/domain/workModel.mjs";
 
@@ -1258,6 +1260,85 @@ try {
   assert.equal(count(multi, /Hay 1 documento confirmado sin neto válido/g), 1, "los documentos sin neto, una sola vez");
   assert.match(multi, /<span>Parcial · 2 cosas por revisar<\/span>/);
   assert.equal(count(multi, /reports-ring reports-ring--up/g), 2, "un círculo por moneda");
+
+  // --- Entrega F (SPEC 038): Taller y Veterinaria no tienen Proyectos; la fórmula de "Me quedó" no cambia ---
+  assert.equal(PROFIT_PRODUCTS_ONLY_NOTE, "Incluye solo el margen de productos; los servicios vendidos fuera de un proyecto no se cuentan.");
+  assert.equal(MONTHLY_PROFIT_EXPLANATION_WITHOUT_PROJECTS, `Lo vendido menos su costo. ${PROFIT_PRODUCTS_ONLY_NOTE}`);
+  const servicesProfit = {status: "ready", error: "", result: {grupos: [{moneda: "CLP", gananciaNetaOperacional: 500, cobertura: "COMPLETA", gananciaNetaOperacionalPct: 25, ingresoNetoConsiderado: 2000, ventasSinCostoRegistrado: {ventas: 1, monto: 15000}}]}};
+  const withProjectsScreen = screen({profit: servicesProfit});
+  const noProjectsScreen = screen({profit: servicesProfit, showProjects: false});
+  // Por defecto (cualquier otro rubro) todo igual que hoy.
+  assert.deepEqual(screen({profit: servicesProfit, showProjects: true}), withProjectsScreen, "showProjects true es el valor por defecto");
+  assert.match(withProjectsScreen, /Proyectos del mes/);
+  assert.match(withProjectsScreen, /Ver todos los proyectos/);
+  assert.ok(withProjectsScreen.includes("Vincúlalos a un proyecto para saber si ganas o pierdes con ellos."));
+  assert.ok(withProjectsScreen.includes(MONTHLY_EXPLANATIONS.profit));
+  // Sin proyectos: ni la sección, ni su enlace, ni el aviso de proyectos incompletos, ni el consejo de vincular.
+  assert.doesNotMatch(noProjectsScreen, /Proyectos del mes|reports-month-projects|Ver todos los proyectos|Abrir ficha de/);
+  assert.doesNotMatch(noProjectsScreen, /proyectos? con movimiento no se muestra|datos están incompletos/);
+  assert.doesNotMatch(noProjectsScreen, /Vincúlalos a un proyecto|servicios vendidos sin proyecto/);
+  assert.doesNotMatch(noProjectsScreen, /lo que dejaron los proyectos/, "tampoco el texto del ícono menciona proyectos");
+  assert.ok(noProjectsScreen.includes(`Hay $15.000 en servicios vendidos. ${PROFIT_PRODUCTS_ONLY_NOTE}`), "el aviso de servicios dice la nota");
+  assert.ok(noProjectsScreen.includes(MONTHLY_PROFIT_EXPLANATION_WITHOUT_PROJECTS), "el ícono de Me quedó dice la nota");
+  assert.equal(count(noProjectsScreen, /Incluye solo el margen de productos/g), 2, "una vez en el ícono y otra en el aviso");
+  // El resto de la pantalla, igual: tarjetas, orden, cifras, margen y gráfico.
+  assert.ok(noProjectsScreen.indexOf(">Vendí<") < noProjectsScreen.indexOf(">Compré<") && noProjectsScreen.indexOf(">Compré<") < noProjectsScreen.indexOf(">Me quedó<"));
+  assert.ok(noProjectsScreen.includes("De cada $100 que vendes, te quedan $25"), "la fórmula y el margen no cambian");
+  assert.match(noProjectsScreen, /reports-ring reports-ring--up/);
+  assert.match(noProjectsScreen, /reports-trend/, "la evolución del mes sigue");
+  assert.match(noProjectsScreen, /Ver detalle/, "el detalle de Ganancia sigue abierto");
+  assert.equal(
+    noProjectsScreen.replace(/<section class="erp-card reports-month-projects"[\s\S]*?<\/section>/, ""),
+    noProjectsScreen,
+    "no queda ninguna sección de proyectos"
+  );
+  // Aviso suelto (sin permiso de ganancia) y aviso del componente.
+  assert.doesNotMatch(
+    html(React.createElement(ReportsProfitNotice, {currency: "CLP", locale: "es-CL", onNavigate: () => {}, onOpenDetail: () => {}, showProjects: false, lines: buildProfitNoticeLines({canViewProfitability: true, servicesAmount: 15000})})),
+    /Vincúlalos|sin proyecto/
+  );
+  assert.ok(
+    html(React.createElement(ReportsProfitNotice, {currency: "CLP", locale: "es-CL", onNavigate: () => {}, onOpenDetail: () => {}, showProjects: false, lines: buildProfitNoticeLines({canViewProfitability: true, servicesAmount: 15000})}))
+      .includes(`Hay $15.000 en servicios vendidos. ${PROFIT_PRODUCTS_ONLY_NOTE}`)
+  );
+  // Las demás líneas del aviso no cambian con la bandera.
+  assert.deepEqual(
+    html(React.createElement(ReportsProfitNotice, {currency: "CLP", locale: "es-CL", onNavigate: () => {}, onOpenDetail: () => {}, showProjects: false, lines: buildProfitNoticeLines({canViewProfitability: true, withoutNetCount: 2})})),
+    html(React.createElement(ReportsProfitNotice, {currency: "CLP", locale: "es-CL", onNavigate: () => {}, onOpenDetail: () => {}, lines: buildProfitNoticeLines({canViewProfitability: true, withoutNetCount: 2})}))
+  );
+
+  // Ganancia: sin la tabla "Proyectos"; las otras dos tablas y las cifras, iguales.
+  const {OperationalNetProfitBreakdown, OperationalSystemStatus} = await summaryVite.ssrLoadModule("/src/features/reports/OperationalNetProfitBreakdown.jsx");
+  const breakdownState = {status: "ready", error: "", result: {periodo: {proyectosPorMesCompleto: false}, alertasGenerales: [], grupos: [{
+    moneda: "CLP", cobertura: "COMPLETA", gananciaNetaOperacional: 1500, gananciaNetaOperacionalPct: 15, ingresoNetoConsiderado: 10000,
+    componentes: {
+      ventasSinProyecto: {ingresoNetoProductos: 10000, costoHistoricoProductos: 8500, margenBrutoProductos: 1500},
+      proyectos: {ingresoNeto: 0, materialesVenta: 0, materialesAdicionales: 0, horasHombre: 0, gastosDirectos: 0, gastosIndirectos: 0, resultado: 0},
+    },
+    alertas: [{id: "A4", clave: "PROYECTOS_CON_COSTOS_SIN_VENTA", efecto: "INCLUIDOS", conteo: 1, monto: 100}],
+    ventasSinCostoRegistrado: {ventas: 0, monto: 0},
+  }]}};
+  const breakdown = (props = {}) => html(React.createElement(OperationalNetProfitBreakdown, {canView: true, currency: "todos", state: breakdownState, ...props}));
+  assert.match(breakdown(), /<caption[^>]*>Proyectos<\/caption>/, "por defecto la tabla de proyectos se ve");
+  const breakdownNoProjects = breakdown({showProjects: false});
+  assert.doesNotMatch(breakdownNoProjects, /<caption[^>]*>Proyectos<\/caption>|Horas hombre|Gastos directos/, "sin tabla de proyectos");
+  assert.match(breakdownNoProjects, /<caption[^>]*>Ventas sin proyecto<\/caption>/);
+  assert.match(breakdownNoProjects, /<caption[^>]*>Total<\/caption>/);
+  assert.equal(count(breakdownNoProjects, /<tr>/g), count(breakdown(), /<tr>/g) - 7, "solo faltan las 7 filas de la tabla de proyectos");
+  assert.ok(breakdownNoProjects.includes("$1.500"), "la ganancia no cambia");
+  // El botón "Revisar" de las alertas de proyectos solo existe con enlace a /trabajos.
+  const statusHtml = (links) => html(React.createElement(OperationalSystemStatus, {canView: true, currency: "todos", links, onNavigate: () => {}, state: breakdownState}));
+  assert.match(statusHtml({sales: true, works: true}), /Revisar/);
+  assert.doesNotMatch(statusHtml({sales: true, works: false}), /Revisar/);
+
+  // Cableado de la página: la bandera sale del rubro y también apaga los enlaces a /trabajos.
+  const f = readFileSync("src/pages/StatisticsPage.jsx", "utf8");
+  assert.match(f, /import \{getHiddenCorePaths\} from "\.\.\/domain\/categoryModules\.mjs";/);
+  assert.match(f, /const showProjects = !getHiddenCorePaths\(role\)\.includes\("\/trabajos"\);/);
+  assert.match(f, /works: showProjects && canAccessBusinessPath\(role, "\/trabajos"\)/);
+  assert.match(f, /<ReportsMonthlySummary [^>]*showProjects=\{showProjects\}/);
+  assert.match(f, /<ReportsGananciasView [^>]*showProjects=\{showProjects\}/);
+  assert.match(readFileSync("src/features/reports/views/ReportsMonthlySummary.jsx", "utf8"), /\{showProjects && <ReportsMonthlyProjects canView=\{canViewProfitability\}/);
 } finally {
   await summaryVite.close();
 }
