@@ -19,6 +19,8 @@ import {
   validateQuoteDraft,
 } from "../domain/quoteModel.mjs";
 import { getCategoriesForArea } from "../domain/inventoryCatalog.mjs";
+import { adaptDocumentAmountDecimals } from "../domain/localization.mjs";
+import { roundMoney, sanitizeDecimals } from "../domain/money.mjs";
 import { buildValuationForItem, PRICING_STATUS } from "../domain/pricing";
 import useAiRateLimit from "../hooks/useAiRateLimit";
 import ClientSelector from "../features/clients/ClientSelector";
@@ -165,7 +167,8 @@ function parseDraftNumber(value) {
   return Number.isFinite(numberValue) ? numberValue : null;
 }
 
-function calculateSuggestedInternalPrice(costoBase, margenDeseado) {
+// `montoDecimales`: decimales de cálculo del documento (SPEC 036). Con 0 es el redondeo entero de siempre.
+function calculateSuggestedInternalPrice(costoBase, margenDeseado, montoDecimales = 0) {
   const costo = parseDraftNumber(costoBase);
   const margen = parseDraftNumber(margenDeseado);
 
@@ -178,7 +181,7 @@ function calculateSuggestedInternalPrice(costoBase, margenDeseado) {
     return "";
   }
 
-  return Math.round(costo + (costo * margen) / 100);
+  return roundMoney(costo + (costo * margen) / 100, sanitizeDecimals(montoDecimales));
 }
 
 function buildManualPriceJustification(margenDeseado) {
@@ -314,7 +317,7 @@ function buildInitialQuote(projectContext = null) {
   };
 }
 
-function normalizeStoredQuoteItems(items) {
+function normalizeStoredQuoteItems(items, montoDecimales = 0) {
   return normalizeQuoteItems(
     Array.isArray(items)
       ? items.map((item) => {
@@ -340,7 +343,8 @@ function normalizeStoredQuoteItems(items) {
             precioUnitarioEditable: storedUnitPrice,
           };
         })
-      : []
+      : [],
+    { montoDecimales }
   );
 }
 
@@ -381,7 +385,10 @@ function buildQuoteFromSavedQuote(savedQuote = {}) {
     },
     validezDias: Number(savedQuote.validezDias || 15),
     afectaIva: savedQuote.afectaIva !== false,
-    items: normalizeStoredQuoteItems(savedQuote.items),
+    items: normalizeStoredQuoteItems(
+      savedQuote.items,
+      adaptDocumentAmountDecimals(savedQuote, savedQuote.moneda)
+    ),
     descuento: Number(savedQuote.descuento || 0),
     observaciones: savedQuote.observaciones || "",
     seccionesAlcance: Array.isArray(savedQuote.seccionesAlcance)
@@ -439,6 +446,12 @@ function NewQuotePage({ userId }) {
   const [success, setSuccess] = useState(() => location.state?.message || "");
   const [itemFeedback, setItemFeedback] = useState("");
   const [savedQuoteId, setSavedQuoteId] = useState(null);
+  // Decimales de cálculo (SPEC 036): una cotización guardada usa el `montoDecimales` de su documento (ausente = 0);
+  // un borrador que todavía no existe usa los de la moneda del negocio. Con 0 todo se calcula entero, como siempre.
+  const documentDecimals = savedQuoteId
+    ? adaptDocumentAmountDecimals(quote, quote.moneda)
+    : formatBusinessAmount.amountDecimals;
+  const moneyStep = documentDecimals > 0 ? String(10 ** -documentDecimals) : "1";
   const [assistantDescription, setAssistantDescription] = useState("");
   const [assistantSuggestions, setAssistantSuggestions] = useState([]);
   const [assistantLoading, setAssistantLoading] = useState(false);
@@ -687,7 +700,7 @@ function NewQuotePage({ userId }) {
     () =>
       (Array.isArray(quote.items) ? quote.items : []).map((item, index) => {
         try {
-          const amounts = calculateQuoteLineAmounts(item, index);
+          const amounts = calculateQuoteLineAmounts(item, index, documentDecimals);
           return {
             ...item,
             precioUnitarioEditable: item.precioUnitarioEditable,
@@ -701,7 +714,7 @@ function NewQuotePage({ userId }) {
           return { ...item, totalLinea: 0 };
         }
       }),
-    [quote.items]
+    [documentDecimals, quote.items]
   );
 
   const totalsResult = useMemo(
@@ -711,11 +724,15 @@ function NewQuotePage({ userId }) {
         tasaIva:
           quote.tasaIva ??
           Number(companyProfile?.impuestoPredeterminadoTasa ?? 19) / 100,
+        montoDecimales: documentDecimals,
       }),
-    [companyProfile?.impuestoPredeterminadoTasa, quote.afectaIva, quote.descuento, quote.items, quote.tasaIva]
+    [companyProfile?.impuestoPredeterminadoTasa, documentDecimals, quote.afectaIva, quote.descuento, quote.items, quote.tasaIva]
   );
   const totals = totalsResult.totals;
-  const quoteValidation = useMemo(() => validateQuoteDraft(quote), [quote]);
+  const quoteValidation = useMemo(
+    () => validateQuoteDraft({ ...quote, montoDecimales: documentDecimals }),
+    [documentDecimals, quote]
+  );
 
   const itemQuantityById = useMemo(() => {
     const quantities = {};
@@ -1054,7 +1071,8 @@ function NewQuotePage({ userId }) {
               item.itemId === valuation.itemId
                 ? { ...item, cantidad: Number(item.cantidad || 0) + quantityToAdd }
                 : item
-            )
+            ),
+            { montoDecimales: documentDecimals }
           ),
         };
       }
@@ -1064,10 +1082,10 @@ function NewQuotePage({ userId }) {
         items: normalizeQuoteItems([
           ...prev.items,
           {
-            ...createQuoteItemFromValuation(valuation),
+            ...createQuoteItemFromValuation(valuation, { montoDecimales: documentDecimals }),
             cantidad: quantityToAdd,
           },
-        ]),
+        ], { montoDecimales: documentDecimals }),
       };
     });
     showAddFeedback(valuation.itemId, wasExisting);
@@ -1428,7 +1446,8 @@ function NewQuotePage({ userId }) {
       if (field === "costoBase" || field === "margenDeseado") {
         const calculatedPrice = calculateSuggestedInternalPrice(
           next.costoBase,
-          next.margenDeseado
+          next.margenDeseado,
+          documentDecimals
         );
         next.precioInterno = calculatedPrice;
         next.confianzaPrecio = calculatedPrice
@@ -1460,7 +1479,8 @@ function NewQuotePage({ userId }) {
     const margenDeseado = parseDraftNumber(suggestedItemDraft.margenDeseado);
     const precioInterno = calculateSuggestedInternalPrice(
       suggestedItemDraft.costoBase,
-      suggestedItemDraft.margenDeseado
+      suggestedItemDraft.margenDeseado,
+      documentDecimals
     );
     const cantidadSugerida = parseDraftNumber(suggestedItemDraft.cantidadSugerida);
     const validation = getSuggestedItemValidation(suggestedItemDraft);
@@ -1605,14 +1625,14 @@ function NewQuotePage({ userId }) {
 
       const newItems = Array.from(pendingByItemId.values()).map(
         ({ valuation, quantity }) => ({
-          ...createQuoteItemFromValuation(valuation),
+          ...createQuoteItemFromValuation(valuation, { montoDecimales: documentDecimals }),
           cantidad: quantity,
         })
       );
 
       return {
         ...prev,
-        items: normalizeQuoteItems([...updatedItems, ...newItems]),
+        items: normalizeQuoteItems([...updatedItems, ...newItems], { montoDecimales: documentDecimals }),
       };
     });
 
@@ -1767,6 +1787,7 @@ function NewQuotePage({ userId }) {
     try {
       const payload = {
         ...quote,
+        montoDecimales: documentDecimals,
         estado: "borrador",
         empresa: quote.empresa || companyProfile || {},
         items: quote.items,
@@ -2376,7 +2397,7 @@ function NewQuotePage({ userId }) {
                     <input
                       type="number"
                       min="0"
-                      step="1"
+                      step={moneyStep}
                       value={suggestedItemDraft.costoBase}
                       onBlur={() => markSuggestedItemFieldTouched("costoBase")}
                       onChange={(event) =>
@@ -2400,7 +2421,7 @@ function NewQuotePage({ userId }) {
                     <input
                       type="number"
                       min="0"
-                      step="1"
+                      step={moneyStep}
                       value={suggestedItemDraft.margenDeseado}
                       onBlur={() =>
                         markSuggestedItemFieldTouched("margenDeseado")

@@ -5,6 +5,8 @@ import {sileo} from "sileo";
 import Button from "../components/ui/Button";
 import LoadingState from "../components/ui/LoadingState";
 import ResponsiveDialog from "../components/ui/ResponsiveDialog";
+import {adaptDocumentAmountDecimals} from "../domain/localization.mjs";
+import {useBusinessMoney} from "../hooks/useBusinessFormat";
 import {
   calculateSaleTotals,
   canManageSales,
@@ -120,6 +122,12 @@ export default function NewSalePage({businessId, role}) {
     return trabajoId ? {...base, trabajoId} : base;
   });
   const [sale, setSale] = useState(null);
+  // Decimales de cálculo (SPEC 036): una venta guardada usa el `montoDecimales` de su documento (ausente = 0); un
+  // borrador que todavía no existe usa los de la moneda del negocio. Con 0 todo se calcula entero, como siempre.
+  const businessMoney = useBusinessMoney();
+  const documentDecimals = sale
+    ? adaptDocumentAmountDecimals(sale, sale.moneda)
+    : businessMoney.amountDecimals;
   const [clients, setClients] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [company, setCompany] = useState(null);
@@ -206,12 +214,13 @@ export default function NewSalePage({businessId, role}) {
         ? calculateSaleTotals(draft.items, draft.descuento, {
             afectaIva: draft.afectaIva,
             tasaIva: sale?.tasaIva ?? Number(company?.impuestoPredeterminadoTasa ?? 19) / 100,
+            montoDecimales: documentDecimals,
           })
         : {...EMPTY_TOTALS, descuento: Number(draft.descuento || 0), afectaIva: draft.afectaIva !== false, tasaIva: draft.afectaIva === false ? 0 : 0.19};
     } catch {
       return {...EMPTY_TOTALS, afectaIva: draft.afectaIva !== false, tasaIva: draft.afectaIva === false ? 0 : 0.19};
     }
-  }, [company?.impuestoPredeterminadoTasa, draft.afectaIva, draft.descuento, draft.items, sale?.tasaIva]);
+  }, [company?.impuestoPredeterminadoTasa, documentDecimals, draft.afectaIva, draft.descuento, draft.items, sale?.tasaIva]);
 
   const hasInsufficientStock = useMemo(() => {
     const inventoryById = new Map(inventory.map((item) => [item.id, item]));
@@ -316,9 +325,11 @@ export default function NewSalePage({businessId, role}) {
     return {key: product.id, label: product.nombre};
   };
 
+  // El borrador viaja con los decimales con que se calculó, solo para validarlo en el cliente: el servidor decide los
+  // suyos con el snapshot del documento.
   const persist = async () => sale
-    ? (await actualizarVentaBorrador(businessId, sale.id, draft)).venta
-    : (await crearVenta(businessId, draft, {requestId: createId.current})).venta;
+    ? (await actualizarVentaBorrador(businessId, sale.id, {...draft, montoDecimales: documentDecimals})).venta
+    : (await crearVenta(businessId, {...draft, montoDecimales: documentDecimals}, {requestId: createId.current})).venta;
 
   const save = async () => {
     setProcessing(true);

@@ -95,8 +95,38 @@ function sumMoney(values, decimals = 0) {
   return fromMinorUnits(roundDivide(total, 10n ** BigInt(scale - places)), places);
 }
 
+// Decimales de cálculo válidos de un documento: entero entre 1 y 6. Ausente o inválido = 0.
+function sanitizeDecimals(value) {
+  return Number.isInteger(value) && value > 0 && value <= MAX_DECIMALS ? value : 0;
+}
+
+// ¿El número tiene a lo sumo `decimals` decimales? (0 = entero). Se mide sobre su representación decimal corta.
+function hasMaxDecimals(value, decimals = 0) {
+  const places = normalizeDecimals(decimals);
+  if (typeof value !== "number" || !Number.isFinite(value)) return false;
+  const scaled = toScaled(value);
+  return Boolean(scaled) && scaled.scale <= places;
+}
+
+// Validación de un importe calculado. Con 0 decimales es exactamente la de siempre: un entero seguro
+// (Number.isFinite y Number.isSafeInteger). Con decimales admite hasta `decimals` decimales, y el importe en
+// unidades menores (centavos) tiene que ser un entero seguro.
+function isMoneyAmount(value, decimals = 0) {
+  const places = normalizeDecimals(decimals);
+  if (places === 0) return Number.isFinite(value) && Number.isSafeInteger(value);
+  if (typeof value !== "number" || !Number.isFinite(value)) return false;
+  const scaled = toScaled(value);
+  if (!scaled || scaled.scale > places) return false;
+  const units = scaled.value * 10n ** BigInt(places - scaled.scale);
+  const limit = BigInt(Number.MAX_SAFE_INTEGER);
+  return units >= -limit && units <= limit;
+}
+
 module.exports = {
+  hasMaxDecimals,
+  isMoneyAmount,
   mulRound,
   roundMoney,
+  sanitizeDecimals,
   sumMoney,
 };

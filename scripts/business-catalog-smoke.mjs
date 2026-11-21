@@ -39,7 +39,7 @@ assert.deepEqual(catalog.countries.find((country) => country.code === "PE")?.bas
 assert.equal(catalog.countries.find((country) => country.code === "BR")?.baseTax.configured, false);
 assert.equal(catalog.countries.find((country) => country.code === "BR")?.baseTax.rate, null);
 // Países abiertos a empresas nuevas: Chile y Bolivia. Bolivia es el piloto con montos enteros redondeados
-// (acta 7.6.1, opción (a), decisión de Bruno del 20-nov): el dinero se guarda entero y Bs pierde los centavos.
+// (acta 7.6.1, opción (a), decisión de Mauricio del 20-nov): el dinero se guarda entero y Bs pierde los centavos.
 // Paraguay se cierra para empresas nuevas (las existentes no cambian) y el resto sigue cerrado.
 // Reactivar o cerrar un país es poner o quitar su "selectableForNewBusiness": false, sin tocar código.
 const expectedNewBusinessCountries = [

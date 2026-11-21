@@ -34,7 +34,7 @@ assert.equal(
   body(serverSource).replace(/\nmodule\.exports = \{[\s\S]*$/, ""),
   "src/domain/money.mjs y functions/money.js tienen el mismo cuerpo"
 );
-assert.deepEqual(Object.keys(server).sort(), ["mulRound", "roundMoney", "sumMoney"]);
+assert.deepEqual(Object.keys(server).sort(), ["hasMaxDecimals", "isMoneyAmount", "mulRound", "roundMoney", "sanitizeDecimals", "sumMoney"]);
 
 // --- Diferencial con 0 decimales: bit a bit la fórmula que usan hoy los modelos ---
 const legacyMul = (a, b, divisor = 1) => Math.round((a * b) / divisor);

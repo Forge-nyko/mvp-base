@@ -1,6 +1,6 @@
 # SPEC 036: Montos con decimales por moneda (Bolivia)
 
-Estado: **en curso. Entrega A implementada en la rama `mejora-refresco-avisos` (2026-11-20), sin commit ni despliegue; las entregas B, C y D están pendientes.** Decisión de Bruno del 20-nov-2026: en BOB los montos deben admitir 2 decimales y Bolivia debe funcionar igual de bien que Chile; CLP sigue entero y no cambia de comportamiento. `AGENTS.md` sigue siendo la autoridad en seguridad y arquitectura multiempresa.
+Estado: **en curso. Entrega A implementada en la rama `mejora-refresco-avisos` (2026-11-20), sin commit ni despliegue; las entregas B, C y D están pendientes.** Decisión de Mauricio del 20-nov-2026, tomada al ver que Bolivia trabaja con decimales en el día a día (sustituye el redondeo que él mismo había decidido en la SPEC 035). Bruno no aprobó el redondeo y aún no ha sido consultado sobre los decimales. En BOB los montos deben admitir 2 decimales y Bolivia debe funcionar igual de bien que Chile; CLP sigue entero y no cambia de comportamiento. `AGENTS.md` sigue siendo la autoridad en seguridad y arquitectura multiempresa.
 
 ## 1. Qué sustituye
 
