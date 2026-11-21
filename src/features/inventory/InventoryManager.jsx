@@ -30,6 +30,7 @@ import {
 import { getFirstInventoryErrorField, getInventoryLowStockHelperText, getInventoryUnitChangeWarning } from "../../domain/inventoryFormLayout.mjs";
 import { getCategoriesForArea, getInventoryAreaLabel, getInventoryCategoryLabel, isDuplicateAreaName, isDuplicateCategoryName } from "../../domain/inventoryCatalog.mjs";
 import { calculateBasePrice, calculateEffectiveInternalPrice } from "../../domain/pricing.js";
+import { roundMoney } from "../../domain/money.mjs";
 import {BUSINESS_PERMISSIONS, hasBusinessPermission} from "../../domain/rbac.mjs";
 import {formatChileanRut} from "../../domain/fiscalIdentifier.mjs";
 import {
@@ -115,6 +116,10 @@ const DEFAULT_INVENTORY_FILTERS = Object.freeze({ query: "", type: "todos", area
 function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
   const navigate = useNavigate();
   const formatBusinessAmount = useBusinessMoney();
+  // Decimales de cálculo de la moneda del negocio (SPEC 036): 0 en CLP (todo entero, como siempre). El costo y el
+  // precio de venta de Inventario no son documentos y no guardan snapshot: rigen los de la moneda del negocio.
+  const amountDecimals = formatBusinessAmount.amountDecimals;
+  const moneyStep = amountDecimals > 0 ? String(10 ** -amountDecimals) : "any";
   const cannotWrite = readOnly || !hasBusinessPermission(role, BUSINESS_PERMISSIONS.INVENTORY_WRITE);
   const canStartPurchase = !readOnly && hasBusinessPermission(role, BUSINESS_PERMISSIONS.PURCHASES_WRITE);
   const canReadCosts = hasBusinessPermission(role, BUSINESS_PERMISSIONS.INVENTORY_COSTS_READ);
@@ -245,9 +250,9 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
     [items, settings]
   );
   const visibleItems = useMemo(() => {
-    const filtered = filterInventoryItems(items, filters);
+    const filtered = filterInventoryItems(items, {...filters, decimals: amountDecimals});
     return lowStockOnly ? filtered.filter((item) => isInventoryLowStock(item, settings)) : filtered;
-  }, [filters, items, lowStockOnly, settings]);
+  }, [amountDecimals, filters, items, lowStockOnly, settings]);
   // Al activarlo se limpian los demás filtros: la lista muestra exactamente lo
   // que cuenta la tarjeta. Después se puede refinar con los filtros normales.
   const toggleLowStockFilter = () => {
@@ -302,7 +307,7 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
   };
 
   const openEditItem = (rawItem) => {
-    const item = adaptInventoryItem(rawItem);
+    const item = adaptInventoryItem(rawItem, {decimals: amountDecimals});
     setEditingItem(rawItem);
     const editDraft = {
       ...EMPTY_DRAFT,
@@ -450,7 +455,7 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
 
   const saveItem = async (event) => {
     event.preventDefault();
-    const errors = validateInventoryDraft({...draft, codigoSolicitado: ""});
+    const errors = validateInventoryDraft({...draft, codigoSolicitado: ""}, {decimals: amountDecimals});
     setFieldErrors(errors);
     if (Object.keys(errors).length) {
       // Todos los campos están visibles: el foco va al primer campo con error en
@@ -469,6 +474,7 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
             ? adaptInventoryItem(editingItem).estado
             : "activo",
           allowRequestedCode: false,
+          decimals: amountDecimals,
         }
       );
       if (editingItem) {
@@ -518,19 +524,20 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
     margenDeseado: draftMargin,
     precioInterno: draftManualPrice,
     precioManual: hasDraftManualPrice,
-  });
-  const legacyCalculatedPrice = Math.round(calculateBasePrice({ costoBase: draftCost, margenDeseado: draftMargin }));
+  }, amountDecimals);
+  const roundDraftPrice = (value) => (amountDecimals === 0 ? Math.round(value) : roundMoney(value, amountDecimals));
+  const legacyCalculatedPrice = roundDraftPrice(calculateBasePrice({ costoBase: draftCost, margenDeseado: draftMargin }));
   const calculatedPrice = isProductDraft
     ? productPriceFormation.precioVentaSugerido
     : legacyCalculatedPrice;
   const effectivePrice = isProductDraft
     ? productPriceFormation.precioVentaFinal
-    : Math.round(calculateEffectiveInternalPrice({ costoBase: draftCost, margenDeseado: draftMargin, precioInterno: draftManualPrice, precioManual: hasDraftManualPrice }));
+    : roundDraftPrice(calculateEffectiveInternalPrice({ costoBase: draftCost, margenDeseado: draftMargin, precioInterno: draftManualPrice, precioManual: hasDraftManualPrice }));
   // SPEC 023 §6.4: un producto v2 sin precio manual muestra su sugerido actual
   // junto al nuevo; el precio solo cambia si se guarda la ficha.
   const legacyV2SuggestedPrice = isProductDraft && !hasDraftManualPrice &&
     Number(editingItem?.formacionPrecioVersion) === LEGACY_PURCHASE_TAX_PRICE_FORMATION_VERSION
-    ? adaptInventoryItem(editingItem).precioCalculado
+    ? adaptInventoryItem(editingItem, {decimals: amountDecimals}).precioCalculado
     : null;
   const exemptionLocked = Boolean(editingItem) && !canChangeTaxExemption;
   // Base real del recargo: calculateInventoryPriceFormation (productos, sobre el
@@ -543,10 +550,12 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
   // Precio con IVA solo informativo: siempre la tasa del negocio. La marca "Exento de IVA"
   // afecta solo al costo (compra); Ventas y Cotizaciones suman el IVA por documento
   // (saleModel.mjs:105-109, quoteModel.mjs:212) y no leen esa marca.
-  const priceWithTax = calculateInventoryPriceWithTax(effectivePrice, businessTaxRate);
+  const priceWithTax = amountDecimals === 0
+    ? calculateInventoryPriceWithTax(effectivePrice, businessTaxRate)
+    : calculateInventoryPriceWithTax(effectivePrice, businessTaxRate, amountDecimals);
   const stockHelperText = getInventoryLowStockHelperText(draft.stockMinimo, settings);
   // Cambiar la unidad de un ítem con stock no convierte la cantidad: se advierte.
-  const editingAdapted = editingItem ? adaptInventoryItem(editingItem) : null;
+  const editingAdapted = editingItem ? adaptInventoryItem(editingItem, {decimals: amountDecimals}) : null;
   const unitChangeWarning = getInventoryUnitChangeWarning({
     editing: Boolean(editingAdapted),
     previousUnit: editingAdapted?.unidad,
@@ -633,15 +642,15 @@ function InventoryManager({ businessId, readOnly = false, role = "OWNER" }) {
             <h3>Precio</h3>
             <div className="inventory-price-grid">
               {isProductDraft
-                ? <Field field="costoBase" label={draft.exentoIva ? "Costo (exento de IVA)" : "Costo neto (sin IVA)"} required error={fieldErrors.costoBase}><input className="erp-control" type="number" min="0" step="any" value={draft.costoBase} onChange={(event) => updateDraft("costoBase", event.target.value)} placeholder="¿Cuánto pagaste por una unidad, sin IVA?" /></Field>
-                : <Field field="costoBase" label="Costo unitario" required error={fieldErrors.costoBase}><input className="erp-control" type="number" min="0" step="any" value={draft.costoBase} onChange={(event) => updateDraft("costoBase", event.target.value)} placeholder={INVENTORY_UNIT_COST_PLACEHOLDERS[draft.tipoItem]} /></Field>}
+                ? <Field field="costoBase" label={draft.exentoIva ? "Costo (exento de IVA)" : "Costo neto (sin IVA)"} required error={fieldErrors.costoBase}><input className="erp-control" type="number" min="0" step={moneyStep} value={draft.costoBase} onChange={(event) => updateDraft("costoBase", event.target.value)} placeholder="¿Cuánto pagaste por una unidad, sin IVA?" /></Field>
+                : <Field field="costoBase" label="Costo unitario" required error={fieldErrors.costoBase}><input className="erp-control" type="number" min="0" step={moneyStep} value={draft.costoBase} onChange={(event) => updateDraft("costoBase", event.target.value)} placeholder={INVENTORY_UNIT_COST_PLACEHOLDERS[draft.tipoItem]} /></Field>}
               {isProductDraft && <label data-inventory-field="exentoIva" className="inventory-manual-price-toggle inventory-tax-exempt-toggle"><input type="checkbox" checked={draft.exentoIva === true} disabled={exemptionLocked} onChange={(event) => updateDraft("exentoIva", event.target.checked)} /><span>Exento de IVA</span>{exemptionLocked && <small className="inventory-field-hint">Solo la administración del negocio puede cambiar esta marca.</small>}{fieldErrors.exentoIva && <small className="inventory-field-error">{fieldErrors.exentoIva}</small>}</label>}
               <Field field="margenDeseado" label="Recargo (%)" required hint={markupBaseHint} error={fieldErrors.margenDeseado}><input className="erp-control" type="number" min="0" max="1000" step="any" value={draft.margenDeseado} onChange={(event) => updateDraft("margenDeseado", event.target.value)} placeholder="Ej. 30" /></Field>
               {!isProductDraft && unitField}
             </div>
             {legacyV2SuggestedPrice !== null && legacyV2SuggestedPrice !== calculatedPrice && <p className="inventory-feedback inventory-feedback--notice">El precio sugerido de este producto incluía el IVA de compra. Al guardar se recalcula sobre el costo neto: {formatBusinessAmount(legacyV2SuggestedPrice)} → {formatBusinessAmount(calculatedPrice)}.</p>}
             <label className="inventory-manual-price-toggle"><input type="checkbox" checked={manualPriceEnabled} onChange={(event) => { const enabled = event.target.checked; setManualPriceEnabled(enabled); if (!enabled) updateDraft("precioManual", ""); }} /><span>Definir precio de venta manual</span></label>
-            {manualPriceEnabled && <div className="inventory-price-grid inventory-price-grid--pair"><Field field="precioManual" label="Precio de venta manual (neto)" error={fieldErrors.precioManual}><input className="erp-control" type="number" min="0" step="any" value={draft.precioManual} onChange={(event) => updateDraft("precioManual", event.target.value)} placeholder="Define el precio que cobrarás al cliente" /></Field><PriceResult label="Precio sugerido" value={calculatedPrice} /></div>}
+            {manualPriceEnabled && <div className="inventory-price-grid inventory-price-grid--pair"><Field field="precioManual" label="Precio de venta manual (neto)" error={fieldErrors.precioManual}><input className="erp-control" type="number" min="0" step={moneyStep} value={draft.precioManual} onChange={(event) => updateDraft("precioManual", event.target.value)} placeholder="Define el precio que cobrarás al cliente" /></Field><PriceResult label="Precio sugerido" value={calculatedPrice} /></div>}
             <p className="inventory-price-line">Precio de venta (neto): <strong>{formatBusinessAmount(effectivePrice)}</strong> · con IVA: <strong>{priceWithTax === null ? "sin tasa de IVA configurada" : formatBusinessAmount(priceWithTax)}</strong></p>
           </section>
           {draft.tipoItem === "producto" && <section className="inventory-form-section"><h3>Existencias</h3><div className="inventory-form-grid inventory-form-grid--three"><Field field="stock" label={editingItem ? "Stock actual" : "Stock inicial"} error={fieldErrors.stock}><input className="erp-control" type="number" min="0" step="any" value={draft.stock} onChange={(event) => updateDraft("stock", event.target.value)} placeholder="¿Cuántas unidades tienes disponibles?" /></Field><Field field="stockMinimo" label="Stock mínimo" error={fieldErrors.stockMinimo}><input className="erp-control" type="number" min="0" step="any" value={draft.stockMinimo} onChange={(event) => updateDraft("stockMinimo", event.target.value)} placeholder="Alerta desde cuántas unidades" /></Field>{unitField}</div><p className="inventory-stock-helper">{stockHelperText}</p>{unitChangeWarning && <p className="inventory-feedback inventory-feedback--notice" role="status">{unitChangeWarning}</p>}</section>}
@@ -724,7 +733,8 @@ function ItemDetail({ acquisitions, acquisitionsState, areas, cannotWrite, categ
   const formatBusinessAmount = useBusinessMoney();
   const { locale: businessLocale } = useBusinessFormat();
   if (!item) return null;
-  const adapted = adaptInventoryItem(item);
+  const detailDecimals = formatBusinessAmount.amountDecimals;
+  const adapted = adaptInventoryItem(item, {decimals: detailDecimals});
   const currency = adapted.costoPromedioMoneda || "CLP";
   const providerName = adapted.ultimoProveedor?.razonSocial || "Sin adquisiciones registradas";
   // SPEC 023 §6.2: el costo con IVA es solo referencia, con la tasa vigente.
@@ -732,7 +742,9 @@ function ItemDetail({ acquisitions, acquisitionsState, areas, cannotWrite, categ
     ? "Exento: no lleva IVA"
     : taxRate === null
       ? "Sin tasa de IVA configurada"
-      : formatBusinessAmount(adapted.costoBase + Math.round(adapted.costoBase * taxRate / 100));
+      : formatBusinessAmount(detailDecimals === 0
+        ? adapted.costoBase + Math.round(adapted.costoBase * taxRate / 100)
+        : calculateInventoryPriceWithTax(adapted.costoBase, taxRate, detailDecimals));
   const hasPurchaseReference = adapted.tipoItem === "producto" && Boolean(
     adapted.proveedorNombre || adapted.proveedorRut ||
     adapted.fechaCompraReferencia || adapted.numeroFacturaReferencia

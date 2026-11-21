@@ -1,3 +1,5 @@
+import {isMoneyAmount, mulRound, sanitizeDecimals, sumMoney} from "./money.mjs";
+
 export const WORK_ORDER_STATUSES = Object.freeze([
   {value: "ingresada", label: "Ingresada"},
   {value: "en_cola", label: "En cola"},
@@ -65,17 +67,35 @@ export function getWorkOrderApprovalVariant(value) {
 // con los valores de Inventario ya congelados o vigentes. No calcula IVA: el alcance de la OT
 // no guarda tasa ni exenciones (el IVA de las ventas se calcula al emitir la venta, no aquí).
 // Devuelve null si algún precio no está disponible.
-export function calculateWorkOrderScopeTotal(scope = []) {
+// `decimals` son los decimales de cálculo de la OT (su `montoDecimales`; SPEC 036). Con 0 se ejecuta literalmente la
+// fórmula de siempre (Math.round por línea de producto y total entero seguro). Con decimales, cada línea de producto
+// se redondea a esos decimales (decimal exacto, 3 × Bs 3,50 = Bs 10,50) y el total se valida en unidades menores.
+export function calculateWorkOrderScopeTotal(scope = [], decimals = 0) {
+  const places = sanitizeDecimals(decimals);
+  const lines = [];
   let total = 0;
   for (const service of Array.isArray(scope) ? scope : []) {
     if (!Number.isFinite(service?.precioUnitario)) return null;
-    total += service.precioUnitario;
+    if (places === 0) total += service.precioUnitario;
+    else lines.push(service.precioUnitario);
     for (const product of service.productos || []) {
       if (!Number.isFinite(product?.precioUnitario) || !Number.isFinite(product?.cantidad)) return null;
-      total += Math.round(product.precioUnitario * product.cantidad);
+      if (places === 0) total += Math.round(product.precioUnitario * product.cantidad);
+      else lines.push(mulRound(product.precioUnitario, product.cantidad, places));
     }
   }
-  return Number.isSafeInteger(total) ? total : null;
+  if (places === 0) return Number.isSafeInteger(total) ? total : null;
+  total = sumMoney(lines, places);
+  return isMoneyAmount(total, places) ? total : null;
+}
+
+// Importe de una línea de producto de la OT. Con 0 decimales es el producto sin redondear que la pantalla de
+// aprobación mostraba (precio × cantidad); con decimales, el importe redondeado a los decimales de la OT.
+export function calculateWorkOrderProductLineTotal(product, decimals = 0) {
+  const places = sanitizeDecimals(decimals);
+  return places === 0
+    ? product.precioUnitario * product.cantidad
+    : mulRound(product.precioUnitario, product.cantidad, places);
 }
 
 export function matchesWorkOrderSearch(order, vehicle, rawSearch) {

@@ -647,8 +647,9 @@ service cloud.firestore {
         && request.resource.data.businessId == businessId
         && request.resource.data.type in ["income", "expense"]
         && request.resource.data.status in ["paid", "pending"]
-        && request.resource.data.amount is int
+        && request.resource.data.amount is number
         && request.resource.data.amount > 0
+        && request.resource.data.amount <= 9007199254740991
         && request.resource.data.date is string
         && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && request.resource.data.concept is string

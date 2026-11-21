@@ -29,8 +29,15 @@ function nonNegativeNumber(value) {
   return parsed !== null && parsed >= 0 ? parsed : null;
 }
 
-function roundMoney(value) {
-  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+// Escala del costo y del margen: centavos (100) como siempre, y más fina solo si la venta tuviera más de 2 decimales
+// de cálculo (SPEC 036). Con 0 y con 2 decimales es exactamente 100. Los porcentajes usan siempre 2 decimales.
+function moneyScale(decimals = 0) {
+  return 10 ** Math.max(2, decimals);
+}
+
+function roundMoney(value, decimals = 0) {
+  const scale = moneyScale(decimals);
+  return Math.round((Number(value || 0) + Number.EPSILON) * scale) / scale;
 }
 
 function roundQuantity(value) {
@@ -168,6 +175,7 @@ function baseResult(sale, amounts, status, overrides = {}) {
 // ambos salen del mismo `amounts` y de la misma cobertura por línea.
 function evaluateSaleCommercialMargin(sale = {}) {
   const amounts = commercialAmounts(sale);
+  const decimals = amounts.decimals ?? 0;
   const state = String(sale.estado || "").trim().toLowerCase();
   const finish = (status, overrides = {}, coverageByLine = null) => ({
     result: baseResult(sale, amounts, status, overrides),
@@ -247,7 +255,7 @@ function evaluateSaleCommercialMargin(sale = {}) {
       }
 
       coverage.cantidad += quantity;
-      coverage.costo = roundMoney(coverage.costo + totalCost);
+      coverage.costo = roundMoney(coverage.costo + totalCost, decimals);
       if (coverage.cantidad - coverage.line.cantidad > QUANTITY_EPSILON) {
         coverage.invalid = true;
         hasAnomaly = true;
@@ -259,7 +267,7 @@ function evaluateSaleCommercialMargin(sale = {}) {
     !entry.invalid && Math.abs(entry.cantidad - entry.line.cantidad) <= QUANTITY_EPSILON
   );
   const coveredQuantity = coverage.reduce((sum, entry) => sum + entry.cantidad, 0);
-  const coveredCost = roundMoney(coverage.reduce((sum, entry) => sum + entry.costo, 0));
+  const coveredCost = roundMoney(coverage.reduce((sum, entry) => sum + entry.costo, 0), decimals);
   const coverageSummary = {
     lineas: productLines.length,
     lineasCubiertas: coveredLines.length,
@@ -286,7 +294,7 @@ function evaluateSaleCommercialMargin(sale = {}) {
   }
 
   const historicalCost = coveredCost;
-  const productMargin = roundMoney(amounts.ingresoNetoProductos - historicalCost);
+  const productMargin = roundMoney(amounts.ingresoNetoProductos - historicalCost, decimals);
   const marginPercentage = amounts.ingresoNetoProductos > 0
     ? roundMoney((productMargin / amounts.ingresoNetoProductos) * 100)
     : null;
@@ -358,12 +366,14 @@ export function calculateSaleProductLineMarginsV1(sale = {}) {
     productLines.map((line) => line.totalLinea),
     decimals
   );
-  const toCents = (value) => Math.round(Number(value || 0) * 100);
+  // Unidad menor del costo y del margen: la escala sale de los decimales de la venta (100 con 0 y con 2 decimales).
+  const scale = moneyScale(decimals);
+  const toMinorUnits = (value) => Math.round(Number(value || 0) * scale);
   return {
     ...base,
     lineas: productLines.map((line, position) => {
       const netRevenue = sumMoney([line.totalLinea, -generalDiscounts[position]], decimals);
-      const costCents = toCents(coverageByLine.get(line.lineaId).costo);
+      const costUnits = toMinorUnits(coverageByLine.get(line.lineaId).costo);
       return {
         lineaId: line.lineaId,
         itemId: line.itemId,
@@ -371,8 +381,8 @@ export function calculateSaleProductLineMarginsV1(sale = {}) {
         totalLinea: line.totalLinea,
         descuentoGeneralAsignado: generalDiscounts[position],
         ingresoNeto: netRevenue,
-        costoHistorico: costCents / 100,
-        margenBruto: ((decimals === 0 ? netRevenue * 100 : Math.round(netRevenue * 100)) - costCents) / 100,
+        costoHistorico: costUnits / scale,
+        margenBruto: ((decimals === 0 ? netRevenue * scale : Math.round(netRevenue * scale)) - costUnits) / scale,
       };
     }),
   };

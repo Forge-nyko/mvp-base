@@ -75,7 +75,7 @@ function downloadCsv(csv, filename) {
 
 function FinancePage({ businessId, role }) {
   const formatBusinessAmount = useBusinessMoney();
-  const { currency: businessCurrency } = useBusinessFormat();
+  const { currency: businessCurrency, amountDecimals } = useBusinessFormat();
   const [searchParams, setSearchParams] = useSearchParams();
   const today = getSantiagoDateKey();
   const selectedPeriod = VALID_PERIODS.has(searchParams.get("period"))
@@ -160,10 +160,10 @@ function FinancePage({ businessId, role }) {
 
   const saveMovement = async (payload) => {
     if (dialogState.movement) {
-      await updateFinancialMovement(businessId, dialogState.movement.id, payload);
+      await updateFinancialMovement(businessId, dialogState.movement.id, payload, { amountDecimals });
       setFeedback("Movimiento actualizado correctamente.");
     } else {
-      await createFinancialMovement(businessId, payload);
+      await createFinancialMovement(businessId, payload, { amountDecimals });
       setFeedback("Movimiento registrado correctamente.");
     }
   };
@@ -184,7 +184,7 @@ function FinancePage({ businessId, role }) {
 
   const exportFiltered = () => {
     downloadCsv(
-      buildFinancialCsv(filteredItems, businessCurrency),
+      buildFinancialCsv(filteredItems, businessCurrency, { amountDecimals }),
       `valoracloud-movimientos-${businessId}-${range.start}-${range.end}.csv`
     );
     setFeedback(`Se exportaron ${filteredItems.length} movimientos del negocio activo.`);

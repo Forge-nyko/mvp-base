@@ -12,6 +12,8 @@ const {
   assertFreshTallerAccess,
 } = require("./tallerAccess");
 const {ASSIGNABLE_BUSINESS_ROLES} = require("./rbac");
+const {adaptDocumentAmountDecimals, currencyAmountDecimals} = require("./localization");
+const {isMoneyAmount, roundMoney} = require("./money");
 
 function canReadCorePricing(membership) {
   if (!PRICING_READ_ROLES.includes(membership?.rol)) return false;
@@ -304,6 +306,16 @@ function businessCurrency(context) {
   return /^[A-Z]{3}$/.test(value) ? value : null;
 }
 
+// SPEC 036: decimales de cálculo de una OT. Una OT que ya tiene moneda usa los de su documento (`montoDecimales`;
+// ausente = 0, así una OT anterior sigue entera); sin moneda, o si la moneda cambió, salen del catálogo de la moneda
+// con la que se calcula. Nunca del payload del cliente.
+function workOrderAmountDecimals(order, currency) {
+  if (!currency) return 0;
+  return order?.moneda === currency
+    ? adaptDocumentAmountDecimals(order, currency)
+    : currencyAmountDecimals(currency);
+}
+
 async function requireManagementAccess(request, dependencies) {
   return requireTallerAccess(request, dependencies, "manage");
 }
@@ -400,6 +412,8 @@ function appendPlanningEvent(transaction, orderRef, {businessId, actorUid, actor
 async function listarCatalogoTallerHandler(request, dependencies) {
   const context = await requireTallerAccess(request, dependencies, "read");
   const canReadPrices = canReadCorePricing(context.membership);
+  // El catálogo es una vista de precios vigentes, no un documento: usa los decimales de la moneda del negocio.
+  const decimals = currencyAmountDecimals(businessCurrency(context));
   const snapshot = await context.businessRef.collection("inventario")
     .where("tipoItem", "in", ["servicio", "producto"]).get();
   const items = snapshot.docs.flatMap((document) => {
@@ -415,7 +429,7 @@ async function listarCatalogoTallerHandler(request, dependencies) {
       stock: item.tipoItem === "producto" && Number.isFinite(Number(item.stock))
         ? Number(item.stock) : null,
       precioEfectivo: canReadPrices && price !== null && Number.isFinite(price) && price >= 0
-        ? Math.round(price) : null,
+        ? (decimals === 0 ? Math.round(price) : roundMoney(price, decimals)) : null,
     }];
   });
   return {items};
@@ -592,6 +606,7 @@ async function crearOrdenTrabajoHandler(request, dependencies) {
     const sequence = nextSequence(counterSnapshot, HttpsError);
     const numeroOT = formatWorkOrderNumber(sequence);
     const timestamp = FieldValue.serverTimestamp();
+    const montoDecimales = currencyAmountDecimals(businessCurrency(context));
     const stored = {
       otId: orderRef.id,
       negocioId: context.businessId,
@@ -602,6 +617,8 @@ async function crearOrdenTrabajoHandler(request, dependencies) {
       estadoAprobacion: "pendiente",
       plazaId: null,
       moneda: businessCurrency(context),
+      // Solo con decimales: una OT con 0 decimales queda sin el campo, igual que hoy.
+      ...(montoDecimales > 0 ? {montoDecimales} : {}),
       recepcion: null,
       creadoPorUid: context.uid,
       creadoEn: timestamp,
@@ -651,6 +668,7 @@ async function crearOrdenTrabajoHandler(request, dependencies) {
       estadoAprobacion: result.stored.estadoAprobacion,
       plazaId: result.stored.plazaId,
       moneda: result.stored.moneda,
+      ...(result.stored.montoDecimales > 0 ? {montoDecimales: result.stored.montoDecimales} : {}),
       recepcion: result.stored.recepcion,
       creadoPorUid: context.uid,
       actualizadoPorUid: context.uid,
@@ -1303,16 +1321,21 @@ async function obtenerHistorialOTHandler(request, dependencies) {
   return {eventos: events};
 }
 
-function freezeCoreItem(snapshot, businessId, itemId, type, HttpsError) {
+// `decimals`: decimales de cálculo de la OT (SPEC 036). Con 0 el precio congelado es Math.round, como siempre.
+function freezeCoreItem(snapshot, businessId, itemId, type, HttpsError, decimals = 0) {
   assertPlanningItem(snapshot, businessId, itemId, type, HttpsError);
   const item = snapshot.data();
   if (typeof item.precioInterno !== "number" || !Number.isFinite(item.precioInterno) ||
       item.precioInterno < 0 || item.precioInterno > Number.MAX_SAFE_INTEGER) {
     fail(HttpsError, "failed-precondition", "Un ítem no tiene precio de venta vigente válido en Inventario. Revisa el catálogo antes de enviar.");
   }
+  const precioUnitario = decimals === 0 ? Math.round(item.precioInterno) : roundMoney(item.precioInterno, decimals);
+  if (decimals > 0 && !isMoneyAmount(precioUnitario, decimals)) {
+    fail(HttpsError, "failed-precondition", "Un ítem no tiene precio de venta vigente válido en Inventario. Revisa el catálogo antes de enviar.");
+  }
   const nombre = text(item.nombre || item.descripcionItem, "El nombre del ítem", 240, HttpsError, {required: true});
   return {
-    precioUnitario: Math.round(item.precioInterno),
+    precioUnitario,
     snapshot: {
       codigoInterno: String(item.codigoInterno || item.sku || ""), nombre,
       unidad: String(item.unidad || "unidad"),
@@ -1403,16 +1426,19 @@ async function obtenerResumenAprobacionOTHandler(request, dependencies) {
     const data = await readApprovalContext(transaction, context, context.businessRef.collection("ordenesTrabajo").doc(otId), dependencies, "preview");
     const {order, services, items, membership, faltantes} = data;
     const submitted = approvalIsSubmitted(order);
+    const summaryCurrency = order.moneda || businessCurrency({businessSnapshot: {data: () => data.businessData}});
+    const decimals = workOrderAmountDecimals(order, summaryCurrency);
     const scope = frozenScope(services).map((service) => {
       if (submitted) return service;
-      const core = freezeCoreItem(items.get(service.itemId), context.businessId, service.itemId, "servicio", dependencies.HttpsError);
+      const core = freezeCoreItem(items.get(service.itemId), context.businessId, service.itemId, "servicio", dependencies.HttpsError, decimals);
       return {...service, precioUnitario: core.precioUnitario, servicioSnapshot: core.snapshot,
         productos: service.productos.map((product) => {
-          const coreProduct = freezeCoreItem(items.get(product.itemId), context.businessId, product.itemId, "producto", dependencies.HttpsError);
+          const coreProduct = freezeCoreItem(items.get(product.itemId), context.businessId, product.itemId, "producto", dependencies.HttpsError, decimals);
           return {...product, precioUnitario: coreProduct.precioUnitario, productoSnapshot: coreProduct.snapshot};
         })};
     });
-    return {alcance: scope, moneda: order.moneda || businessCurrency({businessSnapshot: {data: () => data.businessData}}),
+    return {alcance: scope, moneda: summaryCurrency,
+      ...(decimals > 0 ? {montoDecimales: decimals} : {}),
       congelado: submitted, faltantes, puedeAprobar: canApproveWorkOrder(membership),
       puedeEnviar: Boolean(order.recepcion && services.length && data.hasDiagnosis &&
         PLANNING_STATES.has(order.estado) && order.estado !== "esperando_aprobacion" &&
@@ -1459,6 +1485,7 @@ async function approvalOperation(request, dependencies, action) {
     let estado = order.estado;
     let estadoAprobacion = order.estadoAprobacion;
     let moneda = order.moneda;
+    let decimals = adaptDocumentAmountDecimals(order, order.moneda);
     let scope = frozenScope(services);
     const scopeHash = scopeFingerprint(services);
     let envioId = approvalState.data()?.envioId || null;
@@ -1469,11 +1496,13 @@ async function approvalOperation(request, dependencies, action) {
       }
       moneda = businessCurrency({businessSnapshot: {data: () => data.businessData}});
       if (!moneda) fail(HttpsError, "failed-precondition", "Configura una moneda válida en el negocio antes de enviar.");
+      // Los decimales son los del documento guardado; solo si la moneda cambió salen del catálogo.
+      decimals = workOrderAmountDecimals(order, moneda);
       scope = services.map((service) => {
-        const core = freezeCoreItem(items.get(service.itemId), context.businessId, service.itemId, "servicio", HttpsError);
+        const core = freezeCoreItem(items.get(service.itemId), context.businessId, service.itemId, "servicio", HttpsError, decimals);
         return {...frozenScope([service])[0], precioUnitario: core.precioUnitario, servicioSnapshot: core.snapshot,
           productos: service.productos.map((product) => {
-            const coreProduct = freezeCoreItem(items.get(product.itemId), context.businessId, product.itemId, "producto", HttpsError);
+            const coreProduct = freezeCoreItem(items.get(product.itemId), context.businessId, product.itemId, "producto", HttpsError, decimals);
             return {...product, precioUnitario: coreProduct.precioUnitario, productoSnapshot: coreProduct.snapshot};
           })};
       });
@@ -1508,7 +1537,11 @@ async function approvalOperation(request, dependencies, action) {
       }));
       transaction.set(stateRef, {negocioId: context.businessId, otId, scopeHash, envioId, actualizadoEn: timestamp});
     }
-    transaction.update(orderRef, {estado, estadoAprobacion, moneda, actualizadoEn: timestamp, actualizadoPorUid: context.uid});
+    // `montoDecimales` solo se toca al enviar y solo si cambia: con 0 decimales una OT queda como hoy (sin el campo).
+    const storedDecimals = adaptDocumentAmountDecimals(order, order.moneda);
+    const decimalsChange = action === "enviar" && decimals !== storedDecimals
+      ? {montoDecimales: decimals > 0 ? decimals : FieldValue.delete()} : {};
+    transaction.update(orderRef, {estado, estadoAprobacion, moneda, ...decimalsChange, actualizadoEn: timestamp, actualizadoPorUid: context.uid});
     const type = {enviar: "ot_enviada_aprobacion", aprobar: "ot_aprobada", rechazar: "ot_rechazada", revalidar: "disponibilidad_revalidada"}[action];
     appendPlanningEvent(transaction, orderRef, {businessId: context.businessId, actorUid: context.uid, actorSnapshot, timestamp,
       type, detail: {envioId, moneda, alcance: scope, motivo, faltantes,
@@ -1526,6 +1559,7 @@ const revalidarDisponibilidadOTHandler = (request, deps) => approvalOperation(re
 
 module.exports = {
   MAX_RECEPTION_MILEAGE_KM,
+  workOrderAmountDecimals,
   appendPlanningEvent,
   diagnosisActor,
   identifier,

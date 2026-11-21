@@ -2,7 +2,8 @@ import React, {useCallback, useEffect, useState} from "react";
 import Button from "../../components/ui/Button";
 import LoadingState from "../../components/ui/LoadingState";
 import ResponsiveDialog from "../../components/ui/ResponsiveDialog";
-import {calculateWorkOrderScopeTotal} from "../../domain/workOrderModel.mjs";
+import {adaptDocumentAmountDecimals} from "../../domain/localization.mjs";
+import {calculateWorkOrderProductLineTotal, calculateWorkOrderScopeTotal} from "../../domain/workOrderModel.mjs";
 import useBusinessFormat from "../../hooks/useBusinessFormat";
 import {formatBusinessMoney} from "../../utils/formatters";
 import {
@@ -84,6 +85,8 @@ export default function ApprovalPanel({businessId, otId, order, onChanged}) {
   }, [businessId, otId, confirmation, busy, reason, onChanged]);
 
   const awaitingDecision = summary?.estado === "esperando_aprobacion" && summary?.estadoAprobacion === "pendiente";
+  // Decimales de cálculo de la OT (SPEC 036): los resuelve el servidor y vienen en el resumen; ausente = 0.
+  const decimals = summary ? adaptDocumentAmountDecimals(summary, summary.moneda) : 0;
   return <section className="erp-panel" aria-labelledby="work-order-approval-title">
     <div className="erp-panel-header"><div>
       <h2 id="work-order-approval-title" className="erp-panel-title">Alcance y aprobación</h2>
@@ -100,9 +103,9 @@ export default function ApprovalPanel({businessId, otId, order, onChanged}) {
           <thead><tr><th>Servicio / producto</th><th>Cantidad</th><th>Precio</th><th>Subtotal</th></tr></thead>
           <tbody>{summary.alcance.map((service) => <React.Fragment key={service.servicioOtId}>
             <tr><td><strong>{service.servicioSnapshot?.nombre || "Servicio no disponible"}</strong></td><td>1</td><td>{amount(service.precioUnitario, summary.moneda, locale)}</td><td>{amount(service.precioUnitario, summary.moneda, locale)}</td></tr>
-            {service.productos.map((product) => <tr key={product.productoOtId}><td>{product.productoSnapshot?.nombre || "Producto no disponible"}</td><td>{product.cantidad}</td><td>{amount(product.precioUnitario, summary.moneda, locale)}</td><td>{amount(product.precioUnitario * product.cantidad, summary.moneda, locale)}</td></tr>)}
+            {service.productos.map((product) => <tr key={product.productoOtId}><td>{product.productoSnapshot?.nombre || "Producto no disponible"}</td><td>{product.cantidad}</td><td>{amount(product.precioUnitario, summary.moneda, locale)}</td><td>{amount(calculateWorkOrderProductLineTotal(product, decimals), summary.moneda, locale)}</td></tr>)}
           </React.Fragment>)}</tbody>
-          <tfoot><tr className="work-order-approval-total"><th scope="row" colSpan={3}>Total</th><td>{amount(calculateWorkOrderScopeTotal(summary.alcance), summary.moneda, locale)}</td></tr></tfoot>
+          <tfoot><tr className="work-order-approval-total"><th scope="row" colSpan={3}>Total</th><td>{amount(calculateWorkOrderScopeTotal(summary.alcance, decimals), summary.moneda, locale)}</td></tr></tfoot>
         </table></div>}
       {summary.alcance.length > 0 && <p className="erp-secondary-text">El total suma los valores del alcance. No se calcula IVA en esta vista.</p>}
       {summary.estado === "esperando_repuestos" && <div className="vehicle-message vehicle-message--warning" role="status">{summary.estadoAprobacion === "aprobada"

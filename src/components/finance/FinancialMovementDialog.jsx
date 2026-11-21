@@ -46,7 +46,9 @@ function FinancialMovementDialog({
   open,
   preferredType = "income",
 }) {
-  const { currency } = useBusinessFormat();
+  const { currency, amountDecimals } = useBusinessFormat();
+  // Paso del monto (SPEC 036): "1" con 0 decimales (como siempre), "0.01" con 2. Es el paso y el mínimo del campo.
+  const moneyStep = amountDecimals > 0 ? String(10 ** -amountDecimals) : "1";
   const [form, setForm] = React.useState(() =>
     toFormValue(movement, preferredType)
   );
@@ -149,9 +151,9 @@ function FinancialMovementDialog({
             <span className="erp-field__label">Monto {currency}</span>
             <input
               className="erp-control"
-              inputMode="numeric"
-              min="1"
-              step="1"
+              inputMode={amountDecimals > 0 ? "decimal" : "numeric"}
+              min={moneyStep}
+              step={moneyStep}
               type="number"
               required
               value={form.amount}

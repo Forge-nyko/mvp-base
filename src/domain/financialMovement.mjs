@@ -1,3 +1,5 @@
+import { isMoneyAmount, sanitizeDecimals } from "./money.mjs";
+
 export const FINANCIAL_MODEL_VERSION = 1;
 export const FINANCIAL_TIME_ZONE = "America/Santiago";
 
@@ -177,9 +179,12 @@ export function getPreviousFinancialPeriod(range) {
   return { start, end, days, period: "previous" };
 }
 
+// `amountDecimals`: decimales de cálculo de la moneda del negocio (SPEC 036). Un movimiento no es un documento: no guarda
+// snapshot y las reglas de Firestore solo exigen un número positivo con tope, de modo que los decimales los valida este
+// modelo. Con 0 se conserva exactamente la validación de siempre (entero seguro) y su mensaje.
 export function normalizeFinancialMovementInput(
   input,
-  { businessId, userId, allowAutomatic = false } = {}
+  { businessId, userId, allowAutomatic = false, amountDecimals = 0 } = {}
 ) {
   const type = safeText(input?.type, 20);
   const status = safeText(input?.status, 20);
@@ -198,8 +203,13 @@ export function normalizeFinancialMovementInput(
   if (!userId) throw new Error("Debes iniciar sesión.");
   if (!TYPE_IDS.has(type)) throw new Error("Selecciona un tipo de movimiento válido.");
   if (!STATUS_IDS.has(status)) throw new Error("Selecciona un estado válido.");
-  if (!Number.isSafeInteger(amount) || amount <= 0) {
-    throw new Error("El monto debe ser un número entero mayor que cero.");
+  const places = sanitizeDecimals(amountDecimals);
+  if (places === 0) {
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
+      throw new Error("El monto debe ser un número entero mayor que cero.");
+    }
+  } else if (!isMoneyAmount(amount, places) || amount <= 0) {
+    throw new Error(`El monto debe ser un número mayor que cero, con hasta ${places} decimales.`);
   }
   if (!isValidFinancialDate(date)) throw new Error("Ingresa una fecha válida.");
   if (!concept) throw new Error("Ingresa el concepto del movimiento.");
@@ -244,7 +254,10 @@ export function normalizeFinancialMovementInput(
 export function adaptFinancialMovement(raw = {}) {
   return {
     ...raw,
-    amount: Number.isSafeInteger(Number(raw.amount)) ? Number(raw.amount) : 0,
+    // Un entero seguro, como siempre; con decimales (SPEC 036) también un monto finito dentro del rango seguro.
+    amount: Number.isFinite(Number(raw.amount)) && Math.abs(Number(raw.amount)) <= Number.MAX_SAFE_INTEGER
+      ? Number(raw.amount)
+      : 0,
     sourceType: raw.sourceType || "manual",
     sourceId: raw.sourceId || "",
     searchText:
@@ -394,7 +407,19 @@ function escapeCsvCell(value) {
   return /[";,\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-export function buildFinancialCsv(movements, currency = "CLP") {
+// Monto del CSV. Con 0 decimales y un monto entero es el número de siempre. Con decimales (SPEC 036) se escribe con
+// coma decimal y siempre con los decimales de la moneda (10,50): el archivo separa columnas con ";", la convención de
+// las configuraciones regionales de coma decimal, y así Excel lo lee como número. Un monto con más decimales que los
+// de la moneda (p. ej. tras volver el interruptor a 0) se escribe completo, sin truncarlo.
+function formatCsvAmount(value, amountDecimals) {
+  const amount = Number(value || 0);
+  const places = sanitizeDecimals(amountDecimals);
+  if (places === 0 && Number.isInteger(amount)) return amount;
+  const own = (String(amount).split(".")[1] || "").length;
+  return amount.toFixed(Math.max(places, own)).replace(".", ",");
+}
+
+export function buildFinancialCsv(movements, currency = "CLP", { amountDecimals = 0 } = {}) {
   const header = [
     "Fecha",
     "Concepto",
@@ -416,7 +441,7 @@ export function buildFinancialCsv(movements, currency = "CLP") {
     getPaymentMethodLabel(movement.paymentMethodId),
     movement.counterpartyName,
     movement.reference,
-    Number(movement.amount || 0),
+    formatCsvAmount(movement.amount, amountDecimals),
     movement.sourceType,
   ]);
   return `\ufeff${[header, ...rows]
