@@ -1,5 +1,6 @@
 const {createHash} = require("node:crypto");
 const {adaptDocumentLocalization, currencyDecimals, documentLocalizationSnapshot} = require("./localization");
+const {hasMaxDecimals, isMoneyAmount, mulRound, sanitizeDecimals, sumMoney} = require("./money");
 const {buildAuthoritativeCompanySnapshot, resolveCompanySnapshot} = require("./companySnapshot");
 const {fiscalSnapshotFields} = require("./fiscalIdentifier");
 const {
@@ -47,10 +48,22 @@ function number(value, label, HttpsError, {minimum = 0, maximum = Infinity} = {}
   if (result < minimum || result > maximum) fail(HttpsError, "invalid-argument", `${label} está fuera del rango permitido.`);
   return result;
 }
-function safeMoney(values, HttpsError) {
-  if (values.some((value) => !Number.isFinite(value) || !Number.isSafeInteger(value))) {
+// SPEC 036: `decimals` son los decimales de cálculo del documento (su `montoDecimales`; 0 = entero, como siempre). Con 0 la
+// validación es la de antes (un entero seguro); con decimales admite hasta esa cantidad de decimales.
+function safeMoney(values, HttpsError, decimals = 0) {
+  if (values.some((value) => !isMoneyAmount(value, decimals))) {
     fail(HttpsError, "invalid-argument", MAXIMUM_AMOUNT_MESSAGE);
   }
+}
+// Con decimales, el costo unitario de cada línea admite hasta esa cantidad de decimales. Con 0 no se agrega
+// ningún límite nuevo (Chile). La cantidad y el porcentaje no se limitan.
+function assertAmountDecimals(normalized, decimals, HttpsError) {
+  if (decimals <= 0) return;
+  normalized.items.forEach((item, index) => {
+    if (!hasMaxDecimals(item.costoUnitario, decimals)) {
+      fail(HttpsError, "invalid-argument", `Ítem ${index + 1}: costo unitario admite hasta ${decimals} decimales.`);
+    }
+  });
 }
 function date(value, label, HttpsError, required = false) {
   const result = text(value, 10);
@@ -193,36 +206,36 @@ async function productTaxIds(transaction, businessRef, lines) {
   const snapshots = await transaction.getAll(...itemIds.map((itemId) => businessRef.collection("inventario").doc(itemId)));
   return new Map(snapshots.map((snapshot) => [snapshot.id, productTaxId(snapshot)]));
 }
-function storedLine(value, snapshot, HttpsError, impuestoId = "") {
+function storedLine(value, snapshot, HttpsError, impuestoId = "", decimals = 0) {
   const cantidad = snapshot.tipoItem === "producto"
     ? assertCanonicalInventoryQuantity(value.cantidad, HttpsError)
     : value.cantidad;
-  const subtotalLinea = Math.round(cantidad * value.costoUnitario);
-  const descuentoLinea = Math.round((subtotalLinea * value.descuentoPct) / 100);
-  const totalLinea = subtotalLinea - descuentoLinea;
-  safeMoney([subtotalLinea, descuentoLinea, totalLinea], HttpsError);
+  const subtotalLinea = mulRound(cantidad, value.costoUnitario, decimals);
+  const descuentoLinea = mulRound(subtotalLinea, value.descuentoPct, decimals, 100);
+  const totalLinea = sumMoney([subtotalLinea, -descuentoLinea], decimals);
+  safeMoney([subtotalLinea, descuentoLinea, totalLinea], HttpsError, decimals);
   return {lineaId: value.lineaId, itemId: value.itemId, codigo: snapshot.codigoInterno, nombre: snapshot.nombre, descripcion: snapshot.descripcion, tipoItem: snapshot.tipoItem, unidad: snapshot.unidad, cantidad, costoUnitario: value.costoUnitario, descuentoPct: value.descuentoPct, subtotalLinea, descuentoLinea, totalLinea, ...(snapshot.tipoItem === "producto" && impuestoId ? {impuestoId} : {}), inventarioSnapshot: snapshot};
 }
 // Sin `tipoDocumento` conserva el cálculo legacy (IVA sobre todo el neto).
 // Con él aplica SPEC 023 §5.2: la boleta no suma IVA y las líneas exentas
 // quedan fuera de la base del impuesto.
-function totals(items, HttpsError, taxRate = VAT_RATE, {tipoDocumento} = {}) {
-  const subtotal = items.reduce((sum, item) => sum + item.subtotalLinea, 0);
-  const descuentoTotal = items.reduce((sum, item) => sum + item.descuentoLinea, 0);
-  const neto = subtotal - descuentoTotal;
+function totals(items, HttpsError, taxRate = VAT_RATE, {tipoDocumento, decimals = 0} = {}) {
+  const subtotal = sumMoney(items.map((item) => item.subtotalLinea), decimals);
+  const descuentoTotal = sumMoney(items.map((item) => item.descuentoLinea), decimals);
+  const neto = sumMoney([subtotal, -descuentoTotal], decimals);
   if (tipoDocumento === undefined) {
-    const iva = Math.round(neto * taxRate);
-    const total = neto + iva;
-    safeMoney([subtotal, descuentoTotal, neto, iva, total], HttpsError);
+    const iva = mulRound(neto, taxRate, decimals);
+    const total = sumMoney([neto, iva], decimals);
+    safeMoney([subtotal, descuentoTotal, neto, iva, total], HttpsError, decimals);
     return {subtotal, descuentoTotal, neto, iva, total};
   }
-  const montoExento = items
+  const montoExento = sumMoney(items
     .filter((item) => resolvePurchaseVatTreatment({tipoDocumento, impuestoId: item.impuestoId}) === PURCHASE_VAT_TREATMENTS.EXENTO)
-    .reduce((sum, item) => sum + item.totalLinea, 0);
+    .map((item) => item.totalLinea), decimals);
   const isBoleta = resolvePurchaseVatTreatment({tipoDocumento}) === PURCHASE_VAT_TREATMENTS.BOLETA;
-  const iva = isBoleta ? 0 : Math.round((neto - montoExento) * taxRate);
-  const total = neto + iva;
-  safeMoney([subtotal, descuentoTotal, neto, montoExento, iva, total], HttpsError);
+  const iva = isBoleta ? 0 : mulRound(sumMoney([neto, -montoExento], decimals), taxRate, decimals);
+  const total = sumMoney([neto, iva], decimals);
+  safeMoney([subtotal, descuentoTotal, neto, montoExento, iva, total], HttpsError, decimals);
   return {subtotal, descuentoTotal, neto, montoExento, iva, total};
 }
 // Verificación de totales del documento importado (SPEC de compras, opción A del informe del importador): el
@@ -270,14 +283,15 @@ async function access(request, dependencies) {
 function formatNumber(year, sequence) { return `COM-${year}-${String(sequence).padStart(4, "0")}`; }
 function baseStored({businessId, uid, purchaseId, numero, sequence, now, normalized, proveedorSnapshot, items, localization, empresaSnapshot, modelVersion = MODEL_VERSION, stockManagedBy = "compra_directa", origin = {}, timestamp, HttpsError}) {
   const location = localization || adaptDocumentLocalization({});
-  const calculatedTotals = totals(items, HttpsError, location.tasaIva, {tipoDocumento: normalized.tipoDocumento});
+  const decimals = sanitizeDecimals(location.montoDecimales);
+  const calculatedTotals = totals(items, HttpsError, location.tasaIva, {tipoDocumento: normalized.tipoDocumento, decimals});
   const documentoOrigen = normalized.documentoOrigen ? {
     ...normalized.documentoOrigen,
     coherenciaEstado: documentCoherenceState(normalized.documentoOrigen, calculatedTotals, {currency: location.moneda, tipoDocumento: normalized.tipoDocumento, lineCount: items.length}),
     importadoEn: timestamp,
     actualizadoEn: timestamp,
   } : null;
-  return {modeloCompraVersion: modelVersion, compraId: purchaseId, negocioId: businessId, numero, anio: now.year, correlativo: sequence, estado: "borrador", paisCodigo: location.paisCodigo, moneda: location.moneda, locale: location.locale, impuestoNombre: location.impuestoNombre, tasaIva: location.tasaIva, empresaSnapshot, proveedorId: normalized.proveedorId, proveedorSnapshot, ...origin, documentoOrigen: origin.documentoOrigen || documentoOrigen, items, ...calculatedTotals, modeloIvaCompraVersion: PURCHASE_VAT_MODEL_VERSION, fechaCompra: normalized.fechaCompra, fechaDocumento: normalized.fechaDocumento, tipoDocumento: normalized.tipoDocumento, numeroDocumentoProveedor: normalized.numeroDocumentoProveedor, condicionesPago: normalized.condicionesPago || text(proveedorSnapshot.condicionesPago, 2000), observaciones: normalized.observaciones, stockGestionadoPor: stockManagedBy, stockAplicado: false, stockAplicadoEn: null, creadoPorUid: uid, actualizadoPorUid: uid, creadoEn: timestamp, actualizadoEn: timestamp};
+  return {modeloCompraVersion: modelVersion, compraId: purchaseId, negocioId: businessId, numero, anio: now.year, correlativo: sequence, estado: "borrador", paisCodigo: location.paisCodigo, moneda: location.moneda, locale: location.locale, impuestoNombre: location.impuestoNombre, tasaIva: location.tasaIva, ...(decimals > 0 ? {montoDecimales: decimals} : {}), empresaSnapshot, proveedorId: normalized.proveedorId, proveedorSnapshot, ...origin, documentoOrigen: origin.documentoOrigen || documentoOrigen, items, ...calculatedTotals, modeloIvaCompraVersion: PURCHASE_VAT_MODEL_VERSION, fechaCompra: normalized.fechaCompra, fechaDocumento: normalized.fechaDocumento, tipoDocumento: normalized.tipoDocumento, numeroDocumentoProveedor: normalized.numeroDocumentoProveedor, condicionesPago: normalized.condicionesPago || text(proveedorSnapshot.condicionesPago, 2000), observaciones: normalized.observaciones, stockGestionadoPor: stockManagedBy, stockAplicado: false, stockAplicadoEn: null, creadoPorUid: uid, actualizadoPorUid: uid, creadoEn: timestamp, actualizadoEn: timestamp};
 }
 
 function buildConfirmedPurchaseFromReception({
@@ -309,8 +323,12 @@ function buildConfirmedPurchaseFromReception({
       `Originada desde ${reception.numero || "recepcion"}`,
     items: sourceItems,
   }, HttpsError);
+  // Los decimales son los de la recepción de origen (su `montoDecimales`, heredado de la orden), no los del catálogo.
+  const localization = adaptDocumentLocalization(reception);
+  const decimals = sanitizeDecimals(localization.montoDecimales);
+  assertAmountDecimals(normalized, decimals, HttpsError);
   const items = sourceItems.map((line, index) => ({
-    ...ocSnapshotLine(line, index, HttpsError, taxIdsByItem.get(text(line.itemId, 160)) || ""),
+    ...ocSnapshotLine(line, index, HttpsError, taxIdsByItem.get(text(line.itemId, 160)) || "", decimals),
     ...(Array.isArray(line.documentoLineas) && line.documentoLineas.length
       ? {documentoLineas: line.documentoLineas}
       : {}),
@@ -332,7 +350,7 @@ function buildConfirmedPurchaseFromReception({
     normalized,
     proveedorSnapshot: reception.proveedorSnapshot || {},
     items,
-    localization: adaptDocumentLocalization(reception),
+    localization,
     empresaSnapshot,
     modelVersion: MODEL_VERSION,
     stockManagedBy: "recepcion",
@@ -428,12 +446,16 @@ async function crearCompraHandler(request, dependencies, clock = new Date()) {
     const refs = [businessRef.collection("proveedores").doc(normalized.proveedorId), counterRef, businessRef, businessRef.collection("configuracion").doc("impuestos"), businessRef.collection("empresa").doc("perfil"), ...normalized.items.map((item) => businessRef.collection("inventario").doc(item.itemId))];
     const snapshots = await transaction.getAll(...refs);
     const proveedorSnapshot = provider(snapshots[0], businessId, normalized.proveedorId, HttpsError);
-    const items = normalized.items.map((item, index) => storedLine(item, inventory(snapshots[index + 5], businessId, item.itemId, HttpsError), HttpsError, productTaxId(snapshots[index + 5])));
+    // Los decimales salen del servidor: el snapshot de la moneda del negocio al crear (el cliente no los impone).
+    const localization = documentLocalizationSnapshot(snapshots[2].data() || {}, snapshots[3].data() || {});
+    const decimals = sanitizeDecimals(localization.montoDecimales);
+    assertAmountDecimals(normalized, decimals, HttpsError);
+    const items = normalized.items.map((item, index) => storedLine(item, inventory(snapshots[index + 5], businessId, item.itemId, HttpsError), HttpsError, productTaxId(snapshots[index + 5]), decimals));
     const current = Number(snapshots[1].data()?.lastNumber || 0);
     const sequence = Number.isSafeInteger(current) && current >= 0 ? current + 1 : 1;
     const numero = formatNumber(now.year, sequence);
     const timestamp = FieldValue.serverTimestamp();
-    const stored = baseStored({businessId, uid, purchaseId: purchaseRef.id, numero, sequence, now, normalized, proveedorSnapshot, items, localization: documentLocalizationSnapshot(snapshots[2].data() || {}, snapshots[3].data() || {}), empresaSnapshot: buildAuthoritativeCompanySnapshot({businessId, business: snapshots[2].data() || {}, profile: snapshots[4].data() || {}}), timestamp, HttpsError});
+    const stored = baseStored({businessId, uid, purchaseId: purchaseRef.id, numero, sequence, now, normalized, proveedorSnapshot, items, localization, empresaSnapshot: buildAuthoritativeCompanySnapshot({businessId, business: snapshots[2].data() || {}, profile: snapshots[4].data() || {}}), timestamp, HttpsError});
     transaction.set(counterRef, {negocioId: businessId, year: now.year, lastNumber: sequence, actualizadoEn: timestamp});
     transaction.set(purchaseRef, stored);
     transaction.set(requestRef, {compraId: purchaseRef.id, numero, negocioId: businessId, uidUsuario: uid, fingerprint, creadoEn: timestamp});
@@ -441,12 +463,12 @@ async function crearCompraHandler(request, dependencies, clock = new Date()) {
   });
 }
 
-function ocSnapshotLine(raw, index, HttpsError, impuestoId = "") {
+function ocSnapshotLine(raw, index, HttpsError, impuestoId = "", decimals = 0) {
   const snap = raw?.inventarioSnapshot || {};
   const itemId = id(raw?.itemId || snap.inventarioId, `Ítem ${index + 1}`, HttpsError);
   const tipoItem = TYPES.has(raw?.tipoItem || snap.tipoItem) ? raw.tipoItem || snap.tipoItem : "producto";
   const snapshot = {inventarioId: itemId, codigoInterno: text(snap.codigoInterno || raw.codigo, 100), nombre: text(snap.nombre || raw.nombre, 240), descripcion: text(snap.descripcion || raw.descripcion, 3000), tipoItem, unidad: text(snap.unidad || raw.unidad, 80) || "unidad", modeloInventarioVersion: Number(snap.modeloInventarioVersion || 1)};
-  return storedLine(lineInput({lineaId: raw?.lineaId, itemId, cantidad: raw?.cantidad, costoUnitario: raw?.costoUnitario, descuentoPct: raw?.descuentoPct}, index, HttpsError), snapshot, HttpsError, impuestoId);
+  return storedLine(lineInput({lineaId: raw?.lineaId, itemId, cantidad: raw?.cantidad, costoUnitario: raw?.costoUnitario, descuentoPct: raw?.descuentoPct}, index, HttpsError), snapshot, HttpsError, impuestoId, decimals);
 }
 
 async function crearCompraDesdeOrdenHandler(request, dependencies, clock = new Date()) {
@@ -497,13 +519,17 @@ async function crearCompraDesdeOrdenHandler(request, dependencies, clock = new D
     const proveedorSnapshot = order.proveedorSnapshot || {};
     const normalized = input({proveedorId: order.proveedorId, fechaCompra: now.value, fechaDocumento: "", tipoDocumento: "sin_documento", numeroDocumentoProveedor: "", condicionesPago: order.condicionesPago, observaciones: order.observaciones, items: order.items}, HttpsError);
     const orderTaxIds = await productTaxIds(transaction, businessRef, order.items || []);
-    const items = order.items.map((item, index) => ocSnapshotLine(item, index, HttpsError, orderTaxIds.get(text(item?.itemId || item?.inventarioSnapshot?.inventarioId, 160)) || ""));
+    // Los decimales son los de la orden de origen (su `montoDecimales`), no los del catálogo de hoy.
+    const localization = adaptDocumentLocalization(order);
+    const decimals = sanitizeDecimals(localization.montoDecimales);
+    assertAmountDecimals(normalized, decimals, HttpsError);
+    const items = order.items.map((item, index) => ocSnapshotLine(item, index, HttpsError, orderTaxIds.get(text(item?.itemId || item?.inventarioSnapshot?.inventarioId, 160)) || "", decimals));
     const current = Number(counterSnapshot.data()?.lastNumber || 0);
     const sequence = Number.isSafeInteger(current) && current >= 0 ? current + 1 : 1;
     const numero = formatNumber(now.year, sequence);
     const timestamp = FieldValue.serverTimestamp();
     const currentCompanySnapshot = buildAuthoritativeCompanySnapshot({businessId, business: businessSnapshot.data() || {}, profile: companyProfileSnapshot.data() || {}});
-    const stored = baseStored({businessId, uid, purchaseId: purchaseRef.id, numero, sequence, now, normalized, proveedorSnapshot, items, localization: adaptDocumentLocalization(order), empresaSnapshot: resolveCompanySnapshot(order, currentCompanySnapshot), modelVersion: LEGACY_ORDER_MODEL_VERSION, stockManagedBy: "recepcion", origin: {ordenCompraId: orderId, ordenCompraNumero: text(order.numero, 120)}, timestamp, HttpsError});
+    const stored = baseStored({businessId, uid, purchaseId: purchaseRef.id, numero, sequence, now, normalized, proveedorSnapshot, items, localization, empresaSnapshot: resolveCompanySnapshot(order, currentCompanySnapshot), modelVersion: LEGACY_ORDER_MODEL_VERSION, stockManagedBy: "recepcion", origin: {ordenCompraId: orderId, ordenCompraNumero: text(order.numero, 120)}, timestamp, HttpsError});
     transaction.set(counterRef, {negocioId: businessId, year: now.year, lastNumber: sequence, actualizadoEn: timestamp});
     transaction.set(purchaseRef, stored);
     transaction.update(orderRef, {compraId: purchaseRef.id, compraNumero: numero, compraRegistradaEn: timestamp, actualizadoEn: timestamp, actualizadoPorUid: uid});
@@ -583,7 +609,11 @@ async function crearCompraDesdeRecepcionHandler(request, dependencies, clock = n
       items: sourceItems,
     }, HttpsError);
     const receptionTaxIds = await productTaxIds(transaction, businessRef, sourceItems);
-    const items = sourceItems.map((line, index) => ocSnapshotLine(line, index, HttpsError, receptionTaxIds.get(text(line?.itemId || line?.inventarioSnapshot?.inventarioId, 160)) || ""));
+    // Los decimales son los de la recepción de origen (su `montoDecimales`, heredado de la orden), no los del catálogo.
+    const localization = adaptDocumentLocalization(reception);
+    const decimals = sanitizeDecimals(localization.montoDecimales);
+    assertAmountDecimals(normalized, decimals, HttpsError);
+    const items = sourceItems.map((line, index) => ocSnapshotLine(line, index, HttpsError, receptionTaxIds.get(text(line?.itemId || line?.inventarioSnapshot?.inventarioId, 160)) || "", decimals));
     const current = Number(counterSnapshot.data()?.lastNumber || 0);
     const sequence = Number.isSafeInteger(current) && current >= 0 ? current + 1 : 1;
     const numero = formatNumber(now.year, sequence);
@@ -599,7 +629,7 @@ async function crearCompraDesdeRecepcionHandler(request, dependencies, clock = n
       normalized,
       proveedorSnapshot: reception.proveedorSnapshot || {},
       items,
-      localization: adaptDocumentLocalization(reception),
+      localization,
       empresaSnapshot: resolveCompanySnapshot(
         reception,
         resolveCompanySnapshot(order, currentCompanySnapshot)
@@ -668,13 +698,16 @@ async function actualizarCompraBorradorHandler(request, dependencies) {
     let cursor = 0;
     const proveedorSnapshot = providerChanged ? provider(snapshots[cursor++], businessId, normalized.proveedorId, HttpsError) : preservedProvider(existing);
     const inventoryById = new Map(lineItemIds.map((itemId) => [itemId, snapshots[cursor++]]));
+    // Los decimales son los del documento guardado (su `montoDecimales`); el cliente no puede cambiarlos.
+    const localization = adaptDocumentLocalization(existing);
+    const decimals = sanitizeDecimals(localization.montoDecimales);
+    assertAmountDecimals(normalized, decimals, HttpsError);
     const items = normalized.items.map((item, index) => {
       const inventorySnapshot = inventoryById.get(item.itemId);
-      return storedLine(item, itemChanged[index] ? inventory(inventorySnapshot, businessId, item.itemId, HttpsError) : preservedItem(previousLines.get(item.lineaId)), HttpsError, productTaxId(inventorySnapshot));
+      return storedLine(item, itemChanged[index] ? inventory(inventorySnapshot, businessId, item.itemId, HttpsError) : preservedItem(previousLines.get(item.lineaId)), HttpsError, productTaxId(inventorySnapshot), decimals);
     });
     const timestamp = FieldValue.serverTimestamp();
-    const localization = adaptDocumentLocalization(existing);
-    const calculatedTotals = totals(items, HttpsError, localization.tasaIva, {tipoDocumento: normalized.tipoDocumento});
+    const calculatedTotals = totals(items, HttpsError, localization.tasaIva, {tipoDocumento: normalized.tipoDocumento, decimals});
     const documentoOrigen = normalized.documentoOrigen ? {
       ...normalized.documentoOrigen,
       coherenciaEstado: documentCoherenceState(normalized.documentoOrigen, calculatedTotals, {currency: localization.moneda, tipoDocumento: normalized.tipoDocumento, lineCount: items.length}),
@@ -1214,4 +1247,4 @@ async function cancelarCompraBorradorHandler(request, dependencies) {
   });
 }
 
-module.exports = {actualizarCompraBorradorHandler, buildConfirmedPurchaseFromReception, cancelarCompraBorradorHandler, confirmarCompraHandler, crearCompraDesdeOrdenHandler, crearCompraDesdeRecepcionHandler, crearCompraHandler, formatPurchaseNumber: formatNumber, normalizePurchaseInput: input, normalizeSupplierDocumentNumber, documentCoherenceState, documentTotalsTolerance, DOCUMENT_TOTALS_TOLERANCE, calculatePurchaseTotals: totals, providerSnapshotFromDocument: provider, revertirCompraHandler};
+module.exports = {actualizarCompraBorradorHandler, buildConfirmedPurchaseFromReception, cancelarCompraBorradorHandler, confirmarCompraHandler, crearCompraDesdeOrdenHandler, crearCompraDesdeRecepcionHandler, crearCompraHandler, formatPurchaseNumber: formatNumber, normalizePurchaseInput: input, normalizeSupplierDocumentNumber, documentCoherenceState, documentTotalsTolerance, DOCUMENT_TOTALS_TOLERANCE, calculatePurchaseTotals: totals, storedPurchaseLine: storedLine, assertPurchaseAmountDecimals: assertAmountDecimals, providerSnapshotFromDocument: provider, revertirCompraHandler};

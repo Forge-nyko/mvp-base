@@ -10,6 +10,7 @@ export default function PurchaseItemsEditor({
   onOpenCatalog,
   readOnly,
   referencesLocked = false,
+  moneyStep = "any",
 }) {
   const money = useBusinessMoney();
   const update = (index, field, value) => onChange(items.map((item, current) =>
@@ -63,7 +64,7 @@ export default function PurchaseItemsEditor({
                     </label>
                     <label>
                       <span>Costo unitario</span>
-                      <input disabled={disabled} type="number" min="0" step="any" value={item.costoUnitario} onChange={(event) => update(index, "costoUnitario", event.target.value)} />
+                      <input disabled={disabled} type="number" min="0" step={moneyStep} value={item.costoUnitario} onChange={(event) => update(index, "costoUnitario", event.target.value)} />
                     </label>
                     <label>
                       <span>Desc. %</span>

@@ -4,7 +4,7 @@ import {useBusinessMoney} from "../../hooks/useBusinessFormat";
 
 const typeLabel = (value) => ({producto: "Producto", servicio: "Servicio", actividad: "Actividad"})[value] || "Producto";
 
-export default function PurchaseOrderItemsEditor({disabled, items, onChange, onOpenCatalog, onScanProduct, readOnly}) {
+export default function PurchaseOrderItemsEditor({disabled, items, moneyStep = "any", onChange, onOpenCatalog, onScanProduct, readOnly}) {
   const money = useBusinessMoney();
   const update = (index, field, value) => onChange(items.map((item, itemIndex) =>
     itemIndex === index ? {...item, [field]: value} : item
@@ -51,7 +51,7 @@ export default function PurchaseOrderItemsEditor({disabled, items, onChange, onO
                 ) : (
                   <>
                     <label><span>Cantidad</span><input disabled={disabled} type="number" min="0.000001" step="any" value={item.cantidad} onChange={(event) => update(index, "cantidad", event.target.value)} /></label>
-                    <label><span>Costo unitario</span><input disabled={disabled} type="number" min="0" step="any" value={item.costoUnitario} onChange={(event) => update(index, "costoUnitario", event.target.value)} /></label>
+                    <label><span>Costo unitario</span><input disabled={disabled} type="number" min="0" step={moneyStep} value={item.costoUnitario} onChange={(event) => update(index, "costoUnitario", event.target.value)} /></label>
                     <label><span>Desc. %</span><input disabled={disabled} type="number" min="0" max="100" step="any" value={item.descuentoPct} onChange={(event) => update(index, "descuentoPct", event.target.value)} /></label>
                     <strong className="po-line__total">{money(total)}</strong>
                     {!disabled && <button type="button" className="po-line__remove" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}>Quitar</button>}

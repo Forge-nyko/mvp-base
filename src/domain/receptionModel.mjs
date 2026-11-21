@@ -1,3 +1,5 @@
+import {mulRound, sanitizeDecimals, sumMoney} from "./money.mjs";
+
 export const RECEPTION_MODEL_VERSION = 1;
 export const RECEPTION_STATUSES = Object.freeze(["borrador", "confirmada", "cancelada"]);
 
@@ -79,16 +81,18 @@ export function getSupplierResponseLabel(value) {
   })[value] || "Pendiente";
 }
 
-export function getReceptionConfirmationImpact(items = [], taxRate = 0) {
+// `montoDecimales`: decimales de cálculo de la recepción (SPEC 036; 0 = entero, como siempre).
+export function getReceptionConfirmationImpact(items = [], taxRate = 0, montoDecimales = 0) {
+  const decimals = sanitizeDecimals(montoDecimales);
   const selected = (Array.isArray(items) ? items : []).filter((line) =>
     Number.isFinite(Number(line?.cantidad)) && Number(line.cantidad) > 0
   );
   const count = (type) => selected.filter((line) => line?.tipoItem === type).length;
-  const neto = selected.reduce((sum, line) => {
-    const subtotal = Math.round(Number(line.cantidad) * Number(line.costoUnitario || 0));
-    const descuento = Math.round(subtotal * Number(line.descuentoPct || 0) / 100);
-    return sum + subtotal - descuento;
-  }, 0);
+  const neto = sumMoney(selected.map((line) => {
+    const subtotal = mulRound(Number(line.cantidad), Number(line.costoUnitario || 0), decimals);
+    const descuento = mulRound(subtotal, Number(line.descuentoPct || 0), decimals, 100);
+    return sumMoney([subtotal, -descuento], decimals);
+  }), decimals);
   const safeTaxRate = Number.isFinite(Number(taxRate)) && Number(taxRate) >= 0
     ? Number(taxRate)
     : 0;
@@ -97,7 +101,7 @@ export function getReceptionConfirmationImpact(items = [], taxRate = 0) {
     servicios: count("servicio"),
     actividades: count("actividad"),
     totalItems: selected.length,
-    totalCompraEstimado: neto + Math.round(neto * safeTaxRate),
+    totalCompraEstimado: sumMoney([neto, mulRound(neto, safeTaxRate, decimals)], decimals),
   };
 }
 

@@ -1,5 +1,7 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {useLocation, useNavigate, useParams} from "react-router-dom";
+import {adaptDocumentAmountDecimals} from "../domain/localization.mjs";
+import {useBusinessMoney} from "../hooks/useBusinessFormat";
 import {sileo} from "sileo";
 import Button from "../components/ui/Button";
 import LoadingState from "../components/ui/LoadingState";
@@ -100,6 +102,14 @@ export default function NewPurchasePage({businessId, role}) {
   const navigate = useNavigate();
   const [draft, setDraft] = useState(emptyDraft);
   const [purchase, setPurchase] = useState(null);
+  // Decimales de cálculo (SPEC 036): una compra guardada usa el `montoDecimales` de su documento (ausente = 0); un
+  // borrador que todavía no existe usa los de la moneda del negocio. Con 0 todo se calcula entero, como siempre.
+  const businessMoney = useBusinessMoney();
+  const documentDecimals = purchase
+    ? adaptDocumentAmountDecimals(purchase, purchase.moneda)
+    : businessMoney.amountDecimals;
+  // Paso de los importes: "any" con 0 decimales (como siempre) y "0.01" con 2. La cantidad no cambia.
+  const moneyStep = documentDecimals > 0 ? String(10 ** -documentDecimals) : "any";
   const [providers, setProviders] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [company, setCompany] = useState(null);
@@ -184,6 +194,7 @@ export default function NewPurchasePage({businessId, role}) {
         {
           tasaIva: purchase?.tasaIva ?? Number(company?.impuestoPredeterminadoTasa ?? 19) / 100,
           tipoDocumento: draft.tipoDocumento,
+          montoDecimales: documentDecimals,
         }
       ) : EMPTY_TOTALS;
     } catch {
@@ -237,9 +248,11 @@ export default function NewPurchasePage({businessId, role}) {
     });
   };
 
+  // El borrador viaja con los decimales con que se calculó, solo para validarlo en el cliente: el servidor decide los
+  // suyos con el snapshot del documento y no lee este valor.
   const persist = async () => purchase
-    ? (await actualizarCompraBorrador(businessId, purchase.id, draft)).compra
-    : (await crearCompra(businessId, draft, {requestId: createId.current})).compra;
+    ? (await actualizarCompraBorrador(businessId, purchase.id, {...draft, montoDecimales: documentDecimals})).compra
+    : (await crearCompra(businessId, {...draft, montoDecimales: documentDecimals}, {requestId: createId.current})).compra;
 
   const save = async () => {
     setProcessing(true);
@@ -405,6 +418,7 @@ export default function NewPurchasePage({businessId, role}) {
         <div className="po-layout">
           <div className="po-main">
             <PurchaseItemsEditor
+              moneyStep={moneyStep}
               disabled={readOnly}
               items={draft.items}
               onChange={(items) => setDraft((current) => ({...current, items}))}

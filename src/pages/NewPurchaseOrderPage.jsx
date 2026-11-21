@@ -1,5 +1,7 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {useLocation, useNavigate, useParams} from "react-router-dom";
+import {adaptDocumentAmountDecimals} from "../domain/localization.mjs";
+import {useBusinessMoney} from "../hooks/useBusinessFormat";
 import {sileo} from "sileo";
 import Button from "../components/ui/Button";
 import LoadingState from "../components/ui/LoadingState";
@@ -104,6 +106,14 @@ export default function NewPurchaseOrderPage({businessId, role}) {
   const navigate = useNavigate();
   const [draft, setDraft] = useState(emptyDraft);
   const [order, setOrder] = useState(null);
+  // Decimales de cálculo (SPEC 036): una orden guardada usa el `montoDecimales` de su documento (ausente = 0); un
+  // borrador que todavía no existe usa los de la moneda del negocio. Con 0 todo se calcula entero, como siempre.
+  const businessMoney = useBusinessMoney();
+  const documentDecimals = order
+    ? adaptDocumentAmountDecimals(order, order.moneda)
+    : businessMoney.amountDecimals;
+  // Paso de los importes: "any" con 0 decimales (como siempre) y "0.01" con 2. La cantidad no cambia.
+  const moneyStep = documentDecimals > 0 ? String(10 ** -documentDecimals) : "any";
   const [providers, setProviders] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [company, setCompany] = useState(null);
@@ -177,11 +187,12 @@ export default function NewPurchaseOrderPage({businessId, role}) {
     try {
       return calculatePurchaseOrderTotals(draft.items, {
         tasaIva: order?.tasaIva ?? Number(company?.impuestoPredeterminadoTasa ?? 19) / 100,
+        montoDecimales: documentDecimals,
       });
     } catch {
       return EMPTY_TOTALS;
     }
-  }, [company?.impuestoPredeterminadoTasa, draft.items, order?.tasaIva]);
+  }, [company?.impuestoPredeterminadoTasa, documentDecimals, draft.items, order?.tasaIva]);
 
   const memberByUid = useMemo(
     () => new Map(members.map((member) => [member.uid, member])),
@@ -263,9 +274,9 @@ export default function NewPurchaseOrderPage({businessId, role}) {
   const persistDraft = async () => {
     if (order) {
       if (order.estado !== "borrador") return order;
-      return (await actualizarOrdenCompraBorrador(businessId, order.id, draft)).ordenCompra;
+      return (await actualizarOrdenCompraBorrador(businessId, order.id, {...draft, montoDecimales: documentDecimals})).ordenCompra;
     }
-    return (await crearOrdenCompra(businessId, draft, {
+    return (await crearOrdenCompra(businessId, {...draft, montoDecimales: documentDecimals}, {
       requestId: requestIdRef.current,
     })).ordenCompra;
   };
@@ -601,6 +612,7 @@ export default function NewPurchaseOrderPage({businessId, role}) {
         <div className="po-layout">
           <div className="po-main">
             <PurchaseOrderItemsEditor
+              moneyStep={moneyStep}
               disabled={readOnly}
               items={draft.items}
               onChange={(items) => setDraft((current) => ({...current, items}))}
