@@ -12,6 +12,7 @@ import {
   INVENTORY_TYPES,
   INVENTORY_PRICE_FORMATION_VERSION,
   LEGACY_PURCHASE_TAX_PRICE_FORMATION_VERSION,
+  acquisitionIncludesTax,
   adaptInventoryItem,
   buildInventoryPayload,
   calculateInventoryPriceFormation,
@@ -800,7 +801,7 @@ function AcquisitionHistory({ acquisitions, state }) {
       return <article key={entry.id}>
         <div><strong>{formatDate(entry.fechaAdquisicion)}</strong><span>{active ? "Vigente" : "Revertida"}</span></div>
         <div><strong>{origin}</strong><span>{provider}</span></div>
-        <div><strong>{entry.cantidad} {entry.productoSnapshot?.unidad || "unidad"}</strong><span>{formatMoney(entry.costoPagadoUnitario, entry.moneda, businessLocale)} c/u · {formatMoney(entry.costoPagadoTotal, entry.moneda, businessLocale)} total</span></div>
+        <div><strong>{entry.cantidad} {entry.productoSnapshot?.unidad || "unidad"}</strong><span>{formatMoney(entry.costoPagadoUnitario, entry.moneda, businessLocale)} c/u{acquisitionIncludesTax(entry) ? " con IVA" : ""} · {formatMoney(entry.costoPagadoTotal, entry.moneda, businessLocale)} total</span></div>
         {hasAverageTransition && <small>Promedio: {formatMoney(entry.costoPromedioAnterior, entry.moneda, businessLocale)} → {formatMoney(entry.costoPromedioPosterior, entry.moneda, businessLocale)}</small>}
         {hasValueTransition && <small>Valor de inventario: {formatMoney(entry.valorInventarioAnterior, entry.moneda, businessLocale)} → {formatMoney(entry.valorInventarioPosterior, entry.moneda, businessLocale)}</small>}
         <small>{chain || entry.numeroDocumentoProveedor || "Origen documental no informado"} · UID {entry.registradoPorUid || "no informado"}</small>

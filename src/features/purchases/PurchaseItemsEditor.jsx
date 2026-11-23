@@ -28,7 +28,7 @@ export default function PurchaseItemsEditor({
     <section className="ui-step-card purchase-items-card" aria-labelledby="purchase-items-title">
       <header className="ui-step-head">
         <div className="ui-step-head__text">
-          <h2 id="purchase-items-title" className="ui-step-title">Qué compras</h2>
+          <h2 id="purchase-items-title" className="ui-step-title">¿Qué compras?</h2>
           <p className="ui-step-head__count">{countLabel}</p>
         </div>
         {canChangeReferences && (

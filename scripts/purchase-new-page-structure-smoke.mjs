@@ -26,7 +26,7 @@ assert.doesNotMatch(page, /Volver al historial/, "ya no hay botón Volver al his
 assert.match(page, /icon=\{FileUp\} onClick=\{\(\) => setImportOpen\(true\)\}>Importar factura</, "Importar factura se conserva");
 assert.match(page, /\{canImport && /, "Importar factura solo si se puede editar y no está bloqueada por referencias");
 assert.match(page, /const canImport = !readOnly && !referencesLocked;/, "mismo permiso que antes");
-assert.match(page, /<h2 id="purchase-provider-title" className="ui-step-title">A quién le compras<\/h2>/);
+assert.match(page, /<h2 id="purchase-provider-title" className="ui-step-title">¿A quién le compras\?<\/h2>/, "título con signos de apertura y cierre, como Ventas");
 assert.match(page, /<PurchaseProviderSelector/, "selector de proveedor en línea");
 assert.doesNotMatch(page, /<ProviderSelector/, "ya no usa la tarjeta fija con diálogo");
 assert.match(page, /Documento y fechas/);
@@ -34,7 +34,7 @@ assert.match(page, /Condiciones comerciales/);
 assert.match(page, /Editar condiciones/);
 assert.match(page, /Vista previa imprimible/);
 assert.doesNotMatch(page, /<details|po-details|<summary|po-details__indicator/, "sin acordeones +/−");
-assert.doesNotMatch(page, /¿/, "títulos sin signos de apertura");
+assert.equal(count(page, /¿/g), count(page, /¿[^<?]*\?</g), "cada ¿ de la pantalla cierra con ?");
 assert.doesNotMatch(page, /Detalle de compra|DETALLE DE COMPRA/, "sin la etiqueta en mayúsculas como título de sección");
 // Campos y datos del documento: todos siguen, con los mismos manejadores.
 for (const field of ["tipoDocumento", "numeroDocumentoProveedor", "fechaCompra", "fechaDocumento", "condicionesPago", "observaciones"]) {
@@ -93,7 +93,7 @@ try {
   ];
   const renderEditor = (props) => wrap(React.createElement(editor, {items, onChange() {}, onOpenCatalog() {}, moneyStep: "0.01", ...props}));
   const html = renderEditor({});
-  assert.match(html, /<h2 id="purchase-items-title" class="ui-step-title">Qué compras<\/h2>/, "título tipo pregunta sin ¿");
+  assert.match(html, /<h2 id="purchase-items-title" class="ui-step-title">¿Qué compras\?<\/h2>/, "título tipo pregunta con ¿ y ?, como Ventas");
   assert.ok(!html.includes("po-lines__head"), "sin la cabecera de columnas anterior");
   assert.ok(html.includes("2 ítems"), "contador de ítems");
   assert.ok(html.includes("Agregar desde inventario"), "botón del diálogo de inventario");

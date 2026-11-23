@@ -296,6 +296,26 @@ export function isInventoryLowStock(item, lowStockSettings) {
   );
 }
 
+// Valor del stock de un producto (ítem ya adaptado) para el recuadro "Costo del inventario": el valor vigente
+// (`valorInventario`, saldo con el costo promedio, el mismo que muestra la ficha) y, si el ítem no lo tiene (datos
+// antiguos o sin compras), el respaldo de siempre: stock por costo neto base. Sin stock no aporta nada. Solo lee
+// campos guardados: no recalcula el promedio ni el valor vigente.
+export function getInventoryStockValue(item) {
+  const stock = Number(item?.stock);
+  if (!Number.isFinite(stock) || stock <= 0) return 0;
+  const currentValue = item.valorInventario;
+  if (currentValue !== null && currentValue !== undefined && Number.isFinite(Number(currentValue))) {
+    return Number(currentValue);
+  }
+  return Number(item.costoBase) * stock;
+}
+
+// ¿La adquisición incluyó impuesto? Solo si guardó el impuesto unitario (los movimientos antiguos no lo traen).
+export function acquisitionIncludesTax(entry) {
+  const tax = Number(entry?.impuestoCompraUnitario);
+  return Number.isFinite(tax) && tax > 0;
+}
+
 export function summarizeInventory(items, { lowStockSettings } = {}) {
   const active = (Array.isArray(items) ? items : [])
     .map(adaptInventoryItem)
@@ -306,10 +326,7 @@ export function summarizeInventory(items, { lowStockSettings } = {}) {
     products: products.length,
     servicesAndActivities: active.length - products.length,
     lowStock: products.filter((item) => isLowStockByRule(item, lowStockSettings)).length,
-    inventoryCost: products.reduce(
-      (total, item) => total + item.costoBase * Math.max(item.stock, 0),
-      0
-    ),
+    inventoryCost: products.reduce((total, item) => total + getInventoryStockValue(item), 0),
   };
 }
 

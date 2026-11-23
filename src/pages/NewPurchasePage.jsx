@@ -421,7 +421,7 @@ export default function NewPurchasePage({businessId, role}) {
         <div className="no-print"><PurchaseProviderSnapshot countryCode={purchase.paisCodigo || company?.paisCodigo} provider={purchase.proveedorSnapshot} /></div>
       ) : (
         <section className="ui-step-card no-print" aria-labelledby="purchase-provider-title">
-          <h2 id="purchase-provider-title" className="ui-step-title">A quién le compras</h2>
+          <h2 id="purchase-provider-title" className="ui-step-title">¿A quién le compras?</h2>
           <PurchaseProviderSelector
             disabled={readOnly || referencesLocked}
             historicalNote={PROVIDER_AT_PURCHASE_NOTE}

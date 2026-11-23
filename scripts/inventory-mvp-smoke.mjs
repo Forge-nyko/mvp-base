@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import {
   INVENTORY_UNITS,
   INVENTORY_PRICE_FORMATION_VERSION,
   LEGACY_PURCHASE_TAX_PRICE_FORMATION_VERSION,
+  acquisitionIncludesTax,
   adaptInventoryItem,
   buildInventoryPayload,
   calculateInventoryPriceFormation,
   calculateInventoryPriceWithTax,
   filterInventoryItems,
   followInventoryStockUnit,
+  getInventoryStockValue,
   isInventoryLowStock,
   parseInventoryNumber,
   resolveInventoryBarcodeScan,
@@ -246,6 +249,28 @@ function main() {
   assert.equal(summarizeInventory(list).total, 3);
   assert.equal(summarizeInventory(list).lowStock, 1);
   assert.equal(summarizeInventory(list).inventoryCost, 100);
+  // "Costo del inventario" usa el valor vigente del stock (el mismo de la ficha, con el costo promedio) y, sin él, el
+  // respaldo de siempre: stock por costo neto base (SPEC 023 §7). Caso de QA (Bolivia): Filtro de aceite, costo neto
+  // 2,00, promedio 3,04, valor vigente 42,50 y stock 14 -> 42,50 (antes 28,00 = 14 x 2,00).
+  const filtro = { id: "f", nombre: "Filtro de aceite", tipoItem: "producto", estado: "activo", costoBase: 2, stock: 14, costoPromedio: 3.04, ultimoCosto: 3.45, valorInventario: 42.5, valorInventarioMoneda: "BOB", modeloCostoInventarioVersion: 1 };
+  assert.equal(summarizeInventory([filtro]).inventoryCost, 42.5, "usa el valor vigente, no costoBase x stock");
+  assert.equal(summarizeInventory([{ ...filtro, stock: 13, valorInventario: 39.5 }]).inventoryCost, 39.5, "con stock 13 sigue al valor vigente guardado");
+  assert.equal(getInventoryStockValue(adaptInventoryItem(filtro)), summarizeInventory([filtro]).inventoryCost, "el recuadro y el valor de la ficha coinciden");
+  assert.equal(adaptInventoryItem(filtro).valorInventario, 42.5, "la ficha lee el mismo campo");
+  const sinValor = { id: "n", nombre: "Sin compras", tipoItem: "producto", estado: "activo", costoBase: 10, stock: 3 };
+  assert.equal(summarizeInventory([sinValor]).inventoryCost, 30, "sin valor vigente: respaldo costoBase x stock");
+  assert.equal(summarizeInventory([{ ...sinValor, valorInventario: "" }]).inventoryCost, 30, "valor vigente vacío: respaldo");
+  assert.equal(summarizeInventory([{ ...sinValor, valorInventario: null }]).inventoryCost, 30, "valor vigente nulo: respaldo");
+  assert.equal(summarizeInventory([{ ...sinValor, stock: 0 }, { ...filtro, stock: 0, valorInventario: 0.01 }]).inventoryCost, 0, "sin stock no aporta");
+  assert.equal(summarizeInventory([{ ...sinValor, stock: -2 }]).inventoryCost, 0, "stock negativo no aporta");
+  assert.equal(summarizeInventory([filtro, sinValor, { ...filtro, id: "i", estado: "inactivo" }, { id: "s", nombre: "Servicio", tipoItem: "servicio", estado: "activo", costoBase: 99, stock: 5 }]).inventoryCost, 72.5, "suma valor vigente + respaldo; ignora archivados y servicios");
+  assert.equal(adaptInventoryItem({ ...sinValor, costoPromedio: 7 }).costoBase, 10, "el costo base guardado no cambia");
+  assert.equal(acquisitionIncludesTax({ impuestoCompraUnitario: 0.45 }), true);
+  assert.equal(acquisitionIncludesTax({ impuestoCompraUnitario: 0 }), false, "boleta o exento: sin IVA");
+  assert.equal(acquisitionIncludesTax({}), false, "movimiento antiguo sin el dato: sin aclaración");
+  const manager = readFileSync(new URL("../src/features/inventory/InventoryManager.jsx", import.meta.url), "utf8");
+  assert.match(manager, /c\/u\{acquisitionIncludesTax\(entry\) \? " con IVA" : ""\} · /, "el historial aclara que el costo unitario es con IVA solo cuando incluyó impuesto");
+  assert.match(manager, /<Metric label="Costo del inventario" value=\{formatBusinessAmount\(summary\.inventoryCost\)\} \/>/);
   ["thinkpad", "lenovo", "e13", "nb-001", "07801234567890"].forEach((query) => {
     assert.deepEqual(filterInventoryItems(list, { query, status: "activo" }).map(({ id }) => id), ["p"]);
   });
@@ -623,7 +648,7 @@ function unitAndTaxPriceChecks() {
 
 async function sourceChecks() {
   const page = await readFile(new URL("../src/pages/InventoryPage.jsx", import.meta.url), "utf8");
-  const manager = await readFile(new URL("../src/features/inventory/InventoryManager.jsx", import.meta.url), "utf8");
+  const manager = readFileSync(new URL("../src/features/inventory/InventoryManager.jsx", import.meta.url), "utf8");
   const importer = await readFile(new URL("../src/features/inventory/InventoryImportDialog.jsx", import.meta.url), "utf8");
   const importService = await readFile(new URL("../src/services/inventoryImportService.js", import.meta.url), "utf8");
   assert.doesNotMatch(page, /InventoryAiImporter|Gemini|normalizeInventoryDocument|normalizeInventoryItems/);
