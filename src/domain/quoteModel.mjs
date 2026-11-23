@@ -1,5 +1,6 @@
 import {adaptStoredFiscalIdentifier} from "./fiscalIdentifier.mjs";
 import {hasMaxDecimals, mulRound, sanitizeDecimals, sumMoney} from "./money.mjs";
+import {userErrorMessage} from "./userFacingError.mjs";
 
 export const QUOTE_MODEL_VERSION = 2;
 export const CLP_CURRENCY = "CLP";
@@ -257,6 +258,13 @@ export function tryCalculateQuoteTotals(items, descuentoGeneral, options) {
       error,
     };
   }
+}
+
+// Texto para mostrar del error de `tryCalculateQuoteTotals` ({totals, error}). Sin error devuelve "":
+// userErrorMessage(null) devolvería el mensaje genérico y lo mostraría siempre.
+export function quoteTotalsErrorMessage(totalsResult) {
+  if (!totalsResult?.error) return "";
+  return userErrorMessage(totalsResult.error, "No se pudieron calcular los totales de la cotización.");
 }
 
 export function normalizeInventorySnapshot(item = {}) {

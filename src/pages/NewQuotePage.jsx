@@ -14,6 +14,7 @@ import {
   isAdvancedQuoteScope,
   isValidQuoteDateRange,
   QUOTE_SIMPLE_SCOPE_TITLE,
+  quoteTotalsErrorMessage,
   resolveQuoteClientSelectionSnapshot,
   tryCalculateQuoteTotals,
   validateQuoteDraft,
@@ -1733,7 +1734,7 @@ function NewQuotePage({ userId }) {
     if (!quoteValidation.isValid) {
       return Object.values(quoteValidation.fieldErrors)[0];
     }
-    return totalsResult.userErrorMessage(error, "");
+    return quoteTotalsErrorMessage(totalsResult);
   };
 
   const saveBlockedByClient = !isEditMode && (
@@ -2202,7 +2203,7 @@ function NewQuotePage({ userId }) {
           locale={quote.locale || companyProfile?.locale || "es-CL"}
           quote={quote}
           totals={totals}
-          totalsError={totalsResult.userErrorMessage(error, "")}
+          totalsError={quoteTotalsErrorMessage(totalsResult)}
           taxName={quote.impuestoNombre || companyProfile?.impuestoPredeterminadoNombre || "IVA"}
           taxRate={Number(resolveDocumentTaxRate(quote, companyProfile)) * 100}
           saving={saving}
