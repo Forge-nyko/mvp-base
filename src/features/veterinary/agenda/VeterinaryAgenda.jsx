@@ -117,8 +117,16 @@ function AppointmentForm({appointment, businessId, patients}) {
                 <VeterinaryField label="Hora" required error={fieldErrors.hora}><input className="erp-control" name="hora" type="time" value={form.hora ?? ""} onChange={change} /></VeterinaryField>
               </>
             )}
-            <VeterinaryField label="Motivo" required={editable} error={fieldErrors.motivo}><input className="erp-control" name="motivo" maxLength={500} readOnly={!editable} value={form.motivo ?? ""} onChange={change} /></VeterinaryField>
-            <VeterinaryField label="Observaciones" error={fieldErrors.observaciones}><textarea className="erp-control" name="observaciones" maxLength={2000} readOnly={!editable} value={form.observaciones ?? ""} onChange={change} /></VeterinaryField>
+            <VeterinaryField label="Motivo" required={editable} error={fieldErrors.motivo}>
+              <input className="erp-control" name="motivo" maxLength={500} readOnly={!editable}
+                placeholder={editable ? "Ej. Control de vacunación" : undefined}
+                value={form.motivo ?? ""} onChange={change} />
+            </VeterinaryField>
+            <VeterinaryField label="Observaciones" error={fieldErrors.observaciones}>
+              <textarea className="erp-control" name="observaciones" maxLength={2000} readOnly={!editable}
+                placeholder={editable ? "Anota indicaciones para la cita" : undefined}
+                value={form.observaciones ?? ""} onChange={change} />
+            </VeterinaryField>
           </div>
           {error && <p role="alert">{error}</p>}
           {canStart && !confirmCancel && <Button type="button" variant="secondary" disabled={saving} onClick={startAttention}>Iniciar atención</Button>}

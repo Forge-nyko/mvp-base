@@ -14,10 +14,10 @@ import {buildVeterinaryInventoryCatalog} from "../domain/inventoryPharmacyIntegr
 const PENDING_ITEM_MESSAGE = "Tienes un ítem seleccionado sin añadir. Pulsa «Añadir ítem» o quita la selección antes de cerrar la atención.";
 
 const fields = [
-  ["motivoConsulta", "Motivo de consulta", 1000, true],
-  ["diagnostico", "Diagnóstico", 4000, true],
-  ["tratamiento", "Tratamiento", 4000, true],
-  ["indicaciones", "Indicaciones", 4000, false],
+  ["motivoConsulta", "Motivo de consulta", 1000, true, "Describe por qué se atiende al paciente"],
+  ["diagnostico", "Diagnóstico", 4000, true, "Registra el diagnóstico y los hallazgos relevantes"],
+  ["tratamiento", "Tratamiento", 4000, true, "Describe el tratamiento realizado o indicado"],
+  ["indicaciones", "Indicaciones", 4000, false, "Anota los cuidados y controles para el tutor"],
 ];
 
 // Ítems del borrador guardado: solo itemId y cantidad; nombre, tipo y unidad vuelven a leerse de Inventario.
@@ -158,9 +158,10 @@ function ClinicalForm({attention, businessId, inventory}) {
           </section>
         )}
         <div className="erp-form-grid">
-          {fields.map(([name, label, maxLength, required]) => (
+          {fields.map(([name, label, maxLength, required, placeholder]) => (
             <VeterinaryField key={name} label={label} required={required && !closed} error={fieldErrors[name]}>
               <textarea className="erp-control" name={name} maxLength={maxLength} readOnly={closed}
+                placeholder={closed ? undefined : placeholder}
                 value={values[name] ?? ""} onChange={({target}) => setValue(name, target.value)} />
             </VeterinaryField>
           ))}

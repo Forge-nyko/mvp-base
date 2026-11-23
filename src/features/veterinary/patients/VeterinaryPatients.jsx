@@ -13,13 +13,20 @@ import VeterinaryField from "../VeterinaryField";
 const patientListPath = "/clinica-veterinaria/pacientes";
 const patientPath = (id) => patientListPath + "/" + encodeURIComponent(id);
 const textFields = [
-  ["nombre", "Nombre", true], ["especie", "Especie", true],
-  ["raza", "Raza"], ["sexo", "Sexo"], ["color", "Color"],
-  ["fechaNacimiento", "Fecha de nacimiento", false, "date"],
-  ["peso", "Peso (kg)"],
-  ["microchip", "Microchip"],
+  ["nombre", "Nombre", "Ej. Firulais", true],
+  ["especie", "Especie", "Ej. Perro", true],
+  ["raza", "Raza", "Ej. Mestizo"],
+  ["sexo", "Sexo", "Ej. Hembra"],
+  ["color", "Color", "Ej. Negro con blanco"],
+  ["fechaNacimiento", "Fecha de nacimiento", undefined, false, "date"],
+  ["peso", "Peso (kg)", "Ej. 8"],
+  ["microchip", "Microchip", "Escribe el código del microchip"],
 ];
-const notesFields = [["alergias", "Alergias"], ["antecedentes", "Antecedentes"], ["observaciones", "Observaciones"]];
+const notesFields = [
+  ["alergias", "Alergias", "Indica medicamentos o alimentos que le causan alergia"],
+  ["antecedentes", "Antecedentes", "Anota cirugías, enfermedades o tratamientos previos"],
+  ["observaciones", "Observaciones", "Agrega información para futuras consultas"],
+];
 
 function PatientForm({businessId, countryCode, patient, tutors, onTutorCreated}) {
   const navigate = useNavigate();
@@ -95,9 +102,11 @@ function PatientForm({businessId, countryCode, patient, tutors, onTutorCreated})
         </VeterinaryField>
         <Button type="button" variant="secondary" disabled={saving} onClick={() => setTutorDialogOpen(true)}>Registrar tutor</Button>
         <div className="erp-form-grid">
-          {textFields.map(([name, label, required, type = "text"]) => (
+          {textFields.map(([name, label, placeholder, required, type = "text"]) => (
             <VeterinaryField key={name} label={label} required={required} error={fieldErrors[name]}>
-              <input className="erp-control" name={name} type={type} inputMode={name === "peso" ? "decimal" : undefined} value={form[name] ?? ""} onChange={setField} />
+              <input className="erp-control" name={name} type={type}
+                inputMode={name === "peso" ? "decimal" : undefined}
+                placeholder={placeholder} value={form[name] ?? ""} onChange={setField} />
             </VeterinaryField>
           ))}
           {form.fechaNacimiento ? (
@@ -108,12 +117,14 @@ function PatientForm({businessId, countryCode, patient, tutors, onTutorCreated})
           ) : (
             <label className="erp-field">
               <span>Edad estimada</span>
-              <input className="erp-control" name="edadEstimada" value={form.edadEstimada ?? ""} onChange={setField} />
+              <input className="erp-control" name="edadEstimada" placeholder="Ej. 2 años"
+                value={form.edadEstimada ?? ""} onChange={setField} />
             </label>
           )}
-          {notesFields.map(([name, label]) => (
+          {notesFields.map(([name, label, placeholder]) => (
             <VeterinaryField key={name} label={label} error={fieldErrors[name]}>
-              <textarea className="erp-control" name={name} value={form[name] ?? ""} onChange={setField} />
+              <textarea className="erp-control" name={name} placeholder={placeholder}
+                value={form[name] ?? ""} onChange={setField} />
             </VeterinaryField>
           ))}
         </div>

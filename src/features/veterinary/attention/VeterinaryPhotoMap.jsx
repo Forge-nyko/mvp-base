@@ -191,7 +191,9 @@ function PhotoMapper({businessId, attentionId, photo, closed}) {
             <input className="erp-control" maxLength={100} value={region} onChange={({target}) => setRegion(target.value)} placeholder="Pata trasera izquierda" />
           </label>
           <label className="erp-field"><span>Observación de la lesión</span>
-            <textarea className="erp-control" maxLength={500} value={note} onChange={({target}) => setNote(target.value)} />
+            <textarea className="erp-control" maxLength={500}
+              placeholder="Describe lo que observas en la zona marcada"
+              value={note} onChange={({target}) => setNote(target.value)} />
           </label>
           <Button type="button" disabled={!region.trim() || saving} onClick={addMark}>Añadir marca</Button>
         </div>
