@@ -69,7 +69,7 @@ try {
   const company = await readFile(new URL("../src/features/company/CompanyConfig.jsx", import.meta.url), "utf8");
   assert.doesNotMatch(company, /<Disclosure\b|ui\/Disclosure|optionalOpen|setOptionalOpen|OPTIONAL_INFORMATION_FIELDS|OPTIONAL_FOCUS_TARGETS|Más datos de la empresa/, "Empresa ya no usa el plegable ni deja su estado");
   const providerForm = await readFile(new URL("../src/features/providers/ProviderFormDialog.jsx", import.meta.url), "utf8");
-  assert.match(providerForm, /<Disclosure\b/, "el componente se conserva: lo usa el formulario de proveedores");
+  assert.doesNotMatch(providerForm, /<Disclosure\b|ui\/Disclosure|optionalOpen/, "el formulario de proveedores ya no usa el plegable (secciones visibles como Nuevo cliente); el componente se conserva");
   assert.equal(count(company, /<h3>Datos comerciales<\/h3>/g), 1, "un solo título 'Datos comerciales'");
   assert.equal(count(company, /<h3>Contacto<\/h3>/g), 1, "un solo título 'Contacto'");
   const commercial = company.slice(company.indexOf("<h3>Datos comerciales</h3>"), company.indexOf("<h3>Contacto</h3>"));

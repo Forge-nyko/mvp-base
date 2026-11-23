@@ -193,38 +193,37 @@ assert.match(sourceForm, /onChange=\{handleRutChange\}/);
 assert.match(sourceForm, /onChange=\{handlePhoneChange\}/);
 assert.doesNotMatch(sourceForm, /client-form-field__optional/);
 
-// Formulario simplificado: 4 campos visibles, resto en el plegable, sin leyendas duplicadas.
-assert.match(sourceForm, /import Disclosure from "..\/..\/components\/ui\/Disclosure";/);
-assert.match(sourceForm, /title="Más datos del proveedor \(opcional\)"/);
-const foldedForm = sourceForm.slice(sourceForm.indexOf("<Disclosure"), sourceForm.indexOf("</Disclosure>"));
-assert.ok(foldedForm.length > 0, "el formulario usa el plegable");
-for (const field of ["nombreFantasia", "giro", "personaContacto", "direccion", "condicionesPago", "diasCredito", "notas"]) {
-  assert.match(foldedForm, new RegExp(`field="${field}"`), `${field} va dentro del plegable`);
+// Formulario con secciones visibles (mismo patrón que Nuevo cliente): sin plegable, todos los campos a la vista.
+assert.doesNotMatch(sourceForm, /Disclosure|optionalOpen|setOptionalOpen|OPTIONAL_FIELDS|hasOptionalContent|pendingFocus|Más datos del proveedor/, "el formulario ya no tiene plegable");
+const sectionTitles = [...sourceForm.matchAll(/<legend>([^<]+)(?: <span>\(opcional\)<\/span>)?<\/legend>/g)].map((m) => m[1].trim());
+assert.deepEqual(sectionTitles, ["Datos del proveedor", "Contacto", "Ubicación", "Condiciones comerciales", "Notas"], "secciones en orden");
+assert.equal((sourceForm.match(/<legend>[^<]+ <span>\(opcional\)<\/span><\/legend>/g) || []).length, 4, "todas menos la primera dicen (opcional)");
+assert.doesNotMatch(sourceForm, /provider-form-subsection/);
+const sectionOf = (title) => {
+  const start = sourceForm.indexOf(`<legend>${title}`);
+  return sourceForm.slice(start, sourceForm.indexOf("</fieldset>", start));
+};
+const sectionFields = {
+  "Datos del proveedor": ["rut", "razonSocial", "nombreFantasia", "giro"],
+  Contacto: ["email", "telefono", "personaContacto"],
+  Ubicación: ["direccion"],
+  "Condiciones comerciales": ["condicionesPago", "diasCredito"],
+  Notas: ["notas"],
+};
+for (const [title, fields] of Object.entries(sectionFields)) {
+  for (const field of fields) assert.match(sectionOf(title), new RegExp(`field="${field}"`), `${field} va en ${title}`);
 }
-assert.match(foldedForm, /<ContactTerritoryFields/, "región y comuna van dentro del plegable");
-for (const field of ["rut", "razonSocial", "email", "telefono"]) {
-  const visible = sourceForm.slice(0, sourceForm.indexOf("<Disclosure"));
-  assert.match(visible, new RegExp(`field="${field}"`), `${field} está visible al abrir`);
-  assert.doesNotMatch(foldedForm, new RegExp(`field="${field}"`), `${field} NO va plegado`);
-}
-assert.doesNotMatch(sourceForm, /<legend>Datos del proveedor<\/legend>/, "sin título duplicado");
-assert.doesNotMatch(sourceForm, /<legend>(Contacto|Notas)\b/, "sin las leyendas antiguas");
-assert.equal((sourceForm.match(/<legend>/g) || []).length, 2, "solo dos sub-leyendas");
-assert.match(foldedForm, /<legend>Ubicación<\/legend>/);
-assert.match(foldedForm, /<legend>Condiciones comerciales<\/legend>/);
+assert.match(sectionOf("Ubicación"), /<ContactTerritoryFields/, "región y comuna van en Ubicación");
+assert.equal((sourceForm.match(/<fieldset className="client-form-section"/g) || []).length, 5, "cinco secciones con el estilo del formulario de cliente");
 assert.doesNotMatch(sourceForm, /<h[1-6]\b/, "sin encabezados dentro del formulario (el título es el del diálogo)");
 assert.equal((sourceForm.match(/<Button\b[^>]*type="submit"/g) || []).length, 1, "un solo botón principal");
 assert.match(sourceForm, /diasCredito: "",\s+notas: "",/, "días de crédito vacío por defecto");
 assert.doesNotMatch(sourceForm, /diasCredito: "0"/);
 assert.match(sourceForm, /values\.condicionesPago === "credito" && \(/, "días de crédito solo con condición Crédito");
-assert.match(sourceForm, /hasOptionalContent\(nextValues\)/, "al abrir recalcula si el plegable arranca abierto");
 assert.match(sourceForm, /FIELD_ORDER\.find\(\(field\) => nextErrors\[field\]\)/, "el primer error se elige en orden visual");
-assert.match(sourceForm, /OPTIONAL_FIELDS\.includes\(firstField\)\) setOptionalOpen\(true\)/, "un error plegado abre el bloque");
-assert.match(sourceForm, /setPendingFocus\(firstField\)/);
+assert.match(sourceForm, /fieldRefs\.current\[firstField\]\?\.focus\(\)/, "el primer error recibe el foco (todo está visible)");
 const interiorCss = fs.readFileSync("src/styles/interior.css", "utf8");
-const subsectionRules = [...interiorCss.matchAll(/(\.provider-form-subsection[^{]*)\{([^}]*)\}/g)];
-assert.equal(subsectionRules.length, 2, "existen las reglas del sub-grupo");
-assert.doesNotMatch(subsectionRules.map((m) => m[2]).join("\n"), /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|\d+(px|ms)\b(?!\s*solid)/, "sub-grupo sin literales");
+assert.doesNotMatch(interiorCss, /provider-form-subsection/, "se retiró el estilo del sub-grupo del plegable");
 // Días de crédito vacío sigue guardándose como 0 (el modelo no cambia).
 assert.equal(normalizeProviderInput(providerFixture({condicionesPago: "credito", diasCredito: ""})).diasCredito, 0);
 assert.equal(buildProviderMutationPayload(providerFixture({condicionesPago: "", diasCredito: ""})).diasCredito, 0);

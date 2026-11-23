@@ -6,6 +6,7 @@ import {
   getRegionByCode,
 } from "../../domain/businessCatalog";
 import {getContactRegionOptions, getContactTerritoryConfig} from "../../domain/contactTerritory.mjs";
+import {getCountryFormCopy} from "../../domain/countryFormCopy.mjs";
 
 // Valor de la opción que representa una región guardada antes como texto libre y que no está en el catálogo.
 const LEGACY_REGION_VALUE = "__texto_anterior__";
@@ -20,6 +21,10 @@ function ContactTerritoryFields({
   values,
 }) {
   const config = getContactTerritoryConfig(countryCode);
+  // Texto guía de los campos de texto (listas sin texto): Chile y Bolivia con ejemplo propio, el resto con la instrucción neutra.
+  const copy = getCountryFormCopy(countryCode);
+  const primaryHint = copy.territoryRegionExample || undefined;
+  const secondaryHint = copy.territoryMunicipalityExample || undefined;
   const regionOptions = config.hasCatalog ? [] : getContactRegionOptions(countryCode);
 
   if (regionOptions.length) {
@@ -50,7 +55,7 @@ function ContactTerritoryFields({
           ref={(node) => setFieldRef("comunaNombre", node)}
           value={values.comunaNombre}
           onChange={(event) => onChange({comunaNombre: event.target.value, comunaCodigo: ""}, ["comunaNombre"])}
-          placeholder={`Escribe ${config.secondaryLabel.toLowerCase()}`}
+          placeholder={secondaryHint}
         />
       </Field>
     </>;
@@ -110,7 +115,7 @@ function ContactTerritoryFields({
         ref={(node) => setFieldRef("regionNombre", node)}
         value={values.regionNombre}
         onChange={(event) => onChange({regionNombre: event.target.value, regionCodigo: ""}, ["regionNombre"])}
-        placeholder={`Escribe ${config.primaryLabel.toLowerCase()}`}
+        placeholder={primaryHint}
       />
     </Field>
     <Field error={errors.comunaNombre} field="comunaNombre" label={config.secondaryLabel}>
@@ -118,7 +123,7 @@ function ContactTerritoryFields({
         ref={(node) => setFieldRef("comunaNombre", node)}
         value={values.comunaNombre}
         onChange={(event) => onChange({comunaNombre: event.target.value, comunaCodigo: ""}, ["comunaNombre"])}
-        placeholder={`Escribe ${config.secondaryLabel.toLowerCase()}`}
+        placeholder={secondaryHint}
       />
     </Field>
   </>;

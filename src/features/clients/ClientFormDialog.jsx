@@ -304,7 +304,7 @@ function ClientFormDialog({client, countryCode = "CL", onClose, onSubmit, open})
               value={values.nombreRazonSocial}
               onChange={(event) => updateField("nombreRazonSocial", event.target.value)}
               autoComplete={isCompany ? "organization" : "name"}
-              placeholder={isCompany ? "Ej. Servicios técnicos" : "Ej. Nombre Apellido"}
+              placeholder={isCompany ? countryCopy.clientCompanyNameExample : countryCopy.clientPersonNameExample}
             />
           </ClientField>
 

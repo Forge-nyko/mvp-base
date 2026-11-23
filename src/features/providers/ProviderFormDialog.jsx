@@ -2,15 +2,14 @@ import React, {useEffect, useRef, useState} from "react";
 import {Save} from "lucide-react";
 import ContactTerritoryFields from "../../components/contacts/ContactTerritoryFields";
 import Button from "../../components/ui/Button";
-import Disclosure from "../../components/ui/Disclosure";
 import ResponsiveDialog from "../../components/ui/ResponsiveDialog";
 import {
   formatProviderRut,
   getProviderFieldErrors,
 } from "../../domain/providerModel.mjs";
 import {formatContactPhoneInput} from "../../domain/contactFormatting.mjs";
-import {getCountryFormCopy} from "../../domain/countryFormCopy.mjs";
-import {getFiscalIdentifierLabel, getFiscalIdentifierPlaceholder, normalizeCountryCode} from "../../domain/fiscalIdentifier.mjs";
+import {getCountryFormCopy, getFiscalIdentifierHint} from "../../domain/countryFormCopy.mjs";
+import {getFiscalIdentifierLabel, normalizeCountryCode} from "../../domain/fiscalIdentifier.mjs";
 import {
   getCommuneByCode,
   getRegionByCode,
@@ -36,10 +35,14 @@ const EMPTY_PROVIDER = {
   notas: "",
 };
 
-// Campos dentro del plegable "Más datos". Si alguno trae contenido o un error, el plegable se abre solo.
-const OPTIONAL_FIELDS = Object.freeze([
+// Orden visual de los campos: el primer error se enfoca en este orden, no en el de validación.
+const FIELD_ORDER = Object.freeze([
+  "rut",
+  "razonSocial",
   "nombreFantasia",
   "giro",
+  "email",
+  "telefono",
   "personaContacto",
   "direccion",
   "regionCodigo",
@@ -50,17 +53,6 @@ const OPTIONAL_FIELDS = Object.freeze([
   "diasCredito",
   "notas",
 ]);
-// Orden visual de los campos: el primer error se enfoca en este orden, no en el de validación.
-const FIELD_ORDER = Object.freeze([
-  "rut",
-  "razonSocial",
-  "email",
-  "telefono",
-  ...OPTIONAL_FIELDS,
-]);
-
-const hasOptionalContent = (values) =>
-  OPTIONAL_FIELDS.some((field) => String(values[field] || "").trim());
 
 function toFormValues(provider, countryCode = "CL") {
   if (!provider) return {...EMPTY_PROVIDER};
@@ -110,8 +102,6 @@ function ProviderFormDialog({countryCode = "CL", onClose, onSubmit, open, provid
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [optionalOpen, setOptionalOpen] = useState(() => hasOptionalContent(toFormValues(provider, countryCode)));
-  const [pendingFocus, setPendingFocus] = useState("");
   const firstInputRef = useRef(null);
   const fieldRefs = useRef({});
   const isEditing = Boolean(provider?.proveedorId);
@@ -124,22 +114,10 @@ function ProviderFormDialog({countryCode = "CL", onClose, onSubmit, open, provid
     if (!open) return;
     const nextValues = toFormValues(provider, country);
     setValues(nextValues);
-    setOptionalOpen(hasOptionalContent(nextValues));
-    setPendingFocus("");
     setErrors({});
     setServerError("");
     setSaving(false);
   }, [country, open, provider]);
-
-  // Un campo plegado solo existe en el DOM con el plegable abierto: el foco se pide una pasada después de abrirlo.
-  useEffect(() => {
-    if (!pendingFocus) return undefined;
-    const frameId = window.requestAnimationFrame(() => {
-      fieldRefs.current[pendingFocus]?.focus();
-      setPendingFocus("");
-    });
-    return () => window.cancelAnimationFrame(frameId);
-  }, [pendingFocus]);
 
   const setFieldRef = (field, node) => {
     fieldRefs.current[field] = node;
@@ -228,8 +206,7 @@ function ProviderFormDialog({countryCode = "CL", onClose, onSubmit, open, provid
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       const firstField = FIELD_ORDER.find((field) => nextErrors[field]) || Object.keys(nextErrors)[0];
-      if (OPTIONAL_FIELDS.includes(firstField)) setOptionalOpen(true);
-      setPendingFocus(firstField);
+      fieldRefs.current[firstField]?.focus();
       return;
     }
 
@@ -285,6 +262,7 @@ function ProviderFormDialog({countryCode = "CL", onClose, onSubmit, open, provid
 
         <div className="client-form-sections">
           <fieldset className="client-form-section" disabled={saving}>
+            <legend>Datos del proveedor</legend>
             <p className="client-form-section__help">
               {fiscalLabel} y razón social son los únicos datos requeridos.
             </p>
@@ -297,7 +275,7 @@ function ProviderFormDialog({countryCode = "CL", onClose, onSubmit, open, provid
                   onBlur={() => validateField("rut")}
                   inputMode="text"
                   maxLength={isChile ? 12 : 20}
-                  placeholder={getFiscalIdentifierPlaceholder(country)}
+                  placeholder={getFiscalIdentifierHint(country)}
                 />
               </ProviderField>
 
@@ -307,86 +285,84 @@ function ProviderFormDialog({countryCode = "CL", onClose, onSubmit, open, provid
                   value={values.razonSocial}
                   onChange={(event) => updateField("razonSocial", event.target.value)}
                   autoComplete="organization"
-                  placeholder="Ej. Servicios técnicos"
+                  placeholder={countryCopy.providerLegalNameExample}
                 />
               </ProviderField>
 
+              <ProviderField error={errors.nombreFantasia} field="nombreFantasia" label="Nombre de fantasía">
+                <input ref={(node) => setFieldRef("nombreFantasia", node)} value={values.nombreFantasia} onChange={(event) => updateField("nombreFantasia", event.target.value)} placeholder={countryCopy.providerTradeNameExample} />
+              </ProviderField>
+
+              <ProviderField error={errors.giro} field="giro" label={countryCopy.businessActivityLabel}>
+                <input ref={(node) => setFieldRef("giro", node)} value={values.giro} onChange={(event) => updateField("giro", event.target.value)} placeholder={countryCopy.providerBusinessActivityExample} />
+              </ProviderField>
+            </div>
+          </fieldset>
+
+          <fieldset className="client-form-section" disabled={saving}>
+            <legend>Contacto <span>(opcional)</span></legend>
+            <div className="client-form-grid">
               <ProviderField error={errors.email} field="email" label="Correo">
-                <input ref={(node) => setFieldRef("email", node)} type="email" value={values.email} onChange={(event) => updateField("email", event.target.value)} onBlur={() => validateField("email")} autoComplete="email" placeholder="Ej. contacto@empresa.cl" />
+                <input ref={(node) => setFieldRef("email", node)} type="email" value={values.email} onChange={(event) => updateField("email", event.target.value)} onBlur={() => validateField("email")} autoComplete="email" placeholder={countryCopy.providerEmailExample} />
               </ProviderField>
 
               <ProviderField error={errors.telefono} field="telefono" label="Teléfono">
-                <input ref={(node) => setFieldRef("telefono", node)} type="tel" value={values.telefono} onChange={handlePhoneChange} onBlur={() => validateField("telefono")} autoComplete="tel" inputMode="tel" maxLength={30} placeholder={isChile ? "Ej. +56 9 6123 4587" : "Ej. +1 202 555 0100"} />
+                <input ref={(node) => setFieldRef("telefono", node)} type="tel" value={values.telefono} onChange={handlePhoneChange} onBlur={() => validateField("telefono")} autoComplete="tel" inputMode="tel" maxLength={30} placeholder={countryCopy.providerPhoneExample} />
+              </ProviderField>
+
+              <ProviderField error={errors.personaContacto} field="personaContacto" label="Persona de contacto">
+                <input ref={(node) => setFieldRef("personaContacto", node)} value={values.personaContacto} onChange={(event) => updateField("personaContacto", event.target.value)} autoComplete="name" placeholder={countryCopy.providerContactPersonExample} />
               </ProviderField>
             </div>
+          </fieldset>
 
-            <Disclosure
-              description="Nombre de fantasía, giro, contacto, ubicación, condiciones comerciales y notas."
-              id="provider-optional-information"
-              onOpenChange={setOptionalOpen}
-              open={optionalOpen}
-              title="Más datos del proveedor (opcional)"
-            >
-              <div className="client-form-grid">
-                <ProviderField error={errors.nombreFantasia} field="nombreFantasia" label="Nombre de fantasía">
-                  <input ref={(node) => setFieldRef("nombreFantasia", node)} value={values.nombreFantasia} onChange={(event) => updateField("nombreFantasia", event.target.value)} />
+          <fieldset className="client-form-section" disabled={saving}>
+            <legend>Ubicación <span>(opcional)</span></legend>
+            <div className="client-form-grid">
+              <ProviderField error={errors.direccion} field="direccion" label="Dirección" wide>
+                <input ref={(node) => setFieldRef("direccion", node)} value={values.direccion} onChange={(event) => updateField("direccion", event.target.value)} autoComplete="street-address" placeholder={countryCopy.providerAddressExample} />
+              </ProviderField>
+
+              <ContactTerritoryFields
+                Field={ProviderField}
+                countryCode={country}
+                errors={errors}
+                onChange={updateTerritory}
+                saving={saving}
+                setFieldRef={setFieldRef}
+                values={values}
+              />
+            </div>
+          </fieldset>
+
+          <fieldset className="client-form-section" disabled={saving}>
+            <legend>Condiciones comerciales <span>(opcional)</span></legend>
+            <div className="client-form-grid">
+              <ProviderField error={errors.condicionesPago} field="condicionesPago" label="Condiciones de pago">
+                <select ref={(node) => setFieldRef("condicionesPago", node)} value={values.condicionesPago} onChange={handlePaymentChange}>
+                  <option value="">Sin especificar</option>
+                  <option value="contado">Contado</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="credito">Crédito</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </ProviderField>
+
+              {values.condicionesPago === "credito" && (
+                <ProviderField error={errors.diasCredito} field="diasCredito" label="Días de crédito">
+                  <input ref={(node) => setFieldRef("diasCredito", node)} type="number" min="0" step="1" value={values.diasCredito} onChange={(event) => updateField("diasCredito", event.target.value)} placeholder={countryCopy.providerCreditDaysExample} />
                 </ProviderField>
+              )}
+            </div>
+          </fieldset>
 
-                <ProviderField error={errors.giro} field="giro" label={countryCopy.businessActivityLabel}>
-                  <input ref={(node) => setFieldRef("giro", node)} value={values.giro} onChange={(event) => updateField("giro", event.target.value)} />
-                </ProviderField>
-
-                <ProviderField error={errors.personaContacto} field="personaContacto" label="Persona de contacto">
-                  <input ref={(node) => setFieldRef("personaContacto", node)} value={values.personaContacto} onChange={(event) => updateField("personaContacto", event.target.value)} autoComplete="name" />
-                </ProviderField>
-              </div>
-
-              <fieldset className="provider-form-subsection">
-                <legend>Ubicación</legend>
-                <div className="client-form-grid">
-                  <ProviderField error={errors.direccion} field="direccion" label="Dirección" wide>
-                    <input ref={(node) => setFieldRef("direccion", node)} value={values.direccion} onChange={(event) => updateField("direccion", event.target.value)} autoComplete="street-address" />
-                  </ProviderField>
-
-                  <ContactTerritoryFields
-                    Field={ProviderField}
-                    countryCode={country}
-                    errors={errors}
-                    onChange={updateTerritory}
-                    saving={saving}
-                    setFieldRef={setFieldRef}
-                    values={values}
-                  />
-                </div>
-              </fieldset>
-
-              <fieldset className="provider-form-subsection">
-                <legend>Condiciones comerciales</legend>
-                <div className="client-form-grid">
-                  <ProviderField error={errors.condicionesPago} field="condicionesPago" label="Condiciones de pago">
-                    <select ref={(node) => setFieldRef("condicionesPago", node)} value={values.condicionesPago} onChange={handlePaymentChange}>
-                      <option value="">Sin especificar</option>
-                      <option value="contado">Contado</option>
-                      <option value="transferencia">Transferencia</option>
-                      <option value="credito">Crédito</option>
-                      <option value="otro">Otro</option>
-                    </select>
-                  </ProviderField>
-
-                  {values.condicionesPago === "credito" && (
-                    <ProviderField error={errors.diasCredito} field="diasCredito" label="Días de crédito">
-                      <input ref={(node) => setFieldRef("diasCredito", node)} type="number" min="0" step="1" value={values.diasCredito} onChange={(event) => updateField("diasCredito", event.target.value)} />
-                    </ProviderField>
-                  )}
-                </div>
-              </fieldset>
-
-              <div className="client-form-grid">
-                <ProviderField error={errors.notas} field="notas" label="Notas internas" wide>
-                  <textarea ref={(node) => setFieldRef("notas", node)} value={values.notas} onChange={(event) => updateField("notas", event.target.value)} rows="4" />
-                </ProviderField>
-              </div>
-            </Disclosure>
+          <fieldset className="client-form-section" disabled={saving}>
+            <legend>Notas <span>(opcional)</span></legend>
+            <div className="client-form-grid">
+              <ProviderField error={errors.notas} field="notas" label="Notas internas" wide>
+                <textarea ref={(node) => setFieldRef("notas", node)} value={values.notas} onChange={(event) => updateField("notas", event.target.value)} rows="4" placeholder={countryCopy.providerNotesExample} />
+              </ProviderField>
+            </div>
           </fieldset>
         </div>
       </form>

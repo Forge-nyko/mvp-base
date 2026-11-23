@@ -8,7 +8,7 @@ import { getClientFieldErrors } from "../src/domain/clientModel.mjs";
 import { buildPurchaseOrderPdfDocument } from "../src/domain/purchaseOrderDocument.mjs";
 import { buildQuotePdfDocument } from "../src/domain/quoteDocument.mjs";
 import { getCompanyDocumentSuggestions } from "../src/domain/companyDocumentSuggestions.mjs";
-import { getClientFiscalCopy, getClientFiscalListLabel, getCountryFormCopy } from "../src/domain/countryFormCopy.mjs";
+import { FORM_HINT_KEYS, GENERIC_FIELD_HINTS, getClientFiscalCopy, getClientFiscalListLabel, getCountryFormCopy, getFiscalIdentifierHint } from "../src/domain/countryFormCopy.mjs";
 import { resolveDocumentTaxRate } from "../src/domain/localization.mjs";
 import { normalizeQuickBusinessPayload } from "../src/domain/businessQuickPayload.mjs";
 import { getFiscalIdentifierLabel, isValidFiscalIdentifier } from "../src/domain/fiscalIdentifier.mjs";
@@ -33,11 +33,11 @@ for (const key of ["declaredFiscalIdExample", "requesterEmailExample", "requeste
 assert.deepEqual(getClientFiscalCopy("CL", "persona"), { label: "RUT", placeholder: "Ej.: 12.345.678-5" });
 assert.deepEqual(getClientFiscalCopy("CL", "empresa"), { label: "RUT", placeholder: "Ej.: 12.345.678-5" });
 
-// --- Otros países: lo de siempre (solo el ejemplo de teléfono del cliente distinguía a Chile) ---
+// --- Otros países: lo de siempre en el perfil de empresa; el texto guía de cliente y proveedor es la capa 2 ---
 for (const code of ["MX", "PE", "PY", "OTHER", "ZZ"]) {
   const copy = getCountryFormCopy(code);
   assert.equal(copy.businessActivityLabel, "Giro", code);
-  assert.equal(copy.clientPhoneExample, "Ej. +1 202 555 0100", code);
+  assert.equal(copy.clientPhoneExample, GENERIC_FIELD_HINTS.phone, code);
   assert.equal(copy.companyEmailExample, "contacto@empresa.cl", code);
   assert.equal(copy.companyPostalCodeExample, "Ej.: 1100000", code);
   assert.equal(copy.personFiscalLabel, null, code);
@@ -410,25 +410,25 @@ assert.equal(validateBusinessCreationInput({ ...quick, paisCodigo: "BO", regionC
 // y datos no cambian. Dirección y giro salen de countryFormCopy por país; contacto y notas son iguales.
 // =====================================================================================================
 assert.equal(cl.clientAddressExample, "Ej. Av. Arturo Prat 123");
-assert.equal(cl.clientBusinessActivityExample, "Ej. Venta de repuestos automotrices");
+assert.equal(cl.clientBusinessActivityExample, "Ej. Venta de productos y servicios");
 assert.equal(bo.clientAddressExample, "Ej. Av. Banzer 123");
-assert.equal(bo.clientBusinessActivityExample, "Ej. Transporte de carga");
+assert.equal(bo.clientBusinessActivityExample, "Ej. Venta de productos y servicios");
 for (const copy of [cl, bo]) {
   assert.equal(copy.clientContactPersonExample, "Ej. Nombre Apellido");
   assert.equal(copy.clientNotesExample, "Ej. Prefiere contacto por WhatsApp");
 }
 // Los ejemplos bolivianos no arrastran nada chileno, y los chilenos nada boliviano.
 for (const key of ["clientAddressExample", "clientBusinessActivityExample"]) {
-  assert.doesNotMatch(bo[key], /Prat|repuestos|\.cl\b|\+56/, `Bolivia sin ejemplos chilenos: ${key}`);
-  assert.doesNotMatch(cl[key], /Banzer|Transporte de carga|\.bo\b|\+591/, `Chile sin ejemplos bolivianos: ${key}`);
+  assert.doesNotMatch(bo[key], /Prat|\.cl\b|\+56/, `Bolivia sin ejemplos chilenos: ${key}`);
+  assert.doesNotMatch(cl[key], /Banzer|\.bo\b|\+591/, `Chile sin ejemplos bolivianos: ${key}`);
 }
-// Otros países: dirección y giro siguen sin ejemplo (como hoy); contacto y notas no dependen del país.
+// Otros países: la capa 2 (instrucción neutra), nunca null ni vacío.
 for (const code of ["MX", "PE", "PY", "OTHER", "ZZ"]) {
   const copy = getCountryFormCopy(code);
-  assert.equal(copy.clientAddressExample, null, `${code}: sin ejemplo de dirección`);
-  assert.equal(copy.clientBusinessActivityExample, null, `${code}: sin ejemplo de giro`);
-  assert.equal(copy.clientContactPersonExample, "Ej. Nombre Apellido", code);
-  assert.equal(copy.clientNotesExample, "Ej. Prefiere contacto por WhatsApp", code);
+  assert.equal(copy.clientAddressExample, GENERIC_FIELD_HINTS.address, `${code}: dirección`);
+  assert.equal(copy.clientBusinessActivityExample, GENERIC_FIELD_HINTS.businessActivity, `${code}: giro`);
+  assert.equal(copy.clientContactPersonExample, GENERIC_FIELD_HINTS.contactPerson, code);
+  assert.equal(copy.clientNotesExample, GENERIC_FIELD_HINTS.notes, code);
 }
 
 // Cableado del formulario: cada campo de texto sin ejemplo previo lo toma del helper; los que ya tenían no cambian.
@@ -449,7 +449,7 @@ assert.doesNotMatch(
 );
 // Los que ya tenían ejemplo siguen igual.
 assert.ok(clientFormSource.includes("placeholder={fiscalPlaceholder}"));
-assert.ok(clientFormSource.includes('placeholder={isCompany ? "Ej. Servicios técnicos" : "Ej. Nombre Apellido"}'));
+assert.ok(clientFormSource.includes("placeholder={isCompany ? countryCopy.clientCompanyNameExample : countryCopy.clientPersonNameExample}"));
 assert.ok(clientFormSource.includes("placeholder={isCompany ? countryCopy.clientCompanyEmailExample : countryCopy.clientPersonEmailExample}"));
 assert.ok(clientFormSource.includes("placeholder={countryCopy.clientPhoneExample}"));
 // Etiquetas intactas.
@@ -473,28 +473,175 @@ try {
   );
   const clMarkup = renderForm("CL");
   const boMarkup = renderForm("BO");
-  assert.ok(clMarkup.includes('placeholder="Ej. Venta de repuestos automotrices"'), "Chile: giro");
+  assert.ok(clMarkup.includes('placeholder="Ej. Venta de productos y servicios"'), "Chile: giro");
   assert.ok(clMarkup.includes('placeholder="Ej. Av. Arturo Prat 123"'), "Chile: dirección");
   assert.ok(clMarkup.includes('placeholder="Ej. Nombre Apellido"'), "Chile: persona de contacto");
   assert.ok(clMarkup.includes("Ej. Prefiere contacto por WhatsApp"), "Chile: notas");
-  assert.ok(boMarkup.includes('placeholder="Ej. Transporte de carga"'), "Bolivia: giro");
+  assert.ok(boMarkup.includes('placeholder="Ej. Venta de productos y servicios"'), "Bolivia: giro");
   assert.ok(boMarkup.includes('placeholder="Ej. Av. Banzer 123"'), "Bolivia: dirección");
   assert.ok(boMarkup.includes('placeholder="Ej. Nombre Apellido"'), "Bolivia: persona de contacto");
   assert.ok(boMarkup.includes("Ej. Prefiere contacto por WhatsApp"), "Bolivia: notas");
   assert.ok(!boMarkup.includes("Prat") && !boMarkup.includes("repuestos"), "Bolivia sin ejemplos chilenos");
   assert.ok(!clMarkup.includes("Banzer") && !clMarkup.includes("Transporte de carga"), "Chile sin ejemplos bolivianos");
+  assert.ok(!clMarkup.includes("Servicios técnicos") && !boMarkup.includes("Servicios técnicos"), "sin el ejemplo que sugería un rubro");
   // Etiquetas por país como antes.
   assert.ok(clMarkup.includes(">Giro<") || clMarkup.includes("Giro"), "Chile: etiqueta Giro");
   assert.ok(boMarkup.includes("Actividad económica") && !boMarkup.includes(">Giro<"), "Bolivia: etiqueta Actividad económica");
-  // Otro país: dirección y giro sin ejemplo, como hoy.
+  // Otro país: la capa 2 en cada campo de texto, sin ejemplos de país ni "Ej.".
   const mxMarkup = renderForm("MX");
   assert.ok(!mxMarkup.includes("Arturo Prat") && !mxMarkup.includes("Banzer") && !mxMarkup.includes("repuestos automotrices") && !mxMarkup.includes("Transporte de carga"), "otro país sin ejemplos de país");
+  for (const hint of [GENERIC_FIELD_HINTS.fiscalId, GENERIC_FIELD_HINTS.legalName, GENERIC_FIELD_HINTS.businessActivity, GENERIC_FIELD_HINTS.contactPerson, GENERIC_FIELD_HINTS.email, GENERIC_FIELD_HINTS.phone, GENERIC_FIELD_HINTS.address, GENERIC_FIELD_HINTS.region, GENERIC_FIELD_HINTS.municipality, GENERIC_FIELD_HINTS.notes]) {
+    assert.ok(mxMarkup.includes(`placeholder="${hint}"`), `otro país (cliente): "${hint}"`);
+  }
+  assert.ok(!/placeholder="Ej\./.test(mxMarkup), "otro país (cliente): ningún texto guía empieza con Ej.");
+  assert.ok(!mxMarkup.includes("Escribe municipio") && !mxMarkup.includes("Escribe departamento"), "otro país: ya no queda el 'Escribe ...' antiguo");
   // Los ejemplos que ya existían siguen (sin cambios).
-  assert.ok(clMarkup.includes('placeholder="Ej. Servicios técnicos"') && clMarkup.includes('placeholder="Ej. +56 9 6123 4587"'));
+  assert.ok(clMarkup.includes('placeholder="Ej. Comercial Andina SpA"') && clMarkup.includes('placeholder="Ej. +56 9 6123 4587"'));
+  assert.ok(boMarkup.includes('placeholder="Ej. Comercial Andina S.R.L."') && boMarkup.includes('placeholder="Ej. Santa Cruz de la Sierra"'));
   assert.ok(boMarkup.includes('placeholder="Ej. +591 7xxxxxxx"') && boMarkup.includes('placeholder="Ej. contacto@empresa.com.bo"'));
+  // Persona: nombre completo y correo de persona.
+  const personMarkup = renderToStaticMarkup(React.createElement(ClientFormDialog, { countryCode: "BO", client: { clienteId: "c1", tipoCliente: "persona", rut: "1234567", nombreRazonSocial: "Ana Gómez", paisCodigo: "BO" }, onClose() {}, onSubmit() {}, open: true }));
+  assert.ok(personMarkup.includes('placeholder="Ej. Nombre Apellido"') && personMarkup.includes('placeholder="Ej. nombre@correo.com.bo"'), "Bolivia · persona");
 } finally {
   await vite3.close();
 }
 console.log("OK formulario de cliente: placeholders por país (SPEC 040)");
+
+// =====================================================================================================
+// Texto guía de cliente y proveedor en dos capas (SPEC 040): capa 1 = ejemplos locales de Chile y Bolivia, capa 2 =
+// instrucción neutra definida una sola vez para cualquier otro país. Se fija campo por campo.
+// =====================================================================================================
+const LAYER1 = {
+  CL: {
+    clientCompanyNameExample: "Ej. Comercial Andina SpA",
+    clientPersonNameExample: "Ej. Nombre Apellido",
+    clientBusinessActivityExample: "Ej. Venta de productos y servicios",
+    clientContactPersonExample: "Ej. Nombre Apellido",
+    clientCompanyEmailExample: "Ej. contacto@empresa.cl",
+    clientPersonEmailExample: "Ej. nombre@correo.cl",
+    clientPhoneExample: "Ej. +56 9 6123 4587",
+    clientAddressExample: "Ej. Av. Arturo Prat 123",
+    clientNotesExample: "Ej. Prefiere contacto por WhatsApp",
+    providerLegalNameExample: "Ej. Comercial Andina SpA",
+    providerTradeNameExample: "Ej. Comercial Andina",
+    providerBusinessActivityExample: "Ej. Venta de productos y servicios",
+    providerEmailExample: "Ej. contacto@empresa.cl",
+    providerPhoneExample: "Ej. +56 9 6123 4587",
+    providerContactPersonExample: "Ej. Nombre Apellido",
+    providerAddressExample: "Ej. Av. Arturo Prat 123",
+    providerCreditDaysExample: "Ej. 30",
+    providerNotesExample: "Ej. Prefiere contacto por WhatsApp",
+    territoryRegionExample: null, // lista
+    territoryMunicipalityExample: null, // lista (comuna)
+  },
+  BO: {
+    clientCompanyNameExample: "Ej. Comercial Andina S.R.L.",
+    clientPersonNameExample: "Ej. Nombre Apellido",
+    clientBusinessActivityExample: "Ej. Venta de productos y servicios",
+    clientContactPersonExample: "Ej. Nombre Apellido",
+    clientCompanyEmailExample: "Ej. contacto@empresa.com.bo",
+    clientPersonEmailExample: "Ej. nombre@correo.com.bo",
+    clientPhoneExample: "Ej. +591 7xxxxxxx",
+    clientAddressExample: "Ej. Av. Banzer 123",
+    clientNotesExample: "Ej. Prefiere contacto por WhatsApp",
+    providerLegalNameExample: "Ej. Comercial Andina S.R.L.",
+    providerTradeNameExample: "Ej. Comercial Andina",
+    providerBusinessActivityExample: "Ej. Venta de productos y servicios",
+    providerEmailExample: "Ej. contacto@empresa.com.bo",
+    providerPhoneExample: "Ej. +591 7xxxxxxx",
+    providerContactPersonExample: "Ej. Nombre Apellido",
+    providerAddressExample: "Ej. Av. Banzer 123",
+    providerCreditDaysExample: "Ej. 30",
+    providerNotesExample: "Ej. Prefiere contacto por WhatsApp",
+    territoryRegionExample: null, // lista (departamento)
+    territoryMunicipalityExample: "Ej. Santa Cruz de la Sierra",
+  },
+};
+assert.deepEqual([...FORM_HINT_KEYS].sort(), Object.keys(LAYER1.CL).sort(), "el smoke cubre todas las claves de texto guía");
+for (const code of ["CL", "BO"]) {
+  const copy = getCountryFormCopy(code);
+  assert.deepEqual(Object.fromEntries(FORM_HINT_KEYS.map((key) => [key, copy[key]])), LAYER1[code], `${code}: capa 1 por campo`);
+  for (const [key, value] of Object.entries(LAYER1[code])) {
+    if (value === null) continue;
+    assert.match(value, /^Ej\. /, `${code}.${key}: empieza con "Ej. "`);
+    // Neutros de rubro: ningún ejemplo sugiere a qué se dedica el negocio.
+    assert.doesNotMatch(value, /repuesto|automotri|transporte|carga|servicios t[eé]cnicos|inform[aá]tic|electric|ferreter|taller|veterinari|cl[ií]nica|restaurant|construcci/i, `${code}.${key}: no menciona un rubro`);
+    assert.ok(!value.includes("¿"), `${code}.${key}: sin signo de apertura`);
+  }
+}
+// Los textos de proveedor y cliente que son el mismo dato coinciden en cada país de la capa 1.
+for (const code of ["CL", "BO"]) {
+  const copy = getCountryFormCopy(code);
+  assert.equal(copy.providerEmailExample, copy.clientCompanyEmailExample, `${code}: correo`);
+  assert.equal(copy.providerPhoneExample, copy.clientPhoneExample, `${code}: teléfono`);
+  assert.equal(copy.providerAddressExample, copy.clientAddressExample, `${code}: dirección`);
+  assert.equal(copy.providerBusinessActivityExample, copy.clientBusinessActivityExample, `${code}: actividad`);
+  assert.equal(copy.providerContactPersonExample, copy.clientContactPersonExample, `${code}: persona de contacto`);
+  assert.equal(copy.providerNotesExample, copy.clientNotesExample, `${code}: notas`);
+  assert.equal(copy.providerLegalNameExample, copy.clientCompanyNameExample, `${code}: razón social`);
+}
+
+// Capa 2: cualquier país sin ejemplos propios (y uno que ni existe) usa la instrucción neutra, nunca null ni vacío.
+assert.deepEqual(GENERIC_FIELD_HINTS, {
+  fiscalId: "Escribe el identificador fiscal",
+  personName: "Escribe el nombre completo",
+  legalName: "Escribe el nombre o razón social",
+  tradeName: "Escribe el nombre de fantasía",
+  businessActivity: "Escribe la actividad económica",
+  email: "Escribe el correo electrónico",
+  phone: "Escribe el teléfono de contacto",
+  contactPerson: "Escribe el nombre de la persona de contacto",
+  address: "Escribe la dirección",
+  region: "Escribe el departamento o región",
+  municipality: "Escribe el municipio o comuna",
+  notes: "Escribe una nota interna",
+  creditDays: "Escribe los días de crédito",
+});
+const expectedLayer2 = {
+  clientCompanyNameExample: "Escribe el nombre o razón social",
+  clientPersonNameExample: "Escribe el nombre completo",
+  clientBusinessActivityExample: "Escribe la actividad económica",
+  clientContactPersonExample: "Escribe el nombre de la persona de contacto",
+  clientCompanyEmailExample: "Escribe el correo electrónico",
+  clientPersonEmailExample: "Escribe el correo electrónico",
+  clientPhoneExample: "Escribe el teléfono de contacto",
+  clientAddressExample: "Escribe la dirección",
+  clientNotesExample: "Escribe una nota interna",
+  providerLegalNameExample: "Escribe el nombre o razón social",
+  providerTradeNameExample: "Escribe el nombre de fantasía",
+  providerBusinessActivityExample: "Escribe la actividad económica",
+  providerEmailExample: "Escribe el correo electrónico",
+  providerPhoneExample: "Escribe el teléfono de contacto",
+  providerContactPersonExample: "Escribe el nombre de la persona de contacto",
+  providerAddressExample: "Escribe la dirección",
+  providerCreditDaysExample: "Escribe los días de crédito",
+  providerNotesExample: "Escribe una nota interna",
+  territoryRegionExample: "Escribe el departamento o región",
+  territoryMunicipalityExample: "Escribe el municipio o comuna",
+};
+for (const code of ["PE", "MX", "BR", "OTHER", "ZZ", undefined, ""]) {
+  const copy = getCountryFormCopy(code);
+  assert.deepEqual(Object.fromEntries(FORM_HINT_KEYS.map((key) => [key, copy[key]])), expectedLayer2, `${code}: capa 2 por campo`);
+  for (const key of FORM_HINT_KEYS) {
+    assert.ok(typeof copy[key] === "string" && copy[key].trim().length > 0, `${code}.${key}: nunca null ni vacío`);
+    assert.doesNotMatch(copy[key], /^Ej\./, `${code}.${key}: sin "Ej."`);
+    assert.doesNotMatch(copy[key], /@|\+\d|\.cl\b|\.bo\b|repuesto|transporte|Chile|Bolivia/i, `${code}.${key}: sin país ni rubro`);
+    assert.ok(!copy[key].includes("¿"), `${code}.${key}: sin signo de apertura`);
+    assert.match(copy[key], /^Escribe /, `${code}.${key}: texto de instrucción`);
+  }
+}
+// El identificador fiscal: el ejemplo del país si lo hay; si no, la instrucción neutra (nunca "TAX-12345").
+assert.equal(getFiscalIdentifierHint("CL"), "Ej.: 12.345.678-5");
+assert.equal(getFiscalIdentifierHint("BO"), "Ej.: 1234567");
+for (const code of ["MX", "AR", "OTHER", "ZZ", undefined]) assert.equal(getFiscalIdentifierHint(code), GENERIC_FIELD_HINTS.fiscalId, `${code}: identificador fiscal`);
+assert.deepEqual(getClientFiscalCopy("MX", "empresa"), { label: "RFC", placeholder: "Escribe el identificador fiscal" });
+assert.equal(getClientFiscalCopy("BO", "persona").placeholder, "Ej.: 1234567");
+// La capa 2 se define en un solo lugar: los componentes y el territorio no escriben "Escribe ..." propio.
+for (const path of ["src/features/clients/ClientFormDialog.jsx", "src/features/providers/ProviderFormDialog.jsx", "src/components/contacts/ContactTerritoryFields.jsx"]) {
+  const source = (await read(path)).replace(/\/\/.*$/gm, "");
+  assert.doesNotMatch(source, /placeholder="(Ej\.|Escribe)|placeholder=\{`Escribe/, `${path}: sin texto guía escrito en el componente`);
+}
+
+console.log("OK texto guía de cliente y proveedor: capa 1 (Chile y Bolivia) y capa 2 (otros países)");
 
 console.log("COUNTRY_FORM_COPY_SMOKE_OK");
