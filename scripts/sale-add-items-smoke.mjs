@@ -126,10 +126,8 @@ assert.doesNotMatch(page, /0\.19/, "NewSalePage ya no tiene el 19 % chileno fijo
 assert.equal((page.match(/addInventoryItemToSale\(/g) || []).length, 1, "selector y escaneo comparten una sola función");
 assert.match(page, /addInventoryItem\(product\)/, "el escaneo usa la misma ruta");
 assert.doesNotMatch(page, /items: \[\.\.\.current\.items, newLine\(item\)\]/, "ya no se agrega sin buscar la línea existente");
-const dialog = read("src/features/sales/SaleCatalogDialog.jsx");
-assert.match(dialog, /type="number" min="0\.000001" step="any"/, "campo de cantidad con los mismos pasos que la línea");
-assert.match(dialog, /onAdd\(item, Number\(quantityOf\(item\.id\)\)\)/);
-assert.match(dialog, /\?\? "1"/, "cantidad por defecto 1");
+assert.match(page, /<InventoryCatalogDialog /, "Venta usa el diálogo compartido (su contenido lo fija inventory-catalog-dialog-smoke)");
+assert.match(page, /priceLabel="Precio"/);
 
 // --- 8. Render: el resumen vacío dice 13 % en Bolivia y la pantalla inicial no falla ------
 Object.assign(process.env, {
@@ -142,7 +140,6 @@ const vite = await createServer({appType: "custom", logLevel: "silent", server: 
 try {
   const hook = await vite.ssrLoadModule("/src/hooks/useBusinessFormat.js");
   const panelModule = await vite.ssrLoadModule("/src/features/sales/SaleSummaryPanel.jsx");
-  const dialogModule = await vite.ssrLoadModule("/src/features/sales/SaleCatalogDialog.jsx");
   const pageModule = await vite.ssrLoadModule("/src/pages/NewSalePage.jsx");
   const countries = [
     ["Bolivia", {paisCodigo: "BO", monedaCodigo: "BOB", locale: "es-BO"}, bolivia, "IVA 13%"],
@@ -155,10 +152,6 @@ try {
     assert.ok(panel.includes(expected), `${name}: el resumen vacío dice "${expected}"`);
     const unexpected = expected === "IVA 13%" ? "IVA 19%" : "IVA 13%";
     assert.ok(!panel.includes(unexpected), `${name}: no muestra "${unexpected}"`);
-
-    const catalog = renderToStaticMarkup(React.createElement(hook.BusinessFormatProvider, {business},
-      React.createElement(dialogModule.default, {items: [{...product(), estado: "activo"}], open: true, onAdd() {}, onClose() {}})));
-    assert.ok(typeof catalog === "string");
 
     let html;
     assert.doesNotThrow(() => {

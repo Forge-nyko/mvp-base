@@ -629,7 +629,8 @@ assert.match(quotePage, /return \{key: product\.id, label: product\.nombre\}/);
 assert.match(poPage, /return \{key: product\.id, label: product\.nombre\}/);
 assert.doesNotMatch(poPage, /title: "Producto agregado"/);
 assert.match(quotePage, /Producto no encontrado para este código\./);
-assert.match(quotePage, /Number\(item\.cantidad \|\| 0\) \+ quantityToAdd/);
+// El escaneo repetido suma cantidad con la regla compartida de reagrupado (inventoryLineAdd.mjs), no con una suma propia.
+assert.match(quotePage, /addInventoryItemToLines\(items, valuation, \{[\s\S]*quantity: quantityToAdd,/);
 assert.match(poEditor, /Escanear producto/);
 assert.match(poPage, /incrementScannedItem/);
 assert.match(poPage, /Producto no encontrado para este código\./);

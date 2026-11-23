@@ -4,7 +4,9 @@ import {Ban, Briefcase, Eye, FileText, Printer} from "lucide-react";
 import {sileo} from "sileo";
 import Button from "../components/ui/Button";
 import LoadingState from "../components/ui/LoadingState";
+import InventoryCatalogDialog from "../components/ui/InventoryCatalogDialog";
 import ResponsiveDialog from "../components/ui/ResponsiveDialog";
+import {catalogEntryFromInventoryItem, sumQuantitiesByItem} from "../domain/inventoryLineAdd.mjs";
 import {adaptDocumentAmountDecimals, resolveDocumentTaxRate} from "../domain/localization.mjs";
 import {useBusinessMoney} from "../hooks/useBusinessFormat";
 import {
@@ -17,7 +19,6 @@ import {
   shouldReconcileSaleConfirmation,
 } from "../domain/saleModel.mjs";
 import AdditionalSelector from "../features/works/AdditionalSelector.jsx";
-import SaleCatalogDialog from "../features/sales/SaleCatalogDialog";
 import SaleClientSelector from "../features/sales/SaleClientSelector";
 import SaleCommercialMarginPanel from "../features/sales/SaleCommercialMarginPanel";
 import SaleItemsEditor from "../features/sales/SaleItemsEditor";
@@ -213,6 +214,9 @@ export default function NewSalePage({businessId, role}) {
     () => calculateSaleDraftTotals(draft, {taxRate: resolveDocumentTaxRate(sale, company), montoDecimales: documentDecimals}),
     [company?.impuestoPredeterminadoTasa, company?.paisCodigo, documentDecimals, draft.afectaIva, draft.descuento, draft.items, sale?.tasaIva]
   );
+
+  const catalogEntries = useMemo(() => inventory.map((item) => catalogEntryFromInventoryItem(item, "precioInterno")), [inventory]);
+  const catalogAddedQuantities = useMemo(() => sumQuantitiesByItem(draft.items), [draft.items]);
 
   const hasInsufficientStock = useMemo(() => {
     const inventoryById = new Map(inventory.map((item) => [item.id, item]));
@@ -596,7 +600,7 @@ export default function NewSalePage({businessId, role}) {
       </div>
 
       <div className="print-only"><SalePrintView company={company} sale={printable} /></div>
-      <SaleCatalogDialog items={inventory} onAdd={addItem} onClose={() => setCatalogOpen(false)} open={catalogOpen} />
+      <InventoryCatalogDialog addedQuantities={catalogAddedQuantities} entries={catalogEntries} onAdd={addItem} onClose={() => setCatalogOpen(false)} open={catalogOpen} priceLabel="Precio" />
 
       <ResponsiveDialog
         open={conditionsOpen}

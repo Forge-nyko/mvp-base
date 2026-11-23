@@ -1,5 +1,6 @@
 import {incrementScannedItem} from "./barcode.mjs";
 import {adaptStoredFiscalIdentifier} from "./fiscalIdentifier.mjs";
+import {addInventoryItemToLines} from "./inventoryLineAdd.mjs";
 import {hasMaxDecimals, isMoneyAmount, mulRound, sanitizeDecimals, sumMoney} from "./money.mjs";
 
 export const SALE_MODEL_VERSION = 1;
@@ -297,49 +298,18 @@ export function resolveSaleScan(items, itemId, createItem) {
   return {action: "incremented", items: merged};
 }
 
-const QUANTITY_SCALE = 1e6;
-const roundQuantity = (value) => Math.round(value * QUANTITY_SCALE) / QUANTITY_SCALE;
-
-// Agrega un ítem del inventario a la venta (selector "Agregar desde inventario" y "Escanear producto").
-// - Suma a una línea existente solo si es "limpia": línea propia (no viene de un adicional ni de una cotización con
-//   cantidad máxima), del mismo ítem, sin descuento y con el mismo precio actual del inventario. Con un precio editado
-//   o un descuento se crea una línea nueva con el precio del inventario: no se arrastra el ajuste a unidades que nadie
-//   ajustó ni se pisa el que se hizo a mano. Si hay varias líneas, suma a la primera que cumpla.
-// - En productos con stock conocido, el total del ítem en la venta (todas sus líneas) no supera el stock. Servicios,
-//   actividades y productos sin stock informado no tienen tope.
+// Agrega un ítem del inventario a la venta (selector "Agregar desde inventario" y "Escanear producto"). La regla de
+// reagrupado y el tope por stock (solo Venta lo activa) viven en inventoryLineAdd.mjs, compartidos con Cotización y Compra.
 // Devuelve {action: "added" | "incremented" | "stock_limit" | "invalid", items, available, limited}.
 export function addInventoryItemToSale(items, inventoryItem, {quantity = 1, createLine} = {}) {
-  const source = Array.isArray(items) ? items : [];
-  const itemId = String(inventoryItem?.id || "").trim();
-  const requested = Number(quantity);
-  if (!itemId || !Number.isFinite(requested) || requested <= 0) return {action: "invalid", items: source, available: null, limited: false};
-  const hasStock = (inventoryItem.tipoItem || "producto") === "producto"
-    && inventoryItem.stock !== null && inventoryItem.stock !== undefined && inventoryItem.stock !== ""
-    && Number.isFinite(Number(inventoryItem.stock));
-  const available = hasStock ? Number(inventoryItem.stock) : null;
-  let toAdd = requested;
-  if (hasStock) {
-    const inSale = source.reduce((sum, line) => (String(line?.itemId || "").trim() === itemId ? sum + Number(line.cantidad || 0) : sum), 0);
-    const remaining = roundQuantity(available - inSale);
-    if (remaining <= 0) return {action: "stock_limit", items: source, available, limited: true};
-    toAdd = Math.min(requested, remaining);
-  }
-  const limited = toAdd < requested;
-  const price = Number(inventoryItem.precioInterno || 0);
-  const index = source.findIndex((line) => !line?.origenAdicionalId
-    && line?.cantidadCotizada == null
-    && String(line?.itemId || "").trim() === itemId
-    && Number(line.descuentoPct || 0) === 0
-    && Number(line.precioUnitario) === price);
-  if (index >= 0) {
-    return {
-      action: "incremented",
-      items: source.map((line, position) => position === index ? {...line, cantidad: roundQuantity(Number(line.cantidad || 0) + toAdd)} : line),
-      available,
-      limited,
-    };
-  }
-  return {action: "added", items: [...source, {...createLine(), cantidad: toAdd}], available, limited};
+  return addInventoryItemToLines(items, inventoryItem, {
+    itemId: inventoryItem?.id,
+    quantity,
+    createLine,
+    priceKey: "precioUnitario",
+    discountKey: "descuentoPct",
+    stockLimit: true,
+  });
 }
 
 export function canManageSales(role) {

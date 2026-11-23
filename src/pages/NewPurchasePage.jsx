@@ -1,9 +1,11 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {useLocation, useNavigate, useParams} from "react-router-dom";
+import {addInventoryItemToLines, catalogEntryFromInventoryItem, sumQuantitiesByItem} from "../domain/inventoryLineAdd.mjs";
 import {adaptDocumentAmountDecimals, resolveDocumentTaxRate} from "../domain/localization.mjs";
 import {useBusinessMoney} from "../hooks/useBusinessFormat";
 import {sileo} from "sileo";
 import Button from "../components/ui/Button";
+import InventoryCatalogDialog from "../components/ui/InventoryCatalogDialog";
 import LoadingState from "../components/ui/LoadingState";
 import Notice from "../components/ui/Notice";
 import ResponsiveDialog from "../components/ui/ResponsiveDialog";
@@ -17,7 +19,6 @@ import {
   shouldReconcilePurchaseConfirmation,
 } from "../domain/purchaseModel.mjs";
 import ProviderSelector from "../features/purchaseOrders/ProviderSelector";
-import PurchaseCatalogDialog from "../features/purchases/PurchaseCatalogDialog";
 import PurchaseDetailView from "../features/purchases/PurchaseDetailView";
 import PurchaseDocumentImportDialog from "../features/purchases/PurchaseDocumentImportDialog";
 import PurchaseItemsEditor from "../features/purchases/PurchaseItemsEditor";
@@ -218,21 +219,29 @@ export default function NewPurchasePage({businessId, role}) {
     ...totals,
   }), [company, draft, providers, purchase, totals]);
   const money = (value) => formatMoney(value, printable.moneda, printable.locale);
+  const catalogEntries = useMemo(() => inventory.map((item) => catalogEntryFromInventoryItem(item, "costoBase")), [inventory]);
+  const catalogAddedQuantities = useMemo(() => sumQuantitiesByItem(draft.items), [draft.items]);
 
-  const addItem = (item) => setDraft((current) => ({
+  // Compra no consume stock: sin tope. Suma a una línea limpia (mismo ítem, sin descuento, mismo costo actual) o crea otra.
+  const addItem = (item, quantity = 1) => setDraft((current) => ({
     ...current,
-    items: [...current.items, {
-      lineaId: lineId(),
+    items: addInventoryItemToLines(current.items, item, {
       itemId: item.id,
-      codigo: item.codigoInterno || item.sku || "",
-      nombre: item.nombre,
-      descripcion: item.descripcion || "",
-      tipoItem: item.tipoItem || "producto",
-      unidad: item.unidad || "unidad",
-      cantidad: 1,
-      costoUnitario: Number(item.costoBase || 0),
-      descuentoPct: 0,
-    }],
+      quantity,
+      priceKey: "costoUnitario",
+      createLine: () => ({
+        lineaId: lineId(),
+        itemId: item.id,
+        codigo: item.codigoInterno || item.sku || "",
+        nombre: item.nombre,
+        descripcion: item.descripcion || "",
+        tipoItem: item.tipoItem || "producto",
+        unidad: item.unidad || "unidad",
+        cantidad: 1,
+        costoUnitario: Number(item.costoBase || 0),
+        descuentoPct: 0,
+      }),
+    }).items,
   }));
 
   const applyDocumentImport = (imported) => {
@@ -510,11 +519,13 @@ export default function NewPurchasePage({businessId, role}) {
         </div>
       </div>
       <div className="print-only"><PurchasePrintView company={company} purchase={printable} /></div>
-      <PurchaseCatalogDialog
-        items={inventory}
+      <InventoryCatalogDialog
+        addedQuantities={catalogAddedQuantities}
+        entries={catalogEntries}
         onAdd={addItem}
         onClose={() => setCatalogOpen(false)}
         open={catalogOpen}
+        priceLabel="Costo"
       />
       <PurchaseDocumentImportDialog
         businessId={businessId}

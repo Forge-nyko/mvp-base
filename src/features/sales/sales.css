@@ -1771,11 +1771,3 @@
 }
 
 /* Tokens faltantes nuevos encontrados en esta pasada: ninguno. */
-
-/* Selector "Agregar desde inventario": columna extra para la cantidad a agregar (junto a nombre, precio y botón). */
-/* En pantallas angostas la fila apila sus campos (regla de purchase-orders.css, hasta 620px). */
-@media (min-width: 621px) {
-  .po-catalog__list article.sale-catalog__row {
-    grid-template-columns: 1fr 130px 5.5rem auto;
-  }
-}

@@ -460,7 +460,7 @@ const sourceClientSelector = fs.readFileSync(
   "utf8"
 );
 const sourceQuoteCatalog = fs.readFileSync(
-  "src/features/quotes/QuoteCatalogDialog.jsx",
+  "src/components/ui/InventoryCatalogDialog.jsx",
   "utf8"
 );
 const sourceQuoteItems = fs.readFileSync(

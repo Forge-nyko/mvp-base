@@ -37,7 +37,7 @@ function QuoteItemsEditor({
         <div className="quote-workspace__inline-actions">
           <BarcodeInput actionOnly continuous actionLabel="Escanear producto" onSubmit={onScanProduct} />
           <button type="button" className="quote-workspace__button quote-workspace__button--primary" onClick={onOpenCatalog}>
-            Agregar desde catálogo
+            Agregar desde inventario
           </button>
         </div>
       </header>

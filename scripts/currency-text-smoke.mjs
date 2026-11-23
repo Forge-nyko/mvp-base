@@ -95,9 +95,8 @@ assert.doesNotMatch(indexSource, /formatCurrencyClp/);
 assert.match(indexSource, /formatMoneyText\(quote\.total, quote\.moneda, quote\.locale\)/);
 for (const path of [
   "src/features/sales/SaleItemsEditor.jsx",
-  "src/features/sales/SaleCatalogDialog.jsx",
+  "src/components/ui/InventoryCatalogDialog.jsx",
   "src/features/purchases/PurchaseItemsEditor.jsx",
-  "src/features/purchases/PurchaseCatalogDialog.jsx",
   "src/features/purchaseOrders/PurchaseOrderItemsEditor.jsx",
   "src/features/purchaseOrders/PurchaseOrderCatalogDialog.jsx",
   "src/pages/PurchaseOrdersPage.jsx",

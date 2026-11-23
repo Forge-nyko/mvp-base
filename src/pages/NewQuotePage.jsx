@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { sileo } from "sileo";
 import AiAvailabilityStatus from "../components/ai/AiAvailabilityStatus";
+import InventoryCatalogDialog from "../components/ui/InventoryCatalogDialog";
 import Spinner from "../components/ui/Spinner";
 import { AI_MODELS } from "../config/aiModels";
 import {
@@ -20,12 +21,12 @@ import {
   validateQuoteDraft,
 } from "../domain/quoteModel.mjs";
 import { getCategoriesForArea } from "../domain/inventoryCatalog.mjs";
+import { addInventoryItemToLines, catalogEntryFromValuation, sumQuantitiesByItem } from "../domain/inventoryLineAdd.mjs";
 import { adaptDocumentAmountDecimals, resolveDocumentTaxRate } from "../domain/localization.mjs";
 import { roundMoney, sanitizeDecimals } from "../domain/money.mjs";
 import { buildValuationForItem, PRICING_STATUS } from "../domain/pricing";
 import useAiRateLimit from "../hooks/useAiRateLimit";
 import ClientSelector from "../features/clients/ClientSelector";
-import QuoteCatalogDialog from "../features/quotes/QuoteCatalogDialog";
 import QuoteCollapsibleSection from "../features/quotes/QuoteCollapsibleSection";
 import QuoteConditionsPanel from "../features/quotes/QuoteConditionsPanel";
 import QuoteItemsEditor from "../features/quotes/QuoteItemsEditor";
@@ -52,7 +53,6 @@ import { formatDate } from "../utils/formatters";
 import {userErrorMessage} from "../domain/userFacingError.mjs";
 
 const ASSISTANT_DESCRIPTION_MAX_LENGTH = 1200;
-const MANUAL_CATALOG_PAGE_SIZE = 10;
 const ITEM_FEEDBACK_HIDE_DELAY = 3500;
 
 const tipoLabels = {
@@ -441,8 +441,6 @@ function NewQuotePage({ userId }) {
   const [loadedDraftQuote, setLoadedDraftQuote] = useState(null);
   const [saving, setSaving] = useState(false);
   const [savingEstado, setSavingEstado] = useState("");
-  const [search, setSearch] = useState("");
-  const [catalogTypeFilter, setCatalogTypeFilter] = useState("todos");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(() => location.state?.message || "");
   const [itemFeedback, setItemFeedback] = useState("");
@@ -472,9 +470,6 @@ function NewQuotePage({ userId }) {
   const [suggestedItemError, setSuggestedItemError] = useState("");
   const [highlightedItemId, setHighlightedItemId] = useState("");
   const [manualCatalogOpen, setManualCatalogOpen] = useState(false);
-  const [manualCatalogVisibleCount, setManualCatalogVisibleCount] = useState(
-    MANUAL_CATALOG_PAGE_SIZE
-  );
   const [clientAvailability, setClientAvailability] = useState({
     error: "",
     hasActiveClients: false,
@@ -759,39 +754,8 @@ function NewQuotePage({ userId }) {
     warning: assistantWarning,
   });
 
-  const filteredValuations = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return valuations.filter((valuation) => {
-      if (catalogTypeFilter !== "todos" && valuation.tipoItem !== catalogTypeFilter) {
-        return false;
-      }
-      if (!query) return true;
-      const inventoryItem = valuation.item || {};
-      const text = [
-        valuation.nombre,
-        valuation.categoria,
-        valuation.codigoInterno,
-        valuation.codigo,
-        valuation.sku,
-        inventoryItem.codigoInterno,
-        inventoryItem.codigo,
-        inventoryItem.sku,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return text.includes(query);
-    });
-  }, [catalogTypeFilter, search, valuations]);
-
-  const visibleCatalogValuations = filteredValuations.slice(
-    0,
-    manualCatalogVisibleCount
-  );
-  const catalogHasMoreItems = manualCatalogVisibleCount < filteredValuations.length;
-  const catalogShowingAllItems =
-    filteredValuations.length > MANUAL_CATALOG_PAGE_SIZE &&
-    manualCatalogVisibleCount >= filteredValuations.length;
+  const catalogEntries = useMemo(() => valuations.map(catalogEntryFromValuation), [valuations]);
+  const catalogAddedQuantities = useMemo(() => sumQuantitiesByItem(quote.items), [quote.items]);
 
   const matchedAssistantSuggestions = useMemo(() => {
     const groupsByItemId = new Map();
@@ -1052,41 +1016,27 @@ function NewQuotePage({ userId }) {
     });
   };
 
+  // Reagrupa con la regla compartida de inventoryLineAdd.mjs: suma a una línea limpia (mismo ítem, sin descuento, mismo
+  // precio actual) o crea otra. Cotizar no consume stock: sin tope. La cantidad mínima de la cotización sigue siendo 1.
   const addItem = (valuation, quantity = 1) => {
     setItemsInteracted(true);
     setDirty(true);
     setSuccess("");
     setError("");
-    const wasExisting = quote.items.some((item) => item.itemId === valuation.itemId);
     const quantityToAdd = Math.max(Number(quantity) || 1, 1);
-
-    setQuote((prev) => {
-      const existing = prev.items.find((item) => item.itemId === valuation.itemId);
-      if (existing) {
-        return {
-          ...prev,
-          items: normalizeQuoteItems(
-            prev.items.map((item) =>
-              item.itemId === valuation.itemId
-                ? { ...item, cantidad: Number(item.cantidad || 0) + quantityToAdd }
-                : item
-            ),
-            { montoDecimales: documentDecimals }
-          ),
-        };
-      }
-
-      return {
-        ...prev,
-        items: normalizeQuoteItems([
-          ...prev.items,
-          {
-            ...createQuoteItemFromValuation(valuation, { montoDecimales: documentDecimals }),
-            cantidad: quantityToAdd,
-          },
-        ], { montoDecimales: documentDecimals }),
-      };
+    const addToItems = (items) => addInventoryItemToLines(items, valuation, {
+      itemId: valuation.itemId,
+      quantity: quantityToAdd,
+      priceKey: "precioUnitarioEditable",
+      discountKey: "descuentoPorcentaje",
+      createLine: () => createQuoteItemFromValuation(valuation, { montoDecimales: documentDecimals }),
     });
+    const wasExisting = addToItems(quote.items).action === "incremented";
+
+    setQuote((prev) => ({
+      ...prev,
+      items: normalizeQuoteItems(addToItems(prev.items).items, { montoDecimales: documentDecimals }),
+    }));
     showAddFeedback(valuation.itemId, wasExisting);
   };
 
@@ -1099,22 +1049,6 @@ function NewQuotePage({ userId }) {
       buildValuationForItem(product, []);
     addItem(valuation, 1);
     return {key: product.id, label: product.nombre};
-  };
-
-  const handleCatalogSearchChange = (event) => {
-    const nextSearch = event.target.value;
-    setSearch(nextSearch);
-    setManualCatalogVisibleCount(MANUAL_CATALOG_PAGE_SIZE);
-  };
-
-  const showMoreCatalogItems = () => {
-    setManualCatalogVisibleCount((current) =>
-      Math.min(current + MANUAL_CATALOG_PAGE_SIZE, filteredValuations.length)
-    );
-  };
-
-  const showLessCatalogItems = () => {
-    setManualCatalogVisibleCount(MANUAL_CATALOG_PAGE_SIZE);
   };
 
   const getMatchedValuation = (suggestion) =>
@@ -1682,11 +1616,6 @@ function NewQuotePage({ userId }) {
     showItemFeedback("Ítem eliminado de la cotización.");
   };
 
-  const handleCatalogTypeChange = (event) => {
-    setCatalogTypeFilter(event.target.value);
-    setManualCatalogVisibleCount(MANUAL_CATALOG_PAGE_SIZE);
-  };
-
   const moveItem = (index, direction) => {
     setDirty(true);
     setQuote((prev) => {
@@ -2128,23 +2057,15 @@ function NewQuotePage({ userId }) {
       </QuoteCollapsibleSection>
       )}
 
-      <QuoteCatalogDialog
+      <InventoryCatalogDialog
         open={manualCatalogOpen}
         onClose={() => setManualCatalogOpen(false)}
         loading={loading}
-        totalCount={valuations.length}
-        filteredCount={filteredValuations.length}
-        valuations={visibleCatalogValuations}
-        itemQuantityById={itemQuantityById}
-        search={search}
-        onSearchChange={handleCatalogSearchChange}
-        typeFilter={catalogTypeFilter}
-        onTypeChange={handleCatalogTypeChange}
+        entries={catalogEntries}
+        addedQuantities={catalogAddedQuantities}
         onAdd={addItem}
-        catalogHasMoreItems={catalogHasMoreItems}
-        catalogShowingAllItems={catalogShowingAllItems}
-        onShowMore={showMoreCatalogItems}
-        onShowLess={showLessCatalogItems}
+        minQuantity={1}
+        priceLabel="Precio"
       />
 
       <div ref={addedItemsRef}>
