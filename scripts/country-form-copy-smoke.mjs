@@ -405,4 +405,96 @@ assert.deepEqual(
 );
 assert.equal(validateBusinessCreationInput({ ...quick, paisCodigo: "BO", regionCodigo: "SC" }, TestHttpsError).paisCodigo, "BO");
 
+// =====================================================================================================
+// Pulido Core (SPEC 040): placeholders del formulario de cliente. Solo ejemplos: etiquetas, validaciones
+// y datos no cambian. Dirección y giro salen de countryFormCopy por país; contacto y notas son iguales.
+// =====================================================================================================
+assert.equal(cl.clientAddressExample, "Ej. Av. Arturo Prat 123");
+assert.equal(cl.clientBusinessActivityExample, "Ej. Venta de repuestos automotrices");
+assert.equal(bo.clientAddressExample, "Ej. Av. Banzer 123");
+assert.equal(bo.clientBusinessActivityExample, "Ej. Transporte de carga");
+for (const copy of [cl, bo]) {
+  assert.equal(copy.clientContactPersonExample, "Ej. Nombre Apellido");
+  assert.equal(copy.clientNotesExample, "Ej. Prefiere contacto por WhatsApp");
+}
+// Los ejemplos bolivianos no arrastran nada chileno, y los chilenos nada boliviano.
+for (const key of ["clientAddressExample", "clientBusinessActivityExample"]) {
+  assert.doesNotMatch(bo[key], /Prat|repuestos|\.cl\b|\+56/, `Bolivia sin ejemplos chilenos: ${key}`);
+  assert.doesNotMatch(cl[key], /Banzer|Transporte de carga|\.bo\b|\+591/, `Chile sin ejemplos bolivianos: ${key}`);
+}
+// Otros países: dirección y giro siguen sin ejemplo (como hoy); contacto y notas no dependen del país.
+for (const code of ["MX", "PE", "PY", "OTHER", "ZZ"]) {
+  const copy = getCountryFormCopy(code);
+  assert.equal(copy.clientAddressExample, null, `${code}: sin ejemplo de dirección`);
+  assert.equal(copy.clientBusinessActivityExample, null, `${code}: sin ejemplo de giro`);
+  assert.equal(copy.clientContactPersonExample, "Ej. Nombre Apellido", code);
+  assert.equal(copy.clientNotesExample, "Ej. Prefiere contacto por WhatsApp", code);
+}
+
+// Cableado del formulario: cada campo de texto sin ejemplo previo lo toma del helper; los que ya tenían no cambian.
+const clientFormSource = await read("src/features/clients/ClientFormDialog.jsx");
+for (const [field, expression] of [
+  ["giro", "countryCopy.clientBusinessActivityExample"],
+  ["personaContacto", "countryCopy.clientContactPersonExample"],
+  ["direccion", "countryCopy.clientAddressExample"],
+  ["notas", "countryCopy.clientNotesExample"],
+]) {
+  const block = clientFormSource.slice(clientFormSource.indexOf(`field="${field}"`)).split("</ClientField>")[0];
+  assert.ok(block.includes(`placeholder={${expression}}`), `${field}: placeholder desde el helper`);
+}
+assert.doesNotMatch(
+  clientFormSource.replace(/\/\/.*$/gm, ""),
+  /placeholder="Ej\. (Av\.|Venta|Transporte|Prefiere)|placeholder="Ej\. Nombre Apellido"[\s\S]{0,40}personaContacto/,
+  "los ejemplos de país no están escritos en el componente"
+);
+// Los que ya tenían ejemplo siguen igual.
+assert.ok(clientFormSource.includes("placeholder={fiscalPlaceholder}"));
+assert.ok(clientFormSource.includes('placeholder={isCompany ? "Ej. Servicios técnicos" : "Ej. Nombre Apellido"}'));
+assert.ok(clientFormSource.includes("placeholder={isCompany ? countryCopy.clientCompanyEmailExample : countryCopy.clientPersonEmailExample}"));
+assert.ok(clientFormSource.includes("placeholder={countryCopy.clientPhoneExample}"));
+// Etiquetas intactas.
+for (const label of ['label="Persona de contacto"', 'label="Correo"', 'label="Teléfono"', 'label="Dirección"', 'label="Notas internas"', "label={countryCopy.businessActivityLabel}"]) {
+  assert.ok(clientFormSource.includes(label), `etiqueta intacta: ${label}`);
+}
+
+// Render real del formulario (Nuevo cliente): Chile, Bolivia y otro país.
+// El formulario importa clientService (Firebase); se sustituye por un módulo mínimo: aquí solo se prueba el render.
+const stubClientService = {
+  name: "stub-client-service",
+  enforce: "pre",
+  resolveId(id) { return id.endsWith("services/clientService") ? "virtual:stub-client-service" : null; },
+  load(id) { return id === "virtual:stub-client-service" ? "export const getClientErrorMessage = (error) => String(error?.message || error);" : null; },
+};
+const vite3 = await createServer({ appType: "custom", logLevel: "silent", plugins: [stubClientService], server: { middlewareMode: true } });
+try {
+  const ClientFormDialog = (await vite3.ssrLoadModule("/src/features/clients/ClientFormDialog.jsx")).default;
+  const renderForm = (countryCode) => renderToStaticMarkup(
+    React.createElement(ClientFormDialog, { countryCode, onClose() {}, onSubmit() {}, open: true })
+  );
+  const clMarkup = renderForm("CL");
+  const boMarkup = renderForm("BO");
+  assert.ok(clMarkup.includes('placeholder="Ej. Venta de repuestos automotrices"'), "Chile: giro");
+  assert.ok(clMarkup.includes('placeholder="Ej. Av. Arturo Prat 123"'), "Chile: dirección");
+  assert.ok(clMarkup.includes('placeholder="Ej. Nombre Apellido"'), "Chile: persona de contacto");
+  assert.ok(clMarkup.includes("Ej. Prefiere contacto por WhatsApp"), "Chile: notas");
+  assert.ok(boMarkup.includes('placeholder="Ej. Transporte de carga"'), "Bolivia: giro");
+  assert.ok(boMarkup.includes('placeholder="Ej. Av. Banzer 123"'), "Bolivia: dirección");
+  assert.ok(boMarkup.includes('placeholder="Ej. Nombre Apellido"'), "Bolivia: persona de contacto");
+  assert.ok(boMarkup.includes("Ej. Prefiere contacto por WhatsApp"), "Bolivia: notas");
+  assert.ok(!boMarkup.includes("Prat") && !boMarkup.includes("repuestos"), "Bolivia sin ejemplos chilenos");
+  assert.ok(!clMarkup.includes("Banzer") && !clMarkup.includes("Transporte de carga"), "Chile sin ejemplos bolivianos");
+  // Etiquetas por país como antes.
+  assert.ok(clMarkup.includes(">Giro<") || clMarkup.includes("Giro"), "Chile: etiqueta Giro");
+  assert.ok(boMarkup.includes("Actividad económica") && !boMarkup.includes(">Giro<"), "Bolivia: etiqueta Actividad económica");
+  // Otro país: dirección y giro sin ejemplo, como hoy.
+  const mxMarkup = renderForm("MX");
+  assert.ok(!mxMarkup.includes("Arturo Prat") && !mxMarkup.includes("Banzer") && !mxMarkup.includes("repuestos automotrices") && !mxMarkup.includes("Transporte de carga"), "otro país sin ejemplos de país");
+  // Los ejemplos que ya existían siguen (sin cambios).
+  assert.ok(clMarkup.includes('placeholder="Ej. Servicios técnicos"') && clMarkup.includes('placeholder="Ej. +56 9 6123 4587"'));
+  assert.ok(boMarkup.includes('placeholder="Ej. +591 7xxxxxxx"') && boMarkup.includes('placeholder="Ej. contacto@empresa.com.bo"'));
+} finally {
+  await vite3.close();
+}
+console.log("OK formulario de cliente: placeholders por país (SPEC 040)");
+
 console.log("COUNTRY_FORM_COPY_SMOKE_OK");

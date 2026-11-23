@@ -42,7 +42,7 @@ function ReportsGananciasView({currency, currentMonthKey = null, links, navigate
 
   const calculation = <>
     <section className="erp-card reports-detail-section reports-plain-headings">
-      <div className="reports-section-heading"><div><span>Ganancia</span><h2>Ganancia del período</h2><p>Ventas sin proyecto y proyectos del período, cada venta contada una sola vez.</p></div></div>
+      <div className="reports-section-heading"><div><span>Ganancia</span><h2>Ganancia del período</h2><p>{showProjects ? "Ventas sin proyecto y proyectos del período, cada venta contada una sola vez." : "Ganancia de los productos vendidos en el período."}</p></div></div>
       <OperationalNetProfitBreakdown canView={profitabilityV4.canView} currency={currency} onRetry={profitabilityV4.reload} showProjects={showProjects} state={operationalProfit} />
     </section>
 

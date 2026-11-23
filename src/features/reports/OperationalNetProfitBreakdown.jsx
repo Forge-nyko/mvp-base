@@ -129,7 +129,7 @@ function CurrencyBreakdown({group, showProjects = true}) {
       ]} />}
       <BreakdownTable caption="Total" currency={currency} rows={[
         ["Ganancia por productos", sales.margenBrutoProductos],
-        ["Resultado de proyectos", projects.resultado],
+        ...(showProjects ? [["Resultado de proyectos", projects.resultado]] : []),
         [partial ? "Ganancia (parcial)" : "Ganancia", group.gananciaNetaOperacional, true],
       ]} />
     </div>
@@ -137,7 +137,7 @@ function CurrencyBreakdown({group, showProjects = true}) {
 }
 
 // Puntos 1 a 3 de §6.2. Lo reutilizan Rentabilidad y estado y Ganancias.
-// `showProjects` en false (Taller y Veterinaria, SPEC 038) oculta solo la tabla "Proyectos"; los números no cambian.
+// `showProjects` en false (Taller y Veterinaria, SPEC 038) oculta la tabla "Proyectos" y la fila "Resultado de proyectos" de "Total" (SPEC 040); los números no cambian.
 export function OperationalNetProfitBreakdown({canView, currency, onRetry, showProjects = true, state}) {
   if (!canView) return null;
   if (state.status === "loading") return <LoadingState variant="section" label="Calculando ganancia..." />;

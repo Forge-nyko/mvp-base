@@ -1262,7 +1262,8 @@ try {
   assert.equal(count(multi, /reports-ring reports-ring--up/g), 2, "un círculo por moneda");
 
   // --- Entrega F (SPEC 038): Taller y Veterinaria no tienen Proyectos; la fórmula de "Me quedó" no cambia ---
-  assert.equal(PROFIT_PRODUCTS_ONLY_NOTE, "Incluye solo el margen de productos; los servicios vendidos fuera de un proyecto no se cuentan.");
+  assert.equal(PROFIT_PRODUCTS_ONLY_NOTE, "Incluye solo el margen de productos; los servicios no se cuentan en la ganancia.");
+  assert.doesNotMatch(PROFIT_PRODUCTS_ONLY_NOTE, /proyecto/, "la nota ya no menciona proyectos (SPEC 040)");
   assert.equal(MONTHLY_PROFIT_EXPLANATION_WITHOUT_PROJECTS, `Lo vendido menos su costo. ${PROFIT_PRODUCTS_ONLY_NOTE}`);
   const servicesProfit = {status: "ready", error: "", result: {grupos: [{moneda: "CLP", gananciaNetaOperacional: 500, cobertura: "COMPLETA", gananciaNetaOperacionalPct: 25, ingresoNetoConsiderado: 2000, ventasSinCostoRegistrado: {ventas: 1, monto: 15000}}]}};
   const withProjectsScreen = screen({profit: servicesProfit});
@@ -1324,7 +1325,13 @@ try {
   assert.doesNotMatch(breakdownNoProjects, /<caption[^>]*>Proyectos<\/caption>|Horas hombre|Gastos directos/, "sin tabla de proyectos");
   assert.match(breakdownNoProjects, /<caption[^>]*>Ventas sin proyecto<\/caption>/);
   assert.match(breakdownNoProjects, /<caption[^>]*>Total<\/caption>/);
-  assert.equal(count(breakdownNoProjects, /<tr>/g), count(breakdown(), /<tr>/g) - 7, "solo faltan las 7 filas de la tabla de proyectos");
+  assert.equal(count(breakdownNoProjects, /<tr>/g), count(breakdown(), /<tr>/g) - 8, "faltan las 7 filas de la tabla de proyectos y la fila \"Resultado de proyectos\" de Total");
+  // SPEC 040: sin proyectos, la tabla "Total" no trae la fila de proyectos; por defecto sí.
+  const totalTable = (markup) => markup.slice(markup.search(/<caption[^>]*>Total<\/caption>/));
+  assert.match(totalTable(breakdown()), /Resultado de proyectos/, "por defecto Total trae la fila de proyectos");
+  assert.doesNotMatch(totalTable(breakdownNoProjects), /Resultado de proyectos/, "sin proyectos, Total no la trae");
+  assert.doesNotMatch(breakdownNoProjects, /Resultado de proyectos/, "y no queda ninguna fila de proyectos en la tabla");
+  assert.match(totalTable(breakdownNoProjects), /Ganancia por productos[\s\S]*Ganancia/, "Total conserva productos y ganancia");
   assert.ok(breakdownNoProjects.includes("$1.500"), "la ganancia no cambia");
   // El botón "Revisar" de las alertas de proyectos solo existe con enlace a /trabajos.
   const statusHtml = (links) => html(React.createElement(OperationalSystemStatus, {canView: true, currency: "todos", links, onNavigate: () => {}, state: breakdownState}));
@@ -2012,6 +2019,17 @@ console.log("OK reportes (ganancia visual, bloque 2): Me quedó con chip Parcial
     });
     const readyState = (grupos, alertasGenerales = []) => ({status: "ready", error: "", result: {grupos, alertasGenerales, periodo: {proyectosPorMesCompleto: false}}});
     const renderFold = (state, extra) => plain(renderToStaticMarkup(React.createElement(ReportsGananciasView, foldProps(state, extra))));
+    // SPEC 040: sin proyectos (Taller y Veterinaria) cambia el subtítulo y la tabla Total; con proyectos, como siempre.
+    const withProjectsView = renderFold(readyState([foldGroup()]));
+    const withoutProjectsView = renderFold(readyState([foldGroup()]), {showProjects: false});
+    assert.ok(withProjectsView.includes("Ventas sin proyecto y proyectos del período, cada venta contada una sola vez."), "por defecto: subtítulo de siempre");
+    assert.ok(!withProjectsView.includes("Ganancia de los productos vendidos en el período."));
+    assert.ok(withProjectsView.includes("Resultado de proyectos"));
+    assert.ok(withoutProjectsView.includes("<p>Ganancia de los productos vendidos en el período.</p>"), "sin proyectos: subtítulo nuevo");
+    assert.ok(!withoutProjectsView.includes("Ventas sin proyecto y proyectos del período"));
+    assert.ok(!withoutProjectsView.includes("Resultado de proyectos"), "sin proyectos: ni fila en Total ni tabla de proyectos");
+    assert.ok(withoutProjectsView.includes("Ganancia por productos") && withoutProjectsView.includes(">Total<"));
+    assert.ok(withoutProjectsView.includes("$16.616"), "las cifras no cambian");
 
     const folded = renderFold(readyState([foldGroup()]));
     const detailsAt = folded.indexOf('<details class="reports-calc-details">');

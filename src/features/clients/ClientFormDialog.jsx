@@ -314,6 +314,7 @@ function ClientFormDialog({client, countryCode = "CL", onClose, onSubmit, open})
                 ref={(node) => setFieldRef("giro", node)}
                 value={values.giro}
                 onChange={(event) => updateField("giro", event.target.value)}
+                placeholder={countryCopy.clientBusinessActivityExample}
               />
             </ClientField>
           )}
@@ -330,6 +331,7 @@ function ClientFormDialog({client, countryCode = "CL", onClose, onSubmit, open})
                 value={values.personaContacto}
                 onChange={(event) => updateField("personaContacto", event.target.value)}
                 autoComplete="name"
+                placeholder={countryCopy.clientContactPersonExample}
               />
             </ClientField>
           )}
@@ -371,6 +373,7 @@ function ClientFormDialog({client, countryCode = "CL", onClose, onSubmit, open})
               value={values.direccion}
               onChange={(event) => updateField("direccion", event.target.value)}
               autoComplete="street-address"
+              placeholder={countryCopy.clientAddressExample}
             />
           </ClientField>
 
@@ -395,6 +398,7 @@ function ClientFormDialog({client, countryCode = "CL", onClose, onSubmit, open})
               value={values.notas}
               onChange={(event) => updateField("notas", event.target.value)}
               rows="4"
+              placeholder={countryCopy.clientNotesExample}
             />
           </ClientField>
             </div>

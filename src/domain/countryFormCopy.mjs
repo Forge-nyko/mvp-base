@@ -23,6 +23,11 @@ const BASE = Object.freeze({
   clientPhoneExample: "Ej. +56 9 6123 4587",
   clientCompanyEmailExample: "Ej. contacto@empresa.cl",
   clientPersonEmailExample: "Ej. nombre@correo.cl",
+  // Formulario de cliente: dirección y giro dependen del país; contacto y notas son iguales en todos.
+  clientAddressExample: "Ej. Av. Arturo Prat 123",
+  clientBusinessActivityExample: "Ej. Venta de repuestos automotrices",
+  clientContactPersonExample: "Ej. Nombre Apellido",
+  clientNotesExample: "Ej. Prefiere contacto por WhatsApp",
   // Formulario "Completar y verificar empresa": hoy sin ejemplos.
   declaredFiscalIdExample: null,
   requesterEmailExample: null,
@@ -34,6 +39,9 @@ const BASE = Object.freeze({
 
 const NON_CHILE = Object.freeze({
   clientPhoneExample: "Ej. +1 202 555 0100",
+  // Los ejemplos de dirección y giro son de Chile: en otros países el campo sigue sin ejemplo, como hoy.
+  clientAddressExample: null,
+  clientBusinessActivityExample: null,
 });
 
 const COUNTRY_COPY = Object.freeze({
@@ -47,6 +55,8 @@ const COUNTRY_COPY = Object.freeze({
     clientPhoneExample: "Ej. +591 7xxxxxxx",
     clientCompanyEmailExample: "Ej. contacto@empresa.com.bo",
     clientPersonEmailExample: "Ej. nombre@correo.com.bo",
+    clientAddressExample: "Ej. Av. Banzer 123",
+    clientBusinessActivityExample: "Ej. Transporte de carga",
     declaredFiscalIdExample: "Ej.: 1023456789",
     requesterEmailExample: "nombre@empresa.com.bo",
     requesterPhoneExample: "+591 7xxxxxxx",
