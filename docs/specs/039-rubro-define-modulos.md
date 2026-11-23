@@ -37,6 +37,7 @@ Todo lo demás de las SPEC 031, 033, 037 y 038 sigue vigente: módulo deshabilit
 - Se elimina el panel "Módulos" del detalle de la empresa (`PlatformModulesPanel.jsx`) y su envoltorio `setPlatformBusinessModules` en `platformAdminService.js`, junto con sus estilos `platform-modules__*`.
 - `MODULES_EVENT_TYPE` y `moduleEventSummary` pasan a `src/platform/platformModuleEvents.mjs`, y el historial (`PlatformAdminPages.jsx`) sigue mostrando "Módulos actualizados" con el antes y el después de los eventos ya guardados.
 - El detalle sigue recibiendo `modulosDisponibles` (sirve para las etiquetas del historial) y `empresa.modulosHabilitados`.
+- **Error al aprobar o rechazar una verificación (2026-11-23, solo cliente).** Si `resolverVerificacionEmpresa` rechaza la acción (p. ej. `already-exists`: "La identidad fiscal ya pertenece a otra empresa verificada."), el modal "Confirmar aprobación/rechazo" sigue abierto y muestra dentro un aviso de error (`Notice`): el texto del servidor si es un error de negocio legible (`already-exists`, `failed-precondition`, `invalid-argument`, `not-found`) o "No se pudo completar la acción. Intenta de nuevo." en cualquier otro caso. Antes el mensaje iba a un aviso de página que quedaba detrás del modal. Lógica en `src/platform/verificationDecision.mjs`, modal en `VerificationDecisionDialog.jsx`; Functions, permisos y acciones no cambian.
 
 ## 5. Lo que no cambia
 

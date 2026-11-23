@@ -19,6 +19,8 @@ import LoadingState from "../components/ui/LoadingState";
 import ResponsiveDialog from "../components/ui/ResponsiveDialog";
 import Skeleton, {SkeletonRegion} from "../components/ui/Skeleton";
 import StatusBadge from "../components/ui/StatusBadge";
+import VerificationDecisionDialog from "./VerificationDecisionDialog";
+import {INITIAL_DECISION_STATE, confirmDecision, decisionReducer} from "./verificationDecision.mjs";
 import {MODULES_EVENT_TYPE, moduleEventSummary} from "./platformModuleEvents.mjs";
 import {COUNTRIES, getCountryByCode} from "../domain/businessCatalog";
 import {formatFiscalIdentifierForDisplay} from "../domain/fiscalIdentifier.mjs";
@@ -440,7 +442,8 @@ export function PlatformBusinessDetailPage() {
   const [notice, setNotice] = React.useState("");
   const [evidenceError, setEvidenceError] = React.useState(null);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
-  const [verificationDecision, setVerificationDecision] = React.useState("");
+  const [decisionState, dispatchDecision] = React.useReducer(decisionReducer, INITIAL_DECISION_STATE);
+  const verificationDecision = decisionState.decision;
   const [deleteConfirmation, setDeleteConfirmation] = React.useState("");
   const [deleteError, setDeleteError] = React.useState("");
   const [deleting, setDeleting] = React.useState(false);
@@ -453,7 +456,9 @@ export function PlatformBusinessDetailPage() {
       .catch((error) => setState({loading: false, data: null, error: message(error, "No pudimos cargar la empresa.")}));
   }, [businessId]);
   React.useEffect(load, [load]);
-  const run = async (prefix, operation) => {
+  // `onError` (opcional) recibe el error en lugar de mostrarlo como aviso de página: el modal de confirmación lo
+  // muestra dentro, porque el aviso de página queda detrás del modal.
+  const run = async (prefix, operation, {onError} = {}) => {
     setWorking(true); setNotice("");
     try {
       if (!requestRef.current) requestRef.current = createPlatformRequestId(prefix);
@@ -467,7 +472,8 @@ export function PlatformBusinessDetailPage() {
       reloadSummary(true);
       return true;
     } catch (error) {
-      setNotice(message(error, "No pudimos completar la acción."));
+      if (onError) onError(error);
+      else setNotice(message(error, "No pudimos completar la acción."));
       return false;
     } finally { setWorking(false); }
   };
@@ -562,8 +568,8 @@ export function PlatformBusinessDetailPage() {
         {solicitudActual.observaciones && <article><span>Observaciones</span><strong>{solicitudActual.observaciones}</strong></article>}
       </div>}
       {pending && <div className="platform-verification-actions">
-        <div className="platform-verification-decision"><label>Razón social oficial *<input required value={officialLegalName} onChange={(event) => {setOfficialLegalName(event.target.value); requestRef.current = "";}} /></label><small>Obligatoria para aprobar y registrar la identidad fiscal oficial.</small><Button icon={CheckCircle2} disabled={working || !officialLegalName.trim()} onClick={() => setVerificationDecision("APROBAR")}>Revisar aprobación</Button></div>
-        <div className="platform-verification-decision"><label>Motivo de rechazo *<textarea required rows="2" value={rejectionReason} onChange={(event) => {setRejectionReason(event.target.value); requestRef.current = "";}} /></label><small>Explica brevemente qué debe corregir la empresa.</small><Button variant="danger" disabled={working || !rejectionReason.trim()} onClick={() => setVerificationDecision("RECHAZAR")}>Revisar rechazo</Button></div>
+        <div className="platform-verification-decision"><label>Razón social oficial *<input required value={officialLegalName} onChange={(event) => {setOfficialLegalName(event.target.value); requestRef.current = "";}} /></label><small>Obligatoria para aprobar y registrar la identidad fiscal oficial.</small><Button icon={CheckCircle2} disabled={working || !officialLegalName.trim()} onClick={() => dispatchDecision({type: "open", decision: "APROBAR"})}>Revisar aprobación</Button></div>
+        <div className="platform-verification-decision"><label>Motivo de rechazo *<textarea required rows="2" value={rejectionReason} onChange={(event) => {setRejectionReason(event.target.value); requestRef.current = "";}} /></label><small>Explica brevemente qué debe corregir la empresa.</small><Button variant="danger" disabled={working || !rejectionReason.trim()} onClick={() => dispatchDecision({type: "open", decision: "RECHAZAR"})}>Revisar rechazo</Button></div>
       </div>}
     </section>
     <section className="platform-panel"><h2>Miembros ({miembros.length})</h2><div className="platform-table-wrap"><table className="platform-table"><thead><tr><th>Usuario</th><th>Correo</th><th>Perfil</th><th>Estado</th></tr></thead><tbody>{miembros.map((member) => <tr key={member.uid} onClick={() => navigate(`/admin/usuarios/${member.uid}`)}><td>{personIdentity(member.nombre, member.correo)}</td><td>{member.correo}</td><td>{BUSINESS_ROLE_LABELS[member.rol] || humanizeToken(member.rol)}</td><td>{platformStateLabel(member.estado)}</td></tr>)}</tbody></table></div></section>
@@ -579,19 +585,21 @@ export function PlatformBusinessDetailPage() {
     >
       <div className="platform-delete-confirmation"><p>Nombre comercial: <strong>{empresa.nombreComercial}</strong></p><label>Confirmación<input ref={deleteInputRef} value={deleteConfirmation} autoComplete="off" onChange={(event) => {setDeleteConfirmation(event.target.value); setDeleteError(""); deleteRequestRef.current = "";}} /></label>{deleteError && <div className="platform-delete-error" role="alert">{deleteError}</div>}</div>
     </ResponsiveDialog>
-    <ResponsiveDialog
-      open={Boolean(verificationDecision)}
-      title={verificationDecision === "APROBAR" ? "Confirmar aprobación" : "Confirmar rechazo"}
-      description={verificationDecision === "APROBAR" ? "Revisa la razón social oficial antes de verificar la empresa." : "Revisa el motivo que quedará registrado en el historial."}
-      onClose={() => !working && setVerificationDecision("")}
-      footer={<><Button variant="secondary" disabled={working} onClick={() => setVerificationDecision("")}>Volver</Button><Button variant={verificationDecision === "RECHAZAR" ? "danger" : "primary"} loading={working} onClick={async () => {
-        const approving = verificationDecision === "APROBAR";
-        const succeeded = await run(approving ? "approve_verification" : "reject_verification", (requestId) => resolvePlatformVerification({businessId, solicitudId: solicitudActual.id, decision: verificationDecision, motivo: approving ? "" : rejectionReason.trim(), razonSocialOficial: approving ? officialLegalName.trim() : "", requestId}));
-        if (succeeded) setVerificationDecision("");
-      }}>{working ? "Confirmando..." : verificationDecision === "APROBAR" ? "Aprobar empresa" : "Rechazar solicitud"}</Button></>}
-    >
-      <div className="platform-verification-confirmation"><span>{verificationDecision === "APROBAR" ? "Razón social oficial" : "Motivo de rechazo"}</span><strong>{verificationDecision === "APROBAR" ? officialLegalName.trim() : rejectionReason.trim()}</strong><small>{fiscalIdentifier(solicitudActual?.paisCodigo, solicitudActual?.identificadorFiscalValor)}</small></div>
-    </ResponsiveDialog>
+    <VerificationDecisionDialog
+      decision={verificationDecision}
+      error={decisionState.error}
+      working={working}
+      summary={verificationDecision === "APROBAR" ? officialLegalName.trim() : rejectionReason.trim()}
+      fiscalIdentifier={fiscalIdentifier(solicitudActual?.paisCodigo, solicitudActual?.identificadorFiscalValor)}
+      onClose={() => dispatchDecision({type: "close"})}
+      onConfirm={() => confirmDecision({
+        dispatch: dispatchDecision,
+        runAction: ({onError}) => {
+          const approving = verificationDecision === "APROBAR";
+          return run(approving ? "approve_verification" : "reject_verification", (requestId) => resolvePlatformVerification({businessId, solicitudId: solicitudActual.id, decision: verificationDecision, motivo: approving ? "" : rejectionReason.trim(), razonSocialOficial: approving ? officialLegalName.trim() : "", requestId}), {onError});
+        },
+      })}
+    />
   </>;
 }
 

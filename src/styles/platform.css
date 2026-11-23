@@ -355,3 +355,4 @@
   .platform-metric-grid { grid-template-columns: 1fr; }
   .platform-metric { padding: var(--space-4); }
 }
+.platform-verification-dialog__error { margin-bottom: var(--space-3); }
