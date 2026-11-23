@@ -391,10 +391,11 @@ for (let i = 0; i < 4000; i += 1) {
 
 // --- Fuentes: la localización de cada documento sale del servidor ---
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
-const [purchaseServer, orderServer, receptionServer, purchasePage, orderPage, receptionPage, purchaseEditor, orderEditor] = await Promise.all([
+const [purchaseServer, orderServer, receptionServer, purchasePage, orderPage, receptionPage, purchaseEditor, orderEditor, purchaseQuantityStepper] = await Promise.all([
   read("functions/purchasePersistence.js"), read("functions/purchaseOrderPersistence.js"), read("functions/receptionPersistence.js"),
   read("src/pages/NewPurchasePage.jsx"), read("src/pages/NewPurchaseOrderPage.jsx"), read("src/pages/NewReceptionPage.jsx"),
   read("src/features/purchases/PurchaseItemsEditor.jsx"), read("src/features/purchaseOrders/PurchaseOrderItemsEditor.jsx"),
+  read("src/components/ui/QuantityStepper.jsx"),
 ]);
 // Cada llamada a documentLocalizationSnapshot (crear) usa los documentos del negocio leídos por el servidor, y cada llamada a
 // adaptDocumentLocalization (heredar, editar, duplicar) usa un documento guardado: nunca el payload del cliente.
@@ -437,8 +438,9 @@ assert.match(receptionPage, /className="reception-qty" type="number" min="0" max
 assert.match(receptionPage, /className="reception-discount" type="number" min="0" max="100" step="any"/);
 for (const [name, source] of [["PurchaseItemsEditor", purchaseEditor], ["PurchaseOrderItemsEditor", orderEditor]]) {
   assert.match(source, /moneyStep = "any"/, `${name}: por defecto "any" (como hoy)`);
-  assert.match(source, /<span>Costo unitario<\/span><?[\s\S]{0,80}step=\{moneyStep\}/, `${name}: el costo usa moneyStep`);
-  assert.match(source, /min="0\.000001" step="any"/, `${name}: la cantidad sigue en "any"`);
+  // PurchaseItemsEditor: el costo es un campo con su aria-label; la cantidad vive en QuantityStepper (mismo selector que Venta).
+  assert.match(source, name === "PurchaseItemsEditor" ? /aria-label=\{`Costo unitario de \$\{item\.nombre\}`\}[^>]*step=\{moneyStep\}/ : /<span>Costo unitario<\/span><?[\s\S]{0,80}step=\{moneyStep\}/, `${name}: el costo usa moneyStep`);
+  assert.match(name === "PurchaseItemsEditor" ? purchaseQuantityStepper : source, /min="0\.000001" step="any"/, `${name}: la cantidad sigue en "any"`);
   assert.match(source, /min="0" max="100" step="any"/, `${name}: el porcentaje sigue en "any"`);
 }
 assert.match(purchasePage, /const documentDecimals = purchase\s+\? adaptDocumentAmountDecimals\(purchase, purchase\.moneda\)\s+: businessMoney\.amountDecimals;/);

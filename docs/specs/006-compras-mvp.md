@@ -251,3 +251,7 @@ La aceptación requiere además regresiones de Órdenes de Compra, Inventario, P
 - No se modifica `costoBase` ni se crean efectos financieros.
 - Las escrituras cliente y colecciones internas están cerradas.
 - Historial, detalle, edición de borrador, filtros, responsive e impresión están disponibles.
+
+## Cambios posteriores
+
+- Nueva compra (borrador) adopta el patrón visual de Nueva venta (23-nov-2026): cabecera "← Compras" con título, chip y fecha; proveedor con buscador por nombre o identificación fiscal y "Ver todos los proveedores" (componente compartido `InlinePartySelector`); secciones "A quién le compras" y "Qué compras"; Documento y fechas, Condiciones comerciales y Vista previa como tarjetas visibles, sin acordeones; líneas con selector de cantidad − y + además de costo unitario y descuento; resumen con el total destacado. "Importar factura" se conserva en la cabecera. Sin cambios de cálculos, validaciones, modelo, estados, stock ni costos, ni de los textos de los botones (Preparar compra, Confirmar compra, Guardar cambios, Cancelar compra). La cantidad al agregar desde inventario sigue siendo 1. Solo cliente (`purchase-new-page-structure-smoke.mjs`).

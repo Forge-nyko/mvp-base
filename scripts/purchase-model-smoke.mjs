@@ -302,8 +302,9 @@ const panelValueRule = purchasesCss.match(/\.po-details > \.purchase-document-gr
 assert.match(panelValueRule, /font-weight: var\(--font-weight-regular\);/, "los valores escritos no van en negrita");
 assert.match(purchasesCss, /\.purchase-document-grid label \{[^}]*font-weight: 700;/, "las etiquetas siguen en negrita");
 assert.match(purchasesCss, /\.purchase-document-grid \{ display: grid; gap: 12px; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); padding-top: 14px; \}/, "la regla base compartida con Ventas no cambia");
-assert.equal((purchaseDetail.match(/<details className="po-panel po-details"/g) || []).length, 3);
-assert.equal((purchaseDetail.match(/<div className="purchase-document-grid">/g) || []).length, 2, "los dos paneles editables usan el cuerpo directo del details");
+// Nueva compra ya no usa acordeones (consistencia con Nueva venta): Documento y fechas, Condiciones comerciales y la vista previa son tarjetas visibles.
+assert.equal((purchaseDetail.match(/<details/g) || []).length, 0, "el formulario de Compras no usa acordeones");
+assert.equal((purchaseDetail.match(/<div className="purchase-document-grid purchase-data-grid">/g) || []).length, 1, "el panel Documento y fechas es una tarjeta abierta con los campos de siempre");
 // "Cancelar compra" es un botón directo con la variante peligrosa (antes, un menú "Más acciones" de una sola opción), en la lista y en el formulario.
 const purchaseOrdersCss = fs.readFileSync(new URL("../src/features/purchaseOrders/purchase-orders.css", import.meta.url), "utf8");
 const listActionsSource = sliceBetween(purchasesPage, "function Actions(", "export default function PurchasesPage", "componente Actions de la lista");
@@ -343,7 +344,7 @@ assert.match(purchaseOrdersCss, /\.po-history__actions > \.po-history__danger \{
 // "Factura importada y pendiente de confirmación": mismo aire lateral que los campos del panel (14px), solo dentro de .po-details.
 assert.match(purchasesCss, /\.po-details > \.purchase-imported-document-summary \{ margin: 14px; \}/, "el bloque importado se alinea con los campos");
 assert.match(purchasesCss, /\.purchase-imported-document-summary \{[^}]*margin-top: 14px;/, "la regla base del bloque no cambia");
-assert.match(purchaseDetail, /<details className="po-panel po-details" open>[\s\S]*?\{!readOnly && draft\.documentoOrigen && <div className="purchase-imported-document-summary" role="status">/, "el bloque vive dentro de un .po-details");
+assert.match(purchaseDetail, /<section className="po-panel purchase-data-panel"[\s\S]*?\{!readOnly && draft\.documentoOrigen && <div className="purchase-imported-document-summary" role="status">/, "el bloque vive dentro de la tarjeta Documento y fechas");
 // La cancelación conserva su confirmación: el botón solo abre el diálogo; la Function se llama únicamente desde la acción confirmada.
 assert.match(purchasesPage, /const action = \(purchase, type\) => \{ setReversalReason\(""\); setPendingAction\(\{purchase, type\}\); \};/);
 assert.equal((purchasesPage.match(/cancelarCompraBorrador\(/g) || []).length, 1);

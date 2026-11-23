@@ -93,6 +93,76 @@
 
 /* Tokens faltantes nuevos encontrados en esta pasada: ninguno. */
 
+/* Editor de la compra (borrador): mismo patrón visual que el editor de Venta (cabecera corta, selector de proveedor en línea,
+   tarjetas visibles, filas con selector de cantidad y resumen con el total destacado). Lo común vive en components.css
+   (.ui-doc-*, .ui-step-*, .ui-section-*, .ui-party*, .ui-qty*); aquí solo lo propio de Compras. Solo tokens; el modo oscuro
+   sale de los propios tokens. */
+.purchase-workspace .po-layout { margin-top: 0; }
+
+/* Ítems: cada fila = ítem | cantidad con − y + | costo unitario | descuento | total | quitar. Con poco ancho (del contenedor,
+   no de la ventana) baja a dos renglones y, más angosto, a tres. Áreas táctiles de 2.75rem (44 px). */
+.purchase-items-card { container-type: inline-size; }
+.purchase-lines { display: grid; }
+.purchase-line { border-top: 1px solid var(--color-border-subtle); display: grid; gap: var(--space-1); padding: var(--space-3) 0; }
+.purchase-line__row { align-items: end; display: grid; gap: var(--space-3); grid-template-areas: "identity qty cost discount total remove"; grid-template-columns: minmax(0, 1fr) auto 7rem 5rem 6.5rem auto; }
+.purchase-line__identity { align-self: center; display: grid; gap: var(--space-1); grid-area: identity; min-width: 0; }
+.purchase-line__name { color: var(--color-text-strong); font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.purchase-line__meta { color: var(--color-text-muted); font-size: var(--font-size-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.purchase-line__field, .purchase-line__static, .purchase-line__total { display: grid; gap: var(--space-1); min-width: 0; }
+.purchase-line__field--qty, .purchase-line__static--qty { grid-area: qty; justify-items: start; }
+.purchase-line__field--cost, .purchase-line__static--cost { grid-area: cost; }
+.purchase-line__field--discount, .purchase-line__static--discount { grid-area: discount; }
+.purchase-line__caption { color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); }
+.purchase-line__input { background: var(--color-surface-panel); border: 1px solid var(--color-border-control); border-radius: var(--radius-sm); box-sizing: border-box; color: var(--color-text-default); font: inherit; font-size: var(--font-size-sm); min-height: 2.75rem; min-width: 0; padding: 0 var(--space-3); text-align: right; width: 100%; }
+.purchase-line__input:focus-visible { outline: var(--focus-outline); outline-offset: var(--focus-offset); }
+.purchase-line__input:disabled { opacity: .6; }
+.purchase-line__amount { align-items: center; color: var(--color-text-default); display: flex; font-size: var(--font-size-sm); min-height: 2.75rem; }
+.purchase-line__total { grid-area: total; justify-items: end; }
+.purchase-line__total .purchase-line__amount { color: var(--color-text-strong); font-weight: var(--font-weight-bold); }
+.purchase-line .purchase-line__remove { border-color: transparent; grid-area: remove; min-height: 2.75rem; min-width: 2.75rem; padding: 0; }
+.purchase-line__description { color: var(--color-text-muted); font-size: var(--font-size-xs); margin: 0; }
+@container (max-width: 46rem) {
+  .purchase-line__row { grid-template-areas: "identity identity identity remove" "qty cost discount total"; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto; }
+}
+@container (max-width: 30rem) {
+  .purchase-line__row { grid-template-areas: "identity identity remove" "qty qty total" "cost discount discount"; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+}
+
+/* Documento y fechas: mismos campos de siempre, dentro de una tarjeta abierta (sin acordeón). */
+.purchase-data-grid { padding-top: var(--space-3); }
+.purchase-data-grid label { color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); gap: var(--space-1); }
+.purchase-data-grid input, .purchase-data-grid select { background: var(--color-surface-panel); color: var(--color-text-strong); font-size: var(--font-size-sm); font-weight: var(--font-weight-regular); }
+.purchase-data-grid input:focus-visible, .purchase-data-grid select:focus-visible { outline: var(--focus-outline); outline-offset: var(--focus-offset); }
+.purchase-data-panel .purchase-document-summary { padding: var(--space-3) 0 0; }
+
+/* Condiciones comerciales: resumen visible y edición en un diálogo, como en Venta. */
+.purchase-conditions-summary { display: grid; gap: var(--space-3); grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: var(--space-3); }
+.purchase-conditions-summary > div { background: var(--color-surface-subtle); border-left: 3px solid var(--color-text-brand-accent); border-radius: var(--radius-xs); min-width: 0; padding: var(--space-2) var(--space-3); }
+.purchase-conditions-summary > div:only-child { grid-column: 1 / -1; }
+.purchase-conditions-summary strong { color: var(--color-text-strong); font-size: var(--font-size-xs); }
+.purchase-conditions-summary p { color: var(--color-text-muted); font-size: var(--font-size-sm); line-height: var(--line-height-default); margin: var(--space-1) 0 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.purchase-conditions-form { display: grid; gap: var(--space-4); }
+.purchase-conditions-form label { color: var(--color-text-strong); display: grid; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); gap: var(--space-2); }
+.purchase-conditions-form textarea { background: var(--color-surface-panel); border: 1px solid var(--color-border-control); border-radius: var(--radius-sm); color: var(--color-text-default); font: inherit; font-weight: var(--font-weight-regular); min-height: 6rem; padding: var(--space-2) var(--space-3); resize: vertical; }
+.purchase-conditions-form textarea:focus-visible { outline: var(--focus-outline); outline-offset: var(--focus-offset); }
+
+/* Vista previa imprimible: tarjeta con botón Ver/Ocultar (antes un acordeón). */
+.purchase-preview-panel .purchase-preview-body { border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); margin: var(--space-3) 0 0; }
+
+/* Resumen: total destacado, botón principal alto y "Guardar cambios" como enlace. */
+.purchase-summary .po-summary__header h2 { color: var(--color-text-strong); font-size: var(--font-size-lg); margin: 0; }
+.purchase-summary .po-summary__amounts > div { padding: var(--space-3) 0; }
+.purchase-summary .po-summary__amounts .po-summary__total { align-items: baseline; border-top: 1px solid var(--color-border-default); color: var(--color-text-strong); font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); margin-top: var(--space-1); padding: var(--space-4) 0 var(--space-2); }
+.purchase-summary .po-summary__total strong { color: var(--color-text-brand); font-size: var(--font-size-2xl); line-height: var(--line-height-tight); }
+.purchase-summary .po-summary__actions { margin-top: var(--space-4); }
+.purchase-summary__primary { min-height: 3rem; }
+.purchase-summary .purchase-summary__save { color: var(--color-text-brand); min-height: 2.75rem; text-decoration: underline; text-underline-offset: var(--space-1); }
+
+@media (max-width: 620px) {
+  .purchase-conditions-summary { grid-template-columns: 1fr; }
+}
+/* Fin del editor de la compra (borrador). */
+
 /* Detalle de una compra confirmada, revertida o cancelada (PurchaseDetailView): solo lectura.
    Solo tokens; el modo oscuro sale de los propios tokens. */
 .purchase-detail__screen { display: grid; gap: var(--space-4); min-width: 0; }

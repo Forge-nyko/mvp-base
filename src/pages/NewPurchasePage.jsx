@@ -1,5 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {useLocation, useNavigate, useParams} from "react-router-dom";
+import {FileUp, Printer} from "lucide-react";
 import {addInventoryItemToLines, catalogEntryFromInventoryItem, sumQuantitiesByItem} from "../domain/inventoryLineAdd.mjs";
 import {adaptDocumentAmountDecimals, resolveDocumentTaxRate} from "../domain/localization.mjs";
 import {useBusinessMoney} from "../hooks/useBusinessFormat";
@@ -18,10 +19,10 @@ import {
   getPurchaseStatusLabel,
   shouldReconcilePurchaseConfirmation,
 } from "../domain/purchaseModel.mjs";
-import ProviderSelector from "../features/purchaseOrders/ProviderSelector";
 import PurchaseDetailView from "../features/purchases/PurchaseDetailView";
 import PurchaseDocumentImportDialog from "../features/purchases/PurchaseDocumentImportDialog";
 import PurchaseItemsEditor from "../features/purchases/PurchaseItemsEditor";
+import PurchaseProviderSelector from "../features/purchases/PurchaseProviderSelector";
 import PurchasePrintView from "../features/purchases/PurchasePrintView";
 import PurchaseSummaryPanel from "../features/purchases/PurchaseSummaryPanel";
 import {getCompanyProfile} from "../services/companyService";
@@ -117,6 +118,8 @@ export default function NewPurchasePage({businessId, role}) {
   const [company, setCompany] = useState(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(Boolean(location.state?.openPurchaseImport));
+  const [conditionsOpen, setConditionsOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [actionDialog, setActionDialog] = useState("");
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -382,49 +385,54 @@ export default function NewPurchasePage({businessId, role}) {
   if (loading) return <LoadingState variant="page" label="Cargando compra..." />;
   if (purchase && purchase.estado !== "borrador") return <PurchaseDetailView company={company} message={message} printable={printable} purchase={purchase} />;
 
+  const observation = visibleObservation(draft.observaciones, purchase);
+  const origin = purchase?.recepcionNumero
+    ? `Recepción ${purchase.recepcionNumero}`
+    : purchase?.ordenCompraNumero ? `Orden de compra ${purchase.ordenCompraNumero}` : "Compra directa";
+  const canImport = !readOnly && !referencesLocked;
+
   return (
-    <main className="po-workspace">
-      <header className="po-header no-print">
-        <div className="po-header__copy">
-          <span className="po-kicker">Compra</span>
-          <div className="po-header__title-row">
-            <h1>{purchase ? `Compra ${purchase.numero}` : "Nueva compra"}</h1>
-            <span className={`po-status po-status--${purchase?.estado || "borrador"}`}>
-              {getPurchaseStatusLabel(purchase?.estado || "borrador")}
-            </span>
-          </div>
-          <div className="po-header__meta">
-            <strong>{printable.proveedorSnapshot?.razonSocial || "Proveedor por seleccionar"}</strong>
-            <span>{draft.fechaCompra ? formatDate(draft.fechaCompra, printable.locale) : "Sin fecha"} · {money(totals.total)}</span>
-          </div>
+    <main className="po-workspace purchase-workspace">
+      {/* Un solo h1 por pantalla: el de la barra superior (navigation.js). Por eso el título va en un <p>. */}
+      <header className="ui-doc-head no-print">
+        <div className="ui-doc-head__main">
+          <button type="button" className="ui-doc-back" onClick={() => navigate("/compras")}>← Compras</button>
+          <p className="ui-doc-head__title">{purchase ? `Compra ${purchase.numero}` : "Nueva compra"}</p>
+          <span className={`po-status po-status--${purchase?.estado || "borrador"}`}>
+            {getPurchaseStatusLabel(purchase?.estado || "borrador")}
+          </span>
         </div>
-        <div className="po-header__actions">
-          <button type="button" className="po-button po-button--secondary" onClick={() => navigate("/compras")}>
-            Volver al historial
-          </button>
-          {purchase && (
-            <button type="button" className="po-button po-button--secondary" onClick={() => window.print()}>
-              Imprimir
-            </button>
-          )}
-          {!readOnly && !referencesLocked && (
-            <button type="button" className="po-button po-button--secondary" onClick={() => setImportOpen(true)}>
-              Importar factura
-            </button>
+        <div className="ui-doc-head__side">
+          <div className="ui-doc-head__meta">
+            <span>{draft.fechaCompra ? formatDate(draft.fechaCompra, printable.locale) : "Sin fecha"}</span>
+            <span>{origin}</span>
+          </div>
+          {(purchase || canImport) && (
+            <div className="ui-doc-head__actions">
+              {canImport && <Button type="button" variant="secondary" icon={FileUp} onClick={() => setImportOpen(true)}>Importar factura</Button>}
+              {purchase && <Button type="button" variant="secondary" icon={Printer} onClick={() => window.print()}>Imprimir</Button>}
+            </div>
           )}
         </div>
       </header>
       {message && <p className="po-message po-message--error no-print">{message}</p>}
       {purchase && <div className="no-print"><SupplyTrace currentType="purchase" purchase={purchase} /></div>}
+      {readOnly && purchase ? (
+        <div className="no-print"><PurchaseProviderSnapshot countryCode={purchase.paisCodigo || company?.paisCodigo} provider={purchase.proveedorSnapshot} /></div>
+      ) : (
+        <section className="ui-step-card no-print" aria-labelledby="purchase-provider-title">
+          <h2 id="purchase-provider-title" className="ui-step-title">A quién le compras</h2>
+          <PurchaseProviderSelector
+            disabled={readOnly || referencesLocked}
+            historicalNote={PROVIDER_AT_PURCHASE_NOTE}
+            onChange={(proveedorId) => setDraft((current) => ({...current, proveedorId}))}
+            originalSnapshot={purchase?.proveedorSnapshot}
+            providers={providers}
+            value={draft.proveedorId}
+          />
+        </section>
+      )}
       <div className="no-print">
-        {readOnly && purchase ? <PurchaseProviderSnapshot countryCode={purchase.paisCodigo || company?.paisCodigo} provider={purchase.proveedorSnapshot} /> : <ProviderSelector
-          disabled={readOnly || referencesLocked}
-          historicalNote={PROVIDER_AT_PURCHASE_NOTE}
-          onChange={(proveedorId) => setDraft((current) => ({...current, proveedorId}))}
-          originalSnapshot={purchase?.proveedorSnapshot}
-          providers={providers}
-          value={draft.proveedorId}
-        />}
         <div className="po-layout">
           <div className="po-main">
             <PurchaseItemsEditor
@@ -436,15 +444,14 @@ export default function NewPurchasePage({businessId, role}) {
               readOnly={Boolean(readOnly && purchase)}
               referencesLocked={referencesLocked}
             />
-            <details className="po-panel po-details" open>
-              <summary>
-                <span><strong>Documento tributario/comercial</strong><small>{draft.tipoDocumento === "sin_documento" ? "Sin documento asociado" : `${getPurchaseDocumentTypeLabel(draft.tipoDocumento)}${draft.numeroDocumentoProveedor ? ` N° ${draft.numeroDocumentoProveedor}` : ""}`}</small></span>
-                <span className="po-details__indicator" aria-hidden="true" />
-              </summary>
+            <section className="po-panel purchase-data-panel" aria-labelledby="purchase-document-title">
+              <header className="ui-section-head">
+                <div><span className="po-kicker">Datos de compra</span><h2 id="purchase-document-title" className="ui-section-head__title">Documento y fechas</h2></div>
+              </header>
               {readOnly ? (
                 <PurchaseDocumentInfo draft={draft} purchase={purchase} money={money} />
               ) : (
-                <div className="purchase-document-grid">
+                <div className="purchase-document-grid purchase-data-grid">
                   <label>Tipo de documento
                     <select value={draft.tipoDocumento} onChange={(event) => changeDocumentType(event.target.value)}>
                       <option value="factura">Factura</option><option value="boleta">Boleta</option>
@@ -472,36 +479,27 @@ export default function NewPurchasePage({businessId, role}) {
                 </dl>
                 {draft.documentoOrigen.coherenciaEstado === "revisar" && <Notice variant="warning" role={null}>Los totales del documento no coinciden con las líneas. Revisa antes de confirmar.</Notice>}
               </div>}
-            </details>
-            <details className="po-panel po-details">
-              <summary>
-                <span><strong>Condiciones y observaciones</strong><small>{draft.condicionesPago || visibleObservation(draft.observaciones, purchase) || "Sin información adicional"}</small></span>
-                <span className="po-details__indicator" aria-hidden="true" />
-              </summary>
-              {readOnly ? (
-                <div className="purchase-notes-grid">
-                  {draft.condicionesPago && <section><span>Condiciones de pago</span><p>{draft.condicionesPago}</p></section>}
-                  {visibleObservation(draft.observaciones, purchase) && <section><span>Observaciones</span><p>{visibleObservation(draft.observaciones, purchase)}</p></section>}
-                  {!draft.condicionesPago && !visibleObservation(draft.observaciones, purchase) && <p className="purchase-empty-copy">No hay condiciones u observaciones adicionales.</p>}
+            </section>
+            <section className="po-panel purchase-conditions-panel" aria-labelledby="purchase-conditions-title">
+              <header className="ui-section-head">
+                <div><span className="po-kicker">Condiciones</span><h2 id="purchase-conditions-title" className="ui-section-head__title">Condiciones comerciales</h2></div>
+                {!readOnly && <Button type="button" variant="secondary" onClick={() => setConditionsOpen(true)}>Editar condiciones</Button>}
+              </header>
+              <div className="purchase-conditions-summary">
+                <div><strong>Condiciones de pago</strong><p>{draft.condicionesPago || "Sin condiciones informadas."}</p></div>
+                {observation && <div><strong>Observaciones</strong><p>{observation}</p></div>}
+              </div>
+            </section>
+            <section className="po-panel purchase-preview-panel" aria-labelledby="purchase-preview-title">
+              <header className="ui-section-head">
+                <div><span className="po-kicker">Documento</span><h2 id="purchase-preview-title" className="ui-section-head__title">Vista previa imprimible</h2><p className="ui-section-head__hint">Revisa cómo se verá el documento.</p></div>
+                <div className="ui-section-head__actions">
+                  {previewOpen && purchase && <Button type="button" variant="secondary" onClick={() => window.print()}>Imprimir</Button>}
+                  <Button type="button" variant="secondary" aria-expanded={previewOpen} onClick={() => setPreviewOpen((current) => !current)}>{previewOpen ? "Ocultar vista previa" : "Ver vista previa"}</Button>
                 </div>
-              ) : (
-                <div className="purchase-document-grid">
-                  <label className="purchase-field-wide">Condiciones de pago
-                    <textarea value={draft.condicionesPago} onChange={(event) => setDraft({...draft, condicionesPago: event.target.value})} />
-                  </label>
-                  <label className="purchase-field-wide">Observaciones
-                    <textarea value={draft.observaciones} onChange={(event) => setDraft({...draft, observaciones: event.target.value})} />
-                  </label>
-                </div>
-              )}
-            </details>
-            <details className="po-panel po-details">
-              <summary>
-                <span><strong>Vista previa imprimible</strong><small>Presentación formal de la compra</small></span>
-                <span className="po-details__indicator" aria-hidden="true" />
-              </summary>
-              <div className="purchase-preview-body"><PurchasePrintView company={company} purchase={printable} /></div>
-            </details>
+              </header>
+              {previewOpen && <div className="purchase-preview-body"><PurchasePrintView company={company} purchase={printable} /></div>}
+            </section>
           </div>
           <PurchaseSummaryPanel
             currency={printable.moneda}
@@ -536,6 +534,20 @@ export default function NewPurchasePage({businessId, role}) {
         providers={providers}
         taxName={purchase?.impuestoNombre || company?.impuestoPredeterminadoNombre || "Impuesto"}
       />
+      <ResponsiveDialog
+        open={conditionsOpen}
+        onClose={() => setConditionsOpen(false)}
+        eyebrow="Condiciones"
+        title="Editar condiciones comerciales"
+        description="Agrega las condiciones de pago y observaciones que deben acompañar la compra."
+        size="medium"
+        footer={<Button type="button" onClick={() => setConditionsOpen(false)}>Listo</Button>}
+      >
+        <div className="purchase-conditions-form">
+          <label>Condiciones de pago<textarea rows="4" value={draft.condicionesPago} onChange={(event) => setDraft({...draft, condicionesPago: event.target.value})} /></label>
+          <label>Observaciones<textarea rows="4" value={draft.observaciones} onChange={(event) => setDraft({...draft, observaciones: event.target.value})} /></label>
+        </div>
+      </ResponsiveDialog>
       <ResponsiveDialog open={actionDialog === "confirm"} onClose={() => !processing && closeConfirmDialog()} eyebrow="Compra preparada" title="Confirmar compra" description="Al confirmar, se registrará el documento económico del proveedor." size="small" footer={<><Button ref={backButtonRef} type="button" variant="secondary" disabled={processing} onClick={closeConfirmDialog}>Volver</Button><Button type="button" loading={processing} disabled={confirmBlocked} onClick={confirm}>{processing ? "Confirmando..." : "Confirmar compra"}</Button></>}>
         <p>{stockSemantics.confirmationMessage}</p>
         {confirmError && <Notice variant="error" className="po-dialog-error" title={confirmError.title}>{confirmError.message}</Notice>}
