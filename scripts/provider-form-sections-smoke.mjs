@@ -5,8 +5,8 @@ import {renderToStaticMarkup} from "react-dom/server";
 import {createServer} from "vite";
 
 // Formulario de proveedor (nuevo y edición): secciones visibles como Nuevo cliente, sin el acordeón "Más datos del
-// proveedor (opcional)", y un texto guía en cada campo de texto: ejemplo local ("Ej. ...") en Chile y Bolivia e
-// instrucción neutra ("Escribe ...") en cualquier otro país. Sin emuladores ni red.
+// proveedor (opcional)", y un texto guía genérico ("Escribe ...") en cada campo de texto, igual en todos los países;
+// solo el identificador fiscal conserva su ejemplo de formato por país. Sin emuladores ni red.
 
 const source = readFileSync(new URL("../src/features/providers/ProviderFormDialog.jsx", import.meta.url), "utf8");
 assert.doesNotMatch(source, /Disclosure|Más datos del proveedor/, "el formulario no importa el plegable");
@@ -28,59 +28,31 @@ try {
     .filter((m) => !/type="(checkbox|radio|hidden|submit|button)"/.test(m[2]))
     .map((m) => (m[2].match(/placeholder="([^"]*)"/) || [])[1]);
 
-  // Textos esperados, en el orden en que aparecen los campos de texto.
+  // Texto genérico, igual en todos los países (importado del copy para que el smoke no lo duplique).
+  const {GENERIC_FIELD_HINTS: G} = await vite.ssrLoadModule("/src/domain/countryFormCopy.mjs");
+  const generic = {
+    legal: "Escribe el nombre o razón social",
+    trade: "Escribe el nombre de fantasía",
+    activity: "Escribe la actividad económica",
+    email: "Escribe el correo electrónico",
+    phone: "Escribe el teléfono de contacto",
+    contact: "Escribe el nombre de la persona de contacto",
+    address: "Escribe la dirección",
+    region: "Escribe el departamento o región",
+    municipality: "Escribe el municipio o comuna",
+    notes: "Escribe una nota interna",
+    credit: "Escribe los días de crédito",
+    fiscal: "Escribe el identificador fiscal",
+  };
+  assert.deepEqual([G.legalName, G.tradeName, G.businessActivity, G.email, G.phone, G.contactPerson, G.address, G.region, G.municipality, G.notes, G.creditDays, G.fiscalId],
+    [generic.legal, generic.trade, generic.activity, generic.email, generic.phone, generic.contact, generic.address, generic.region, generic.municipality, generic.notes, generic.credit, generic.fiscal], "el texto del smoke es el del copy");
+  // Orden de los campos de texto: identificador, razón social, fantasía, actividad, correo, teléfono, contacto, dirección,
+  // territorio de texto (Chile: listas; Bolivia: solo municipio; otros: región y municipio) y notas.
+  const placeholdersFor = (fiscal, territory) => [fiscal, generic.legal, generic.trade, generic.activity, generic.email, generic.phone, generic.contact, generic.address, ...territory, generic.notes];
   const countries = {
-    BO: {
-      label: "Actividad económica",
-      territory: ["Departamento", "Municipio"],
-      placeholders: [
-        "Ej.: 1234567", // NIT
-        "Ej. Comercial Andina S.R.L.", // Razón social
-        "Ej. Comercial Andina", // Nombre de fantasía
-        "Ej. Venta de productos y servicios", // Actividad económica
-        "Ej. contacto@empresa.com.bo", // Correo
-        "Ej. +591 7xxxxxxx", // Teléfono
-        "Ej. Nombre Apellido", // Persona de contacto
-        "Ej. Av. Banzer 123", // Dirección
-        "Ej. Santa Cruz de la Sierra", // Municipio (el departamento es una lista)
-        "Ej. Prefiere contacto por WhatsApp", // Notas internas
-      ],
-      credit: "Ej. 30",
-    },
-    CL: {
-      label: "Giro",
-      territory: ["Región", "Comuna"],
-      placeholders: [
-        "Ej.: 12.345.678-5", // RUT
-        "Ej. Comercial Andina SpA",
-        "Ej. Comercial Andina",
-        "Ej. Venta de productos y servicios",
-        "Ej. contacto@empresa.cl",
-        "Ej. +56 9 6123 4587",
-        "Ej. Nombre Apellido",
-        "Ej. Av. Arturo Prat 123", // Dirección (región y comuna son listas)
-        "Ej. Prefiere contacto por WhatsApp",
-      ],
-      credit: "Ej. 30",
-    },
-    MX: { // país sin ejemplos propios: capa 2
-      label: "Giro",
-      territory: ["Estado", "Municipio"],
-      placeholders: [
-        "Escribe el identificador fiscal",
-        "Escribe el nombre o razón social",
-        "Escribe el nombre de fantasía",
-        "Escribe la actividad económica",
-        "Escribe el correo electrónico",
-        "Escribe el teléfono de contacto",
-        "Escribe el nombre de la persona de contacto",
-        "Escribe la dirección",
-        "Escribe el departamento o región",
-        "Escribe el municipio o comuna",
-        "Escribe una nota interna",
-      ],
-      credit: "Escribe los días de crédito",
-    },
+    BO: {label: "Actividad económica", territory: ["Departamento", "Municipio"], placeholders: placeholdersFor("Ej.: 1234567", [generic.municipality])},
+    CL: {label: "Giro", territory: ["Región", "Comuna"], placeholders: placeholdersFor("Ej.: 12.345.678-5", [])},
+    MX: {label: "Giro", territory: ["Estado", "Municipio"], placeholders: placeholdersFor(generic.fiscal, [generic.region, generic.municipality])}, // país sin entrada propia
   };
 
   for (const [country, want] of Object.entries(countries)) {
@@ -108,11 +80,10 @@ try {
       assert.deepEqual(textFields(html), want.placeholders, `${label}: texto guía por campo, en orden`);
       assert.ok(textFields(html).every((value) => typeof value === "string" && value.trim() !== ""), `${label}: ningún campo de texto sin texto guía`);
       assert.ok(!html.includes("¿"), `${label}: sin signo de apertura de interrogación`);
+      // Solo el identificador fiscal puede llevar un ejemplo; ningún otro texto guía empieza con "Ej.".
+      assert.deepEqual(textFields(html).filter((value) => /^Ej\./.test(value)), want.placeholders.filter((value, index) => index === 0 && /^Ej\./.test(value)), `${label}: solo el identificador fiscal con ejemplo`);
       assert.ok(!html.includes("Escribe municipio") && !html.includes("Escribe departamento"), `${label}: sin el "Escribe ..." antiguo`);
-      assert.ok(!html.includes("+1 202 555 0100") && !html.includes("Servicios técnicos"), `${label}: sin los ejemplos fijos anteriores`);
-      if (country !== "CL") assert.ok(!html.includes("@empresa.cl"), `${label}: sin el dominio chileno`);
-      if (country === "BO") assert.ok(!html.includes("Arturo Prat") && !html.includes("SpA"), `${label}: sin ejemplos chilenos`);
-      if (country === "MX") assert.ok(!/placeholder="Ej\./.test(html.replace(/placeholder="Ej\.: [^"]*"/g, "")), `${label}: capa 2 sin "Ej."`);
+      assert.ok(!html.includes("+1 202 555 0100") && !html.includes("Servicios técnicos") && !/@empresa\.|Comercial Andina|Banzer|Arturo Prat|Santa Cruz de la Sierra|Prefiere contacto/.test(html), `${label}: sin ejemplos locales ni los anteriores`);
 
       // Los selects no llevan texto guía; el botón principal sigue.
       assert.ok(!/<select[^>]*placeholder/.test(html), `${label}: los selects sin texto guía`);
@@ -122,7 +93,7 @@ try {
     // Con "Crédito" aparece Días de crédito, también con texto guía.
     const credit = render(country, {provider: {proveedorId: "p1", rut: "1234567", razonSocial: "Comercial", condicionesPago: "credito", diasCredito: 15, paisCodigo: country}});
     assert.ok(credit.includes(">Días de crédito"), `${country}: con crédito aparece Días de crédito`);
-    assert.ok(credit.includes(`placeholder="${want.credit}"`), `${country}: Días de crédito con texto guía`);
+    assert.ok(credit.includes(`placeholder="${generic.credit}"`), `${country}: Días de crédito con texto guía genérico`);
     assert.equal(textFields(credit).length, want.placeholders.length + 1, `${country}: con crédito hay un campo más`);
   }
 } finally {
