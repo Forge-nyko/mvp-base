@@ -17,7 +17,7 @@ Esta SPEC reemplaza únicamente estos puntos:
 - **SPEC 033, decisión 4** ("cambiar el rubro después no recalcula"): ahora sí recalcula, solo cuando el rubro realmente cambia (sección 3). También deja de ser cierto en la SPEC 033 que "el superadmin conserva `cambiarModulosEmpresaPlataforma` para agregar o quitar módulos después" **desde la interfaz**: la Function se conserva, la pantalla no.
 - **SPEC 037, sección 6**, nota "Cambio de rubro después de crear": ya no es cierto que un negocio que pasa de Taller a otro rubro conserve el módulo habilitado.
 
-Todo lo demás de las SPEC 031, 033, 037 y 038 sigue vigente: módulo deshabilitado = oculto y bloqueado con sus datos intactos, sin refresco en vivo en el cliente, la autoridad real en Functions y reglas, el mapa `CATEGORY_MODULES`, la sección principal del menú y "Proyectos y trabajos" oculto en Taller y Veterinaria.
+Todo lo demás de las SPEC 031, 033, 037 y 038 sigue vigente: módulo deshabilitado = oculto y bloqueado con sus datos intactos, sin refresco en vivo en el cliente, la autoridad real en Functions y reglas, el mapa `CATEGORY_MODULES`, el módulo del rubro en el menú (desde la SPEC 041, ítems dentro de "Operación"; antes, sección principal) y "Proyectos y trabajos" oculto en Taller y Veterinaria.
 
 ## 3. Recálculo al cambiar el rubro
 
@@ -30,7 +30,7 @@ Todo lo demás de las SPEC 031, 033, 037 y 038 sigue vigente: módulo deshabilit
 4. **Solo cuando el rubro cambia.** Guardar el mismo rubro (por ejemplo, cambiar el teléfono) no toca la lista, aunque el negocio sea antiguo, no tenga el campo o tenga módulos a mano. Corregir esos negocios existentes no es parte de esta entrega (sección 6).
 5. **Sin borrar datos.** Solo cambia el campo `modulosHabilitados`. Los vehículos, órdenes de trabajo, pacientes, etc. del módulo que sale quedan intactos y reaparecen si el rubro vuelve (SPEC 031, decisión 3).
 6. **Sin reglas ni Functions de Taller o Veterinaria.** No cambian `firestore.rules`, `tallerAccess.js`, `veterinary*.js`, `moduleAccess.js` ni `platformAdmin.js`.
-7. **Cliente.** Sin cambios. `AppLayout` ya calcula la sección del rubro y la ocultación de `/trabajos` desde `rubroCodigo` y `modulosHabilitados`. La pantalla Empresa → Información refresca la sesión al guardar (`onBusinessUpdated`), así que el menú cambia al guardar; en cualquier otro caso rige "sin refresco en vivo" (SPEC 031, decisión 4).
+7. **Cliente.** Sin cambios. `AppLayout` ya calcula los ítems del rubro en el menú (SPEC 041: dentro de "Operación") y la ocultación de `/trabajos` desde `rubroCodigo` y `modulosHabilitados`. La pantalla Empresa → Información refresca la sesión al guardar (`onBusinessUpdated`), así que el menú cambia al guardar; en cualquier otro caso rige "sin refresco en vivo" (SPEC 031, decisión 4).
 
 ## 4. Consola de plataforma
 

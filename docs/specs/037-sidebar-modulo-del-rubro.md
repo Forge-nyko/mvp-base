@@ -1,10 +1,12 @@
 # SPEC 037: El módulo del rubro como sección principal del menú
 
-Estado: **entrega A (menú) y entrega B (panel de inicio del Taller) implementadas en la rama `mejora-refresco-avisos` (2026-11-21), sin commit ni despliegue.** Complementa la SPEC 031 (interruptor de módulos) y la 033 (módulos por rubro). No cambia permisos, rutas, reglas ni Functions. `AGENTS.md` sigue siendo la autoridad en seguridad y arquitectura multiempresa.
+Estado: **entrega A (menú) y entrega B (panel de inicio del Taller) implementadas en la rama `mejora-refresco-avisos` (2026-11-21), sin commit ni despliegue. La [SPEC 041](041-menu-rubro-en-operacion.md) (2026-11-23) sustituye el diseño del menú (decisiones 3 y 5 de la sección 2: el módulo del rubro ya no es una sección propia sino ítems de "Operación") y retira la entrega B (sección 7).** Complementa la SPEC 031 (interruptor de módulos) y la 033 (módulos por rubro). No cambia permisos, rutas, reglas ni Functions. `AGENTS.md` sigue siendo la autoridad en seguridad y arquitectura multiempresa.
 
 Lecturas previas: `AGENTS.md`, SPEC 016 (visión post-demo), SPEC 031 y SPEC 033. La SPEC 016 marca la vertical Taller como `CONFIRMADO PENDIENTE` y no autoriza fijar esquema, estados ni documentos nuevos; la entrega A solo reubica entradas de menú que ya existen y no introduce ninguna pantalla ni dato; la entrega B (sección 7) agrega una pantalla de solo lectura que únicamente muestra datos ya existentes.
 
 ## 1. Qué sustituye
+
+> **SPEC 041:** la ubicación que fija esta sección (sección propia, primera del menú) fue sustituida: los ítems del módulo del rubro van dentro de "Operación", antes de Inventario. Lo que sigue es el diseño original, conservado como historia.
 
 Esta SPEC reemplaza únicamente la **ubicación en el menú** del módulo vertical que corresponde al rubro del negocio:
 
@@ -17,9 +19,9 @@ Todo lo demás de las SPEC 031 y 033 sigue vigente: habilitación, `modulosHabil
 
 1. **Espejo cliente del mapa.** `src/domain/categoryModules.mjs` copia `CATEGORY_MODULES` y `modulesForCategory` de `functions/categoryModules.js`, con prueba de paridad en `category-modules-smoke` (mapa, congelado y resultado de `modulesForCategory` sobre todos los códigos del catálogo y entradas inválidas). Un cambio del mapa en Functions obliga a copiarlo aquí.
 2. **`getPrimaryVerticalModules(sesión | negocio, registro)`** devuelve los ids de los módulos que son del rubro del negocio (`rubroCodigo` según el mapa) **y** están habilitados (`modulosHabilitados`). Un módulo activado a mano en un negocio de otro rubro, un módulo del rubro que ya no está habilitado, un rubro sin mapeo y cualquier entrada inválida devuelven `[]`.
-3. **Sección del rubro.** `buildNavigationSections(registro, {primaryModules})` recibe esos ids. Cada módulo principal sale de "Módulos" y pasa a ser la **primera** sección del menú, con el nombre del módulo como título y sus ítems **planos** (sin el nivel anidado). "Módulos" se omite si queda vacío. La sección lleva `accent: true` y `moduleId`.
+3. ~~**Sección del rubro.**~~ **Sustituida por la SPEC 041** (los ítems pasan a "Operación"; ya no hay sección propia, `accent` ni `moduleId`). Diseño original: `buildNavigationSections(registro, {primaryModules})` recibe esos ids. Cada módulo principal sale de "Módulos" y pasa a ser la **primera** sección del menú, con el nombre del módulo como título y sus ítems **planos** (sin el nivel anidado). "Módulos" se omite si queda vacío. La sección lleva `accent: true` y `moduleId`.
 4. **Opt-in.** Sin `primaryModules` (o con una lista vacía o con ids que no estén en el registro) la salida es la de siempre, y la firma de `getBusinessPathOptions` no cambia. Solo `AppLayout` pasa `primaryModules`. El menú de escritorio y el del cajón móvil comparten `PrimaryNavigation`, así que ambos muestran la sección.
-5. **Acento visual.** La sección lleva la clase `nav-section--primary` (`src/styles/layout.css`): fondo `--color-surface-brand`, radio `--radius-md` y título con `--color-text-brand-accent`. Solo tokens existentes; no se agregó ninguno.
+5. ~~**Acento visual.**~~ **Retirado por la SPEC 041** (se elimina `nav-section--primary` y su CSS). Diseño original: la sección lleva la clase `nav-section--primary` (`src/styles/layout.css`): fondo `--color-surface-brand`, radio `--radius-md` y título con `--color-text-brand-accent`. Solo tokens existentes; no se agregó ninguno.
 6. **Los permisos no cambian.** La sección pasa por el mismo `filterNavigationSections`: un rol sin lectura del módulo no la ve y un negocio sin verificar sigue viendo solo Empresa y Cuenta (la sección no figura en `UNVERIFIED_BUSINESS_PATHS`). Un miembro con perfil personalizado (`modules`) queda como hoy, sin la sección: los perfiles no incluyen verticales (SPEC 031). Roles que ven la sección de Taller: OWNER, ADMIN, TECNICO y MEMBER (este último sin "Plazas", que exige `taller.manage`); la de Veterinaria: OWNER y ADMIN. VENTAS, COMPRAS y FINANZAS no ven ninguna. Es exactamente lo que ya veían bajo "Módulos".
 7. **No cambia el aterrizaje.** *(Sustituido solo para el TECNICO de Taller y Veterinaria por la SPEC 038: su inicio ya no es `/trabajos`.)* `getDefaultBusinessPath` no se toca: el inicio por defecto de cada rol es el de hoy (ver pregunta abierta de la sección 4). Tampoco cambian `platformAdmin`, el título de la barra superior (`getRouteMeta` usa el árbol por defecto) ni las rutas.
 
@@ -43,7 +45,7 @@ Todo lo demás de las SPEC 031 y 033 sigue vigente: habilitación, `modulosHabil
 ## 5. Fuera de alcance
 
 - El distintivo "Incluido en tu rubro".
-- ~~El panel de inicio del taller (entrega B).~~ Implementado (sección 7).
+- ~~El panel de inicio del taller (entrega B).~~ Implementado (sección 7) y luego retirado por la SPEC 041.
 - `platformAdmin` y el aterrizaje por rubro (sección 4).
 
 ## 6. Notas y riesgos
@@ -53,7 +55,9 @@ Todo lo demás de las SPEC 031 y 033 sigue vigente: habilitación, `modulosHabil
 - **Despliegue.** Solo Hosting (cliente). Sin Functions ni reglas.
 - **Visual.** Cambia el menú de los negocios de Taller y Veterinaria, en escritorio y en el cajón móvil, claro y oscuro. Revisar en el navegador: la sección primera con fondo de marca, el estado activo y el foco de sus enlaces, el contraste del título en oscuro y la sidebar de pantallas bajas (la sección agrega unos 16 px de padding).
 
-## 7. Entrega B: panel de inicio del Taller
+## 7. Entrega B: panel de inicio del Taller (RETIRADA por la SPEC 041)
+
+> **Retirada el 2026-11-23 por la [SPEC 041](041-menu-rubro-en-operacion.md), sección 3.** Motivo: el panel fijaba decisiones de producto de la vertical Taller (`CONFIRMADO PENDIENTE` en la SPEC 016) y cargaba todo el historial sin límite. Se eliminaron `TallerHomePage.jsx`, `TallerHomeView.jsx`, `workOrderSummary.mjs`, `work-order-summary-smoke.mjs`, el script `test:work-order-summary`, el ítem "Inicio" del menú y el bloque `taller-home__*` de `taller.css`; `/taller` vuelve a redirigir a `/taller/ordenes`. La base completa queda en el commit `95c117d` para una propuesta futura de Matías. El texto que sigue es historia: ya no describe el código.
 
 Implementada el 2026-11-21, sin commit ni despliegue. Solo lectura de datos existentes: no define esquema, estados ni documentos (SPEC 016: Taller `CONFIRMADO PENDIENTE`), no agrega Functions ni reglas.
 

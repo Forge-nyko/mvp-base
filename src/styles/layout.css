@@ -454,20 +454,6 @@
   text-transform: uppercase;
 }
 
-/* Sección del rubro (SPEC 037): el módulo del negocio va primero, con fondo de marca y
-   título de acento. El selector con .sidebar--desktop gana al título de la sidebar
-   compacta (color de texto por defecto) solo para esta sección. */
-.nav-section--primary {
-  background: var(--color-surface-brand);
-  border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-1);
-}
-
-.nav-section--primary .nav-section__title,
-.sidebar--desktop .nav-section--primary .nav-section__title {
-  color: var(--color-text-brand-accent);
-}
-
 .nav-module,
 .nav-module__items {
   display: grid;

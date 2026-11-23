@@ -42,7 +42,7 @@ Consecuencia a vigilar: cualquier usuario puede crear un negocio con rubro Talle
 
 ## 6. Pendiente
 
-- Ubicación en el menú del módulo habilitado por rubro: la define la [SPEC 037](037-sidebar-modulo-del-rubro.md) (sección principal, no bajo "Módulos").
+- Ubicación en el menú del módulo habilitado por rubro: la define la [SPEC 041](041-menu-rubro-en-operacion.md) (ítems dentro de "Operación", no bajo "Módulos"; sustituye a la sección principal de la [SPEC 037](037-sidebar-modulo-del-rubro.md)).
 - Despliegue de Functions y Hosting.
 - Revisión en el navegador del selector de rubros y del menú tras crear un negocio de Taller o Veterinaria.
 - Tope por plan si se comercializan planes (sección 3).

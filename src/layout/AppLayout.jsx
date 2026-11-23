@@ -75,7 +75,7 @@ function PrimaryNavigation({
 
         return (
           <div
-            className={section.accent ? "nav-section nav-section--primary" : "nav-section"}
+            className="nav-section"
             key={section.label}
             role="group"
             aria-labelledby={sectionTitleId}

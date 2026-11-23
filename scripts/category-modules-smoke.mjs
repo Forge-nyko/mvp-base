@@ -144,7 +144,7 @@ assert.deepEqual(
 );
 assert.equal(Object.isFrozen(CATEGORY_HIDDEN_CORE_PATHS), true);
 for (const paths of Object.values(CATEGORY_HIDDEN_CORE_PATHS)) assert.equal(Object.isFrozen(paths), true);
-// Solo rubros que tienen módulo propio, así que la ocultación siempre va con la sección del rubro.
+// Solo rubros que tienen módulo propio, así que la ocultación siempre va con los ítems del rubro dentro de Operación (SPEC 041).
 for (const code of Object.keys(CATEGORY_HIDDEN_CORE_PATHS)) {
   assert.ok(Object.hasOwn(CATEGORY_MODULES, code), `${code} tiene módulo propio`);
 }

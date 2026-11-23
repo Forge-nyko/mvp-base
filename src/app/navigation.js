@@ -9,7 +9,6 @@ import {
   Car,
   HeartPulse,
   History,
-  LayoutDashboard,
   PawPrint,
   ReceiptText,
   PackageCheck,
@@ -24,9 +23,7 @@ import { BUSINESS_PERMISSIONS } from "../domain/rbac.mjs";
 import { VERTICAL_MODULES } from "../domain/verticalModules.mjs";
 
 const verticalNavigationItems = Object.freeze({
-  // path "" = la ruta base del módulo (Inicio, el panel del taller), con coincidencia exacta.
   taller: Object.freeze([
-    {path: "", label: "Inicio", title: "Inicio", icon: LayoutDashboard},
     {path: "ordenes", label: "Órdenes de trabajo", title: "Órdenes de trabajo", icon: ClipboardList},
     {path: "vehiculos", label: "Vehículos", title: "Vehículos", icon: Car},
     {
@@ -173,10 +170,10 @@ export const navigationSections = [
 // aplica filterNavigationSections con enabledModules). Con el registro vacío
 // devuelve las secciones del Core sin cambios.
 //
-// Opt-in (SPEC 037): con `primaryModules` (ids de getPrimaryVerticalModules) el
-// módulo del rubro del negocio sale de "Módulos" y pasa a ser la primera sección
-// del menú, con el nombre del módulo y sus ítems planos (sin el nivel anidado).
-// Si "Módulos" queda vacío se omite. Sin la opción (o con lista vacía) la salida
+// Opt-in (SPEC 041, que sustituye el diseño de la SPEC 037): con `primaryModules` (ids de
+// getPrimaryVerticalModules) el módulo del rubro del negocio sale de "Módulos" y sus ítems
+// (planos, sin el nivel anidado) se insertan en "Operación", antes de Inventario. No hay sección
+// propia del rubro. Si "Módulos" queda vacío se omite. Sin la opción (o con lista vacía) la salida
 // es la de siempre.
 function buildModuleChildren({id, basePath}) {
   return (verticalNavigationItems[id] || []).map(({path, ...item}) => {
@@ -205,11 +202,11 @@ function buildModuleEntry(module) {
   };
 }
 
-// Sección principal de un módulo: sus hijos planos. Un módulo sin ítems declarados
-// queda con un solo enlace a su ruta base para no producir una sección vacía.
-function buildPrimaryModuleSection(module) {
+// Ítems del módulo del rubro para "Operación": sus hijos planos. Un módulo sin ítems declarados
+// aporta un solo enlace a su ruta base.
+function buildPrimaryModuleItems(module) {
   const children = buildModuleChildren(module);
-  const items = children.length ? children : [{
+  return children.length ? children : [{
     to: module.basePath,
     label: module.label,
     title: module.label,
@@ -217,7 +214,21 @@ function buildPrimaryModuleSection(module) {
     activeWhen: (pathname) =>
       pathname === module.basePath || pathname.startsWith(`${module.basePath}/`),
   }];
-  return {label: module.label, moduleId: module.id, accent: true, items};
+}
+
+const OPERATION_SECTION_LABEL = "Operación";
+const INVENTORY_PATH = "/inventario";
+
+// SPEC 041: inserta los ítems del módulo del rubro en "Operación", antes de Inventario (al final
+// si Inventario no está). El Core declara "Operación" siempre; no se crea otra sección ni se duplica.
+function withPrimaryModuleItems(sections, primaryItems) {
+  if (!primaryItems.length) return sections;
+  return sections.map((section) => {
+    if (section.label !== OPERATION_SECTION_LABEL) return section;
+    const inventoryIndex = section.items.findIndex((item) => item.to === INVENTORY_PATH);
+    const at = inventoryIndex === -1 ? section.items.length : inventoryIndex;
+    return {...section, items: [...section.items.slice(0, at), ...primaryItems, ...section.items.slice(at)]};
+  });
 }
 
 // Opt-in (SPEC 038): con `hiddenCorePaths` (rutas de getHiddenCorePaths) se quitan del Core los
@@ -239,10 +250,11 @@ export function buildNavigationSections(registry = VERTICAL_MODULES, {primaryMod
   const modulesSections = rest.length ?
     [{label: "Módulos", items: rest.map(buildModuleEntry)}] :
     [];
-  const coreSections = withoutHiddenCoreItems(navigationSections, hiddenCorePaths).flatMap((section) =>
+  const primaryItems = primary.flatMap(buildPrimaryModuleItems);
+  const coreSections = withoutHiddenCoreItems(withPrimaryModuleItems(navigationSections, primaryItems), hiddenCorePaths).flatMap((section) =>
     section.label === "Cuenta" ? [...modulesSections, section] : [section]
   );
-  return [...primary.map(buildPrimaryModuleSection), ...coreSections];
+  return coreSections;
 }
 
 const navigationItems = buildNavigationSections().flatMap((section) =>
