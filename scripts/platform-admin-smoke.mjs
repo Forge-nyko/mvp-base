@@ -137,18 +137,30 @@ assert.match(platformRulesSource, /match \/platformModulesRequests\/\{requestId\
 assert.match(platformRulesSource, /function isBusinessModuleEnabled\(businessId, moduleId\)[\s\S]*?get\("modulosHabilitados", \[\]\)\.hasAny\(\[moduleId\]\)/);
 console.log("OK platform-admin: cambiarModulosEmpresaPlataforma, registro por dependencias y reglas");
 
-// Interruptor de modulos: seccion "Modulos" de la consola y su servicio.
-const modulesPanelSource = await readFile(new URL("../src/platform/PlatformModulesPanel.jsx", import.meta.url), "utf8");
-assert.match(serviceSource, /export const setPlatformBusinessModules = \(\{businessId, modulos, motivo, requestId\}\) =>\s*call\("cambiarModulosEmpresaPlataforma", \{businessId, modulos, motivo, requestId\}\)/);
-assert.match(pagesSource, /<PlatformModulesPanel[\s\S]*?registry=\{modulosDisponibles\}[\s\S]*?enabled=\{enabledModules\}/);
-assert.match(pagesSource, /run\("update_modules", \(requestId\) => setPlatformBusinessModules\(\{businessId, modulos, motivo, requestId\}\)\)/);
+// SPEC 039: la consola ya no edita modulos (el rubro de la empresa los define). La Function de
+// plataforma se conserva sin cambios (asserts de arriba); lo que se retira es el panel y su servicio.
+const moduleEventsSource = await readFile(new URL("../src/platform/platformModuleEvents.mjs", import.meta.url), "utf8");
+assert.equal(existsSync(new URL("../src/platform/PlatformModulesPanel.jsx", import.meta.url)), false, "el panel Modulos se retiro");
+assert.doesNotMatch(pagesSource, /PlatformModulesPanel|setPlatformBusinessModules|update_modules|Guardar módulos/);
+assert.doesNotMatch(serviceSource, /setPlatformBusinessModules/);
+assert.doesNotMatch(layoutSource + pagesSource, /platform-modules/);
+const platformStylesSource = await readFile(new URL("../src/styles/platform.css", import.meta.url), "utf8");
+assert.doesNotMatch(platformStylesSource, /platform-modules/);
+// El historial sigue mostrando los eventos modulos_actualizados que ya existen.
+assert.match(moduleEventsSource, /export const MODULES_EVENT_TYPE = "modulos_actualizados"/);
+assert.match(moduleEventsSource, /export function moduleEventSummary\(event, registry = \[\]\)/);
+assert.match(pagesSource, /import \{MODULES_EVENT_TYPE, moduleEventSummary\} from "\.\/platformModuleEvents\.mjs"/);
 assert.match(pagesSource, /modulos_actualizados: "Módulos actualizados"/);
 assert.match(pagesSource, /event\.tipo === MODULES_EVENT_TYPE \? moduleEventSummary\(event, modulosDisponibles\)/);
-assert.match(modulesPanelSource, /<h2 id="platform-modules-title">Módulos<\/h2>/);
-assert.match(modulesPanelSource, /No hay módulos verticales disponibles todavía\./);
-assert.match(modulesPanelSource, /registry\.map\(\(item\) => \([\s\S]*?type="checkbox"/);
-assert.match(modulesPanelSource, /Motivo del cambio/);
-assert.match(modulesPanelSource, /Guardar módulos/);
-assert.match(modulesPanelSource, /disabled=\{deleted \|\| working \|\| !dirty \|\| !reason\.trim\(\)\}/);
-assert.doesNotMatch(modulesPanelSource, /taller|veterinaria/i, "el panel no conoce ningun modulo por nombre");
-console.log("OK platform-admin: seccion Modulos y servicio");
+const {MODULES_EVENT_TYPE, moduleEventSummary} = await import("../src/platform/platformModuleEvents.mjs");
+assert.equal(MODULES_EVENT_TYPE, "modulos_actualizados");
+const eventRegistry = [{id: "taller", label: "Taller automotriz"}, {id: "veterinaria", label: "Clínica veterinaria"}];
+assert.equal(
+  moduleEventSummary({modulosAnteriores: [], modulosResultantes: ["taller"], motivo: "Prueba"}, eventRegistry),
+  "Módulos: ninguno → Taller automotriz · Prueba"
+);
+assert.equal(
+  moduleEventSummary({modulosAnteriores: ["taller", "otro"], modulosResultantes: []}, eventRegistry),
+  "Módulos: Taller automotriz, otro → ninguno"
+);
+console.log("OK platform-admin: sin panel Modulos, historial de modulos conservado (SPEC 039)");

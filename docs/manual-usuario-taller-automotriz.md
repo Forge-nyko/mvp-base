@@ -40,11 +40,11 @@ Antes de entrar, comprueba que:
 
 1. La empresa está activa y verificada.
 2. Tu membresía en la empresa está activa.
-3. Taller está habilitado para esa empresa.
+3. Taller está habilitado para esa empresa (se habilita solo porque el rubro de la empresa es Taller automotriz, ver 3.1).
 4. Seleccionaste la empresa correcta como empresa activa.
 5. Tu rol o perfil tiene acceso al módulo.
 
-Cuando está habilitado, Taller aparece como un grupo en la sección **Módulos** de la navegación con accesos a **Órdenes de trabajo** y **Vehículos**. **Plazas** solo aparece para `OWNER` y `ADMIN`. Si otro perfil intenta abrir directamente `/taller/plazas`, la pantalla muestra un aviso de acceso restringido y no carga los datos administrativos.
+Cuando está habilitado, Taller aparece como la primera sección de la navegación (SPEC 037) con accesos a **Órdenes de trabajo** y **Vehículos**. **Plazas** solo aparece para `OWNER` y `ADMIN`. Si otro perfil intenta abrir directamente `/taller/plazas`, la pantalla muestra un aviso de acceso restringido y no carga los datos administrativos.
 
 ### 1.4 Consultar información
 
@@ -60,7 +60,7 @@ La identificación y el contacto del propietario en la ficha del Vehículo está
 
 #### “El módulo no está habilitado para esta empresa”
 
-Solicita a un superadministrador de plataforma que revise los módulos de la empresa. Después del cambio, recarga la sesión.
+Taller se habilita solo para empresas cuyo **rubro** es Taller automotriz. Si la empresa debería tenerlo, abre **Empresa → Información** y revisa el rubro; si necesitas otro rubro, crea otra empresa. Después de cambiar el rubro, recarga la sesión.
 
 #### Taller no aparece en el menú
 
@@ -246,37 +246,33 @@ La entrega cierra la OT. Una OT cerrada no se reabre.
 
 Esta sección distingue dos responsabilidades:
 
-- el **superadministrador de plataforma** habilita o deshabilita Taller para una empresa;
+- el **rubro de la empresa** habilita o deshabilita Taller, automáticamente (SPEC 039); no hay interruptor manual;
 - `OWNER` y `ADMIN` administran la operación interna: Vehículos, propietarios, Plazas y aprobaciones.
 
-### 3.1 Activar Taller para una empresa
+### 3.1 Cómo se activa Taller
 
-Esta acción corresponde únicamente al superadministrador de plataforma.
+Taller se activa solo, según el rubro de la empresa. No hay pantalla ni paso manual para activarlo.
 
-1. Ingresa a la consola de administración de plataforma.
-2. Abre **Empresas**.
-3. Selecciona la empresa que utilizará Taller.
-4. Verifica que la empresa esté activa y habilitada para operar.
-5. En **Módulos**, marca **Taller automotriz**.
-6. Escribe un motivo del cambio sin contraseñas, claves ni datos sensibles.
-7. Selecciona **Guardar módulos**.
-8. Confirma que **Habilitados ahora** incluya Taller automotriz.
-9. Pide a los usuarios recargar la sesión; si el menú no cambia, deben salir y volver a ingresar.
+1. Al **crear** la empresa, elige el rubro **Taller automotriz**: la empresa nace con Taller habilitado.
+2. Si la empresa ya existe, abre **Empresa → Información**, cambia el **Rubro principal** a **Taller automotriz** y guarda. Taller queda habilitado y aparece en el menú (la sesión se actualiza al guardar; si no, recárgala o vuelve a ingresar).
+3. Si necesitas otro rubro para otro negocio, crea otra empresa con ese rubro.
+
+El rubro **Clínica veterinaria** habilita solo Clínica veterinaria, y los demás rubros no habilitan ningún módulo.
 
 Habilitar el módulo no sustituye la membresía ni los permisos de cada usuario.
 
-### 3.2 Desactivar Taller
+### 3.2 Cuándo se desactiva Taller
 
-1. Abre la empresa en la consola de plataforma.
-2. Desmarca **Taller automotriz**.
-3. Registra el motivo y guarda.
+Taller se desactiva cuando el **rubro** de la empresa cambia a uno distinto de Taller automotriz. El cambio deja exactamente los módulos del rubro nuevo.
 
 Al deshabilitarlo:
 
 - el módulo se oculta y sus rutas y Functions quedan bloqueadas;
 - los datos existentes no se eliminan;
-- el cambio se refleja al recargar la sesión;
-- una reactivación posterior recupera el acceso según el rol y la membresía.
+- el cambio se refleja al guardar el rubro o recargar la sesión;
+- si el rubro vuelve a Taller automotriz, Taller se habilita de nuevo y recupera el acceso según el rol y la membresía.
+
+Guardar la empresa **sin** cambiar el rubro no modifica los módulos.
 
 ### 3.3 Crear y administrar Plazas
 
@@ -338,10 +334,10 @@ Taller reutiliza estas fuentes de verdad y no mantiene catálogos paralelos.
 
 ### 3.7 Buenas prácticas del administrador
 
-- Habilita Taller solo para empresas que realmente utilizarán la vertical.
+- Elige el rubro Taller automotriz solo para empresas que realmente utilizarán la vertical.
 - Revisa periódicamente Plazas inactivas u ocupadas.
 - Confirma el alcance congelado antes de aprobar.
-- No uses la habilitación del módulo como sustituto de los permisos de usuario.
+- No uses la habilitación del módulo (que depende del rubro) como sustituto de los permisos de usuario.
 - No incluyas secretos ni datos personales en motivos administrativos.
 - Recuerda que Taller no descuenta stock ni crea Ventas en su alcance actual.
 - Conserva las decisiones sobre **Proyectos y trabajos** fuera de este módulo hasta que Core las defina.

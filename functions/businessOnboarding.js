@@ -23,7 +23,7 @@ const { legalAcceptanceState } = require("./legalAcceptance");
 const {BUSINESS_ROLES} = require("./rbac");
 const {assertBusinessModuleEnabled} = require("./moduleAccess");
 const {normalizeEnabledModules} = require("./verticalModules");
-const {modulesForCategory} = require("./categoryModules");
+const {categoryModulesPatch, modulesForCategory} = require("./categoryModules");
 const ACTIVE_STATUS = "activo";
 const DELETED_STATUS = "eliminada";
 const PILOT_OWNER_BUSINESS_LIMIT = null;
@@ -1411,6 +1411,8 @@ async function updateBusinessProfileHandler(
     transaction.update(context.businessRef, {
       nombreComercial: profileInput.nombreComercial,
       ...categoryStoragePatch,
+      // SPEC 039: solo si el rubro cambia, los módulos pasan a ser los del rubro nuevo.
+      ...categoryModulesPatch(currentBusiness.data() || {}, profileInput.rubroCodigo),
       regionCodigo: profileInput.regionCodigo,
       regionNombre: profileInput.regionNombre,
       regionEstado: profileInput.regionEstado,

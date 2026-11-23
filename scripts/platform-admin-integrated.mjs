@@ -281,7 +281,8 @@ try {
   assert.deepEqual((await adminDb.doc(`negocios/${secondId}`).get()).data().modulosHabilitados, []);
   await rejected("SDK cliente no escribe modulosHabilitados", () => updateDoc(doc(secondOwner.db, "negocios", secondId), {modulosHabilitados: ["taller"]}), ["permission-denied"]);
 
-  // Regresion: las actualizaciones existentes del negocio no tocan modulosHabilitados.
+  // Regresion: las actualizaciones del negocio que no cambian el rubro no tocan modulosHabilitados (SPEC 039: solo un
+  // cambio real de rubro los recalcula; eso se prueba en business-onboarding-integrated). Aqui el rubro no cambia.
   await cambiarModulosEmpresaPlataformaHandler(superRequest({businessId: secondId, modulos: ["taller", "veterinaria"], motivo: "Prueba de regresion", requestId: requestId("modules_regression")}), handlerDeps);
   const enabledModulesNow = async () => (await adminDb.doc(`negocios/${secondId}`).get()).data().modulosHabilitados;
   assert.deepEqual(await enabledModulesNow(), ["taller", "veterinaria"]);
@@ -290,7 +291,7 @@ try {
   assert.deepEqual(await enabledModulesNow(), ["taller", "veterinaria"]);
   await call(secondOwner, "updateBusinessInformation")({businessId: secondId, profile: regressionProfile});
   assert.deepEqual(await enabledModulesNow(), ["taller", "veterinaria"]);
-  console.log("OK regresion: updateBusinessProfile y updateBusinessInformation conservan modulosHabilitados");
+  console.log("OK regresion: updateBusinessProfile y updateBusinessInformation sin cambio de rubro conservan modulosHabilitados");
   await cambiarModulosEmpresaPlataformaHandler(superRequest({businessId: secondId, modulos: [], motivo: "Fin de la regresion", requestId: requestId("modules_regression_clear")}), handlerDeps);
   assert.deepEqual(await enabledModulesNow(), []);
 

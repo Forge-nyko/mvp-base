@@ -646,10 +646,14 @@ async function main() {
     assert.equal(upgradedBusiness.data()?.rubroCodigo, "INGENIERIA_CONSULTORIA");
     assert.equal(upgradedProfile.data()?.rubroCodigo, "INGENIERIA_CONSULTORIA");
     // Este negocio perdió el campo más arriba (admin lo borró): ausente equivale a [] (SPEC 031).
-    // Se compara contra el valor de antes del cambio, no contra un literal.
     const modulesOf = (data) => (Array.isArray(data?.modulosHabilitados) ? data.modulosHabilitados : []);
-    const modulesBeforeCategoryChanges = modulesOf(upgradedBusiness.data());
-    // SPEC 033: pasar a un rubro con módulos tampoco habilita nada después de crear el negocio.
+    assert.deepEqual(modulesOf(upgradedBusiness.data()), [], "el rubro heredado cambió a uno sin módulos: lista vacía");
+    // SPEC 039: cambiar el rubro recalcula los módulos: son exactamente los del rubro nuevo.
+    const expectedByCategory = {
+      TALLER_AUTOMOTRIZ: ["taller"],
+      CLINICA_VETERINARIA: ["veterinaria"],
+      INGENIERIA_CONSULTORIA: [],
+    };
     for (const nextCategory of ["TALLER_AUTOMOTRIZ", "CLINICA_VETERINARIA", "INGENIERIA_CONSULTORIA"]) {
       await ownerCall("updateBusinessProfile", {
         businessId,
@@ -664,8 +668,8 @@ async function main() {
       assert.equal(afterCategoryChange.data()?.rubroCodigo, nextCategory);
       assert.deepEqual(
         modulesOf(afterCategoryChange.data()),
-        modulesBeforeCategoryChanges,
-        `cambiar el rubro a ${nextCategory} no altera los módulos`
+        expectedByCategory[nextCategory],
+        `cambiar el rubro a ${nextCategory} deja los módulos de ese rubro`
       );
     }
 
@@ -922,34 +926,69 @@ async function main() {
       assert.deepEqual(plainAdditional.data.business.modulosHabilitados, []);
       assert.deepEqual(await storedModules(plainAdditional.data.business.id), []);
 
-      // Cambiar el rubro después no altera los módulos: ni los quita ni agrega otros.
-      await categoryCall("updateBusinessProfile", {
-        businessId: tallerId,
-        profile: {
-          nombreComercial: tallerPayload.nombreComercial,
-          rubroCodigo: "TECNOLOGIA_INFORMATICA",
-          regionEstado: "La Paz",
-          validezCotizacionDias: 15,
-        },
+      // SPEC 039: cambiar el rubro después recalcula los módulos: Taller a un rubro sin módulo los
+      // vacía (los datos del taller no se borran), y de vuelta a Taller reaparece.
+      const changeCategory = (businessId, rubroCodigo, viaInformation = false) =>
+        categoryCall(viaInformation ? "updateBusinessInformation" : "updateBusinessProfile", {
+          businessId,
+          profile: {
+            nombreComercial: tallerPayload.nombreComercial,
+            rubroCodigo,
+            regionEstado: "La Paz",
+            validezCotizacionDias: 15,
+          },
+        });
+      // Datos del módulo anterior: no se borran al cambiar el rubro.
+      await adminDb.doc(`negocios/${tallerId}/vehiculos/vehiculo-spec039`).set({
+        negocioId: tallerId,
+        patente: "SPEC039",
+        creadoEn: AdminFieldValue.serverTimestamp(),
       });
+      await changeCategory(tallerId, "TECNOLOGIA_INFORMATICA");
       const tallerAfterChange = await adminDb.collection("negocios").doc(tallerId).get();
       assert.equal(tallerAfterChange.data()?.rubroCodigo, "TECNOLOGIA_INFORMATICA");
-      assert.deepEqual(tallerAfterChange.data()?.modulosHabilitados, ["taller"]);
-      await categoryCall("updateBusinessProfile", {
-        businessId: tallerId,
-        profile: {
-          nombreComercial: tallerPayload.nombreComercial,
-          rubroCodigo: "CLINICA_VETERINARIA",
-          regionEstado: "La Paz",
-          validezCotizacionDias: 15,
-        },
-      });
+      assert.deepEqual(tallerAfterChange.data()?.modulosHabilitados, [], "Taller a un rubro sin módulo: lista vacía");
+      assert.equal(
+        (await adminDb.doc(`negocios/${tallerId}/vehiculos/vehiculo-spec039`).get()).exists,
+        true,
+        "los datos del módulo anterior no se borran"
+      );
+      const sessionWithoutModule = await categoryCall("getBusinessSession");
+      assert.deepEqual(
+        sessionWithoutModule.data.businesses.find((business) => business.id === tallerId)?.modulosHabilitados,
+        []
+      );
+      // De vuelta a Taller: el módulo reaparece, con los datos intactos.
+      await changeCategory(tallerId, "TALLER_AUTOMOTRIZ");
+      assert.deepEqual(await storedModules(tallerId), ["taller"]);
+      // Entre rubros con módulo: exactamente los del rubro nuevo.
+      await changeCategory(tallerId, "CLINICA_VETERINARIA");
+      assert.deepEqual(await storedModules(tallerId), ["veterinaria"]);
+      // Un rubro sin módulo a otro sin módulo: lista vacía.
+      await changeCategory(tallerId, "TECNOLOGIA_INFORMATICA");
+      assert.deepEqual(await storedModules(tallerId), []);
+      await changeCategory(tallerId, "ELECTRICIDAD_ENERGIA_CLIMATIZACION");
+      assert.deepEqual(await storedModules(tallerId), []);
+      // Solo cuando el rubro realmente cambia: guardar el mismo rubro no toca la lista guardada.
+      await changeCategory(tallerId, "TALLER_AUTOMOTRIZ");
+      assert.deepEqual(await storedModules(tallerId), ["taller"]);
+      await adminDb.doc(`negocios/${tallerId}`).update({modulosHabilitados: ["taller", "veterinaria"]});
+      await changeCategory(tallerId, "TALLER_AUTOMOTRIZ");
+      assert.deepEqual(await storedModules(tallerId), ["taller", "veterinaria"], "sin cambio de rubro no se recalcula");
+      // La otra Function que escribe el rubro (updateBusinessInformation, la de Empresa) recalcula igual.
+      await changeCategory(tallerId, "CLINICA_VETERINARIA", true);
+      assert.deepEqual(await storedModules(tallerId), ["veterinaria"]);
+      await changeCategory(tallerId, "TECNOLOGIA_INFORMATICA", true);
+      assert.deepEqual(await storedModules(tallerId), []);
+      await changeCategory(tallerId, "TALLER_AUTOMOTRIZ", true);
       assert.deepEqual(await storedModules(tallerId), ["taller"]);
       const afterChangeSession = await categoryCall("getBusinessSession");
       assert.deepEqual(
         afterChangeSession.data.businesses.find((business) => business.id === tallerId)?.modulosHabilitados,
         ["taller"]
       );
+      // Cada negocio conserva los suyos: cambiar el rubro de uno no toca a los demás.
+      assert.deepEqual(await storedModules(veterinariaId), ["veterinaria"]);
       // El SDK cliente sigue sin poder escribir el campo.
       await expectDenied(() =>
         updateDoc(doc(categoryClient.db, "negocios", tallerId), {modulosHabilitados: ["taller", "veterinaria"]})

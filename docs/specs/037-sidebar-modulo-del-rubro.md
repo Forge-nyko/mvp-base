@@ -49,7 +49,7 @@ Todo lo demás de las SPEC 031 y 033 sigue vigente: habilitación, `modulosHabil
 ## 6. Notas y riesgos
 
 - **Rubros con nombre parecido.** El mapa solo conoce `TALLER_AUTOMOTRIZ` ("Taller automotriz", el que ofrece el selector) y `CLINICA_VETERINARIA`. `TALLER_MECANICO` ("Taller mecánico") es un rubro heredado que no es seleccionable en el selector, no habilita módulos y por eso no tiene sección principal; si un negocio existente lo tiene y el superadmin le activó Taller, sigue bajo "Módulos". Decidir si se agrega al mapa es cambio de la SPEC 033, no de esta.
-- **Cambio de rubro después de crear.** Como la SPEC 033 no recalcula `modulosHabilitados`, un negocio que cambia de Taller a otro rubro conserva el módulo habilitado pero lo ve de nuevo bajo "Módulos". Se calcula al cargar la sesión y no se refresca en vivo.
+- **Cambio de rubro después de crear.** ~~Como la SPEC 033 no recalcula `modulosHabilitados`, un negocio que cambia de Taller a otro rubro conserva el módulo habilitado pero lo ve de nuevo bajo "Módulos".~~ **Sustituido por la SPEC 039**: el cambio de rubro recalcula `modulosHabilitados`, así que un negocio que pasa de Taller a otro rubro pierde el módulo (queda oculto y bloqueado, con sus datos intactos). Se calcula al cargar la sesión y no se refresca en vivo.
 - **Despliegue.** Solo Hosting (cliente). Sin Functions ni reglas.
 - **Visual.** Cambia el menú de los negocios de Taller y Veterinaria, en escritorio y en el cajón móvil, claro y oscuro. Revisar en el navegador: la sección primera con fondo de marca, el estado activo y el foco de sus enlaces, el contraste del título en oscuro y la sidebar de pantallas bajas (la sección agrega unos 16 px de padding).
 
