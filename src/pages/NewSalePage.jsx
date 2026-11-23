@@ -8,12 +8,12 @@ import ResponsiveDialog from "../components/ui/ResponsiveDialog";
 import {adaptDocumentAmountDecimals, resolveDocumentTaxRate} from "../domain/localization.mjs";
 import {useBusinessMoney} from "../hooks/useBusinessFormat";
 import {
-  calculateSaleTotals,
+  addInventoryItemToSale,
+  calculateSaleDraftTotals,
   canManageSales,
   getSaleDocumentTypeLabel,
   getSaleStatusLabel,
   getSaleStockStatusLabel,
-  resolveSaleScan,
   shouldReconcileSaleConfirmation,
 } from "../domain/saleModel.mjs";
 import AdditionalSelector from "../features/works/AdditionalSelector.jsx";
@@ -41,7 +41,6 @@ import {
 import "../features/sales/sales.css";
 import {userErrorMessage} from "../domain/userFacingError.mjs";
 
-const EMPTY_TOTALS = {subtotal: 0, descuentoItems: 0, descuento: 0, descuentoTotal: 0, neto: 0, afectaIva: true, tasaIva: 0.19, iva: 0, total: 0};
 const today = () => new Intl.DateTimeFormat("en-CA", {timeZone: "America/Santiago"}).format(new Date());
 const emptyDraft = () => ({clienteId: "", trabajoId: "", descuento: 0, afectaIva: true, fechaVenta: today(), fechaDocumento: "", tipoDocumento: "sin_documento", numeroDocumento: "", condicionesPago: "", observaciones: "", items: []});
 const lineId = () => `linea-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
@@ -122,6 +121,8 @@ export default function NewSalePage({businessId, role}) {
     return trabajoId ? {...base, trabajoId} : base;
   });
   const [sale, setSale] = useState(null);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
   // Decimales de cálculo (SPEC 036): una venta guardada usa el `montoDecimales` de su documento (ausente = 0); un
   // borrador que todavía no existe usa los de la moneda del negocio. Con 0 todo se calcula entero, como siempre.
   const businessMoney = useBusinessMoney();
@@ -208,19 +209,10 @@ export default function NewSalePage({businessId, role}) {
     return () => { active = false; };
   }, [businessId, ventaId]);
 
-  const totals = useMemo(() => {
-    try {
-      return draft.items.length
-        ? calculateSaleTotals(draft.items, draft.descuento, {
-            afectaIva: draft.afectaIva,
-            tasaIva: resolveDocumentTaxRate(sale, company),
-            montoDecimales: documentDecimals,
-          })
-        : {...EMPTY_TOTALS, descuento: Number(draft.descuento || 0), afectaIva: draft.afectaIva !== false, tasaIva: draft.afectaIva === false ? 0 : 0.19};
-    } catch {
-      return {...EMPTY_TOTALS, afectaIva: draft.afectaIva !== false, tasaIva: draft.afectaIva === false ? 0 : 0.19};
-    }
-  }, [company?.impuestoPredeterminadoTasa, company?.paisCodigo, documentDecimals, draft.afectaIva, draft.descuento, draft.items, sale?.tasaIva]);
+  const totals = useMemo(
+    () => calculateSaleDraftTotals(draft, {taxRate: resolveDocumentTaxRate(sale, company), montoDecimales: documentDecimals}),
+    [company?.impuestoPredeterminadoTasa, company?.paisCodigo, documentDecimals, draft.afectaIva, draft.descuento, draft.items, sale?.tasaIva]
+  );
 
   const hasInsufficientStock = useMemo(() => {
     const inventoryById = new Map(inventory.map((item) => [item.id, item]));
@@ -309,19 +301,32 @@ export default function NewSalePage({businessId, role}) {
     descuentoPct: 0,
   });
 
-  const addItem = (item) => setDraft((current) => ({
-    ...current,
-    items: [...current.items, newLine(item)],
-  }));
+  // Se calcula sobre el último borrador (ref) y no dentro del updater de setDraft: así el aviso de stock se emite una
+  // sola vez y dos lecturas seguidas del escáner suman sobre el resultado de la anterior.
+  const addInventoryItem = (item, quantity = 1) => {
+    const result = addInventoryItemToSale(draftRef.current.items, item, {quantity, createLine: () => newLine(item)});
+    if (result.action === "invalid") return result;
+    if (result.action !== "stock_limit") {
+      draftRef.current = {...draftRef.current, items: result.items};
+      setDraft((current) => ({...current, items: result.items}));
+    }
+    return result;
+  };
+
+  const addItem = (item, quantity = 1) => {
+    const result = addInventoryItem(item, quantity);
+    if (result.action === "stock_limit") {
+      sileo.warning({title: `Stock disponible: ${result.available}`, description: `Ya está en la venta todo el stock de ${item.nombre}.`});
+    } else if (result.limited) {
+      sileo.warning({title: `Stock disponible: ${result.available}`, description: `Se agregó solo hasta el máximo disponible de ${item.nombre}.`});
+    }
+  };
 
   const addScannedProduct = async (barcode) => {
     const product = await findActiveProductByBarcode(businessId, barcode);
     if (!product) throw new Error("Producto no encontrado para este código.");
-    setDraft((current) => ({
-      ...current,
-      items: resolveSaleScan(current.items, product.id, () => newLine(product)).items,
-    }));
-    // El cuadro de escaneo continuo muestra la confirmación y aquí el aviso de stock lo da el editor.
+    // El cuadro de escaneo continuo muestra este error como aviso de la lectura.
+    if (addInventoryItem(product).action === "stock_limit") throw new Error(`Stock disponible: ${Number(product.stock)}`);
     return {key: product.id, label: product.nombre};
   };
 

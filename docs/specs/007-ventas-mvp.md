@@ -72,6 +72,8 @@ Rutas:
 
 Cotizaciones emitidas ofrecen `Aceptar cotización` y un diálogo `Registrar aceptación`; al terminar muestran el estado aceptado y el vínculo `Ver venta`, sin paso intermedio. El historial de Ventas muestra número, cliente, total, origen, estado, stock y fecha. El detalle de una venta desde cotización es de lectura, muestra aceptación, ítems, condiciones, totales y abastecimiento, y permite cancelar con motivo a quien tenga permiso.
 
+En `/ventas/nueva`, "Agregar desde inventario" (con cantidad por ítem) y "Escanear producto" suman a la línea existente del mismo ítem si no tiene descuento ni un precio distinto al del inventario (si lo tiene, crean otra línea), y en productos con stock conocido no superan el stock disponible (23-nov-2026; `sale-add-items-smoke.mjs`). El resumen vacío usa la tasa del país del negocio.
+
 Si se pierde la respuesta de aceptación, el mismo request idempotente o una nueva lectura de la cotización reutilizan la venta ya vinculada. Reintentar la cancelación reutiliza su request o detecta el estado cancelado sin crear otra devolución.
 
 ## Fuera de alcance

@@ -100,6 +100,7 @@
     "test:money": "node scripts/money-smoke.mjs",
     "test:quote-sale-decimals": "node scripts/quote-sale-decimals-smoke.mjs",
     "test:quote-initial-render": "node scripts/quote-new-page-initial-render-smoke.mjs",
+    "test:sale-add-items": "node scripts/sale-add-items-smoke.mjs",
     "test:purchase-decimals": "node scripts/purchase-decimals-smoke.mjs",
     "test:inventory-workshop-decimals": "node scripts/inventory-workshop-decimals-smoke.mjs",
     "test:bolivia-decimals": "node scripts/bolivia-decimals-smoke.mjs",
