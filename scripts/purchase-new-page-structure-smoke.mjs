@@ -177,15 +177,19 @@ try {
 // --- 8. CSS: lo compartido vive en components.css (ui-*) y lo propio en purchases.css; solo tokens ------------------------
 const uiCss = read("src/styles/components.css");
 const purchaseCss = read("src/features/purchases/purchases.css");
+// El patrón del editor de documentos (Compra y Orden de compra) vive en purchase-orders.css, que purchases.css importa.
+const orderCss = read("src/features/purchaseOrders/purchase-orders.css");
 for (const selector of [".ui-doc-head", ".ui-doc-back", ".ui-step-card", ".ui-step-title", ".ui-section-head", ".ui-party", ".ui-party__all", ".ui-party__search", ".ui-qty", ".ui-qty__button"]) {
   assert.ok(uiCss.includes(`${selector} {`), `components.css define ${selector}`);
   assert.ok(!purchaseCss.includes(`${selector} {`), `purchases.css no redefine ${selector}`);
 }
 assert.ok(!/(^|\n)\.ui-/.test(purchaseCss), "purchases.css no define clases ui-*");
-const newPurchaseCss = purchaseCss.slice(purchaseCss.indexOf("Editor de la compra (borrador)"), purchaseCss.indexOf("Fin del editor de la compra"));
-assert.ok(newPurchaseCss.length > 500, "se localiza el bloque nuevo de purchases.css");
+assert.ok(purchaseCss.includes('@import "../purchaseOrders/purchase-orders.css";'),"purchases.css importa el CSS compartido");
+assert.ok(!purchaseCss.includes("Fin del editor de la compra"), "el bloque compartido ya no está duplicado en purchases.css");
+const newPurchaseCss = orderCss.slice(orderCss.indexOf("Editor de la compra (borrador)"), orderCss.indexOf("Fin del editor de la compra"));
+assert.ok(newPurchaseCss.length > 500, "se localiza el bloque del editor en purchase-orders.css");
 const newUiCss = uiCss.slice(uiCss.indexOf("Patrón de documento en edición compartido"));
-for (const [name, css] of [["purchases.css (bloque nuevo)", newPurchaseCss], ["components.css (bloque nuevo)", newUiCss]]) {
+for (const [name, css] of [["purchase-orders.css (bloque del editor)", newPurchaseCss], ["components.css (bloque nuevo)", newUiCss]]) {
   assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/, `${name}: sin colores literales`);
   assert.doesNotMatch(css, /--color-(brand-[6-9]00|dark-)[^;]*;/, `${name}: sin tokens que no cambian con el tema`);
   assert.doesNotMatch(css, /(^|[;{\s])(color|fill|stroke):\s*var\(--color-(brand-[6-9]00|dark-)/m, `${name}: sin brand-600+ ni dark como texto`);

@@ -438,9 +438,10 @@ assert.match(receptionPage, /className="reception-qty" type="number" min="0" max
 assert.match(receptionPage, /className="reception-discount" type="number" min="0" max="100" step="any"/);
 for (const [name, source] of [["PurchaseItemsEditor", purchaseEditor], ["PurchaseOrderItemsEditor", orderEditor]]) {
   assert.match(source, /moneyStep = "any"/, `${name}: por defecto "any" (como hoy)`);
-  // PurchaseItemsEditor: el costo es un campo con su aria-label; la cantidad vive en QuantityStepper (mismo selector que Venta).
-  assert.match(source, name === "PurchaseItemsEditor" ? /aria-label=\{`Costo unitario de \$\{item\.nombre\}`\}[^>]*step=\{moneyStep\}/ : /<span>Costo unitario<\/span><?[\s\S]{0,80}step=\{moneyStep\}/, `${name}: el costo usa moneyStep`);
-  assert.match(name === "PurchaseItemsEditor" ? purchaseQuantityStepper : source, /min="0\.000001" step="any"/, `${name}: la cantidad sigue en "any"`);
+  // Ambos editores (Compra y Orden de compra): el costo es un campo con su aria-label; la cantidad vive en QuantityStepper (mismo selector que Venta).
+  assert.match(source, /aria-label=\{`Costo unitario de \$\{item\.nombre\}`\}[^>]*step=\{moneyStep\}/, `${name}: el costo usa moneyStep`);
+  assert.match(purchaseQuantityStepper, /min="0\.000001" step="any"/, `${name}: la cantidad sigue en "any"`);
+  assert.match(source, /<QuantityStepper /, `${name}: la cantidad vive en QuantityStepper`);
   assert.match(source, /min="0" max="100" step="any"/, `${name}: el porcentaje sigue en "any"`);
 }
 assert.match(purchasePage, /const documentDecimals = purchase\s+\? adaptDocumentAmountDecimals\(purchase, purchase\.moneda\)\s+: businessMoney\.amountDecimals;/);

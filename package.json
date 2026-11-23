@@ -102,6 +102,7 @@
     "test:quote-initial-render": "node scripts/quote-new-page-initial-render-smoke.mjs",
     "test:sale-add-items": "node scripts/sale-add-items-smoke.mjs",
     "test:purchase-new-page": "node scripts/purchase-new-page-structure-smoke.mjs",
+    "test:purchase-order-new-page": "node scripts/purchase-order-new-page-structure-smoke.mjs",
     "test:inventory-catalog-dialog": "node scripts/inventory-catalog-dialog-smoke.mjs",
     "test:provider-form-sections": "node scripts/provider-form-sections-smoke.mjs",
     "test:purchase-decimals": "node scripts/purchase-decimals-smoke.mjs",

@@ -18,8 +18,11 @@ const getContact = (provider) => provider?.personaContacto || provider?.email ||
 // Las opciones de la lista muestran solo el valor del identificador (la etiqueta ya está en el buscador).
 const getOptionFiscal = (provider) => provider?.identificadorFiscalValor || provider?.rut || "";
 
-export default function PurchaseProviderSelector({disabled, historicalNote, onChange, originalSnapshot, providers, value}) {
+// `purpose` (opcional) completa la frase "Crea uno en Proveedores para poder …" cuando aún no hay proveedores: Compra usa
+// "comprar" (por defecto) y Orden de compra "pedir".
+export default function PurchaseProviderSelector({disabled, historicalNote, onChange, originalSnapshot, providers, purpose = NOUN.purpose, value}) {
   const {countryCode} = useBusinessFormat();
+  const noun = purpose === NOUN.purpose ? NOUN : {...NOUN, purpose};
   return (
     <InlinePartySelector
       disabled={disabled}
@@ -31,7 +34,7 @@ export default function PurchaseProviderSelector({disabled, historicalNote, onCh
       getOptionFiscal={getOptionFiscal}
       historicalNote={historicalNote}
       matches={matchesProviderSearch}
-      noun={NOUN}
+      noun={noun}
       onChange={onChange}
       originalSnapshot={originalSnapshot}
       parties={providers}

@@ -278,3 +278,7 @@ La aceptación requiere además los smokes de Proveedores, Inventario, Cotizacio
 - No existe escritura ni eliminación directa desde el cliente ni acceso cliente a contadores o solicitudes; la única eliminación física es `eliminarOrdenCompra` (enmienda 2026-11-06).
 - Historial, filtros, estado vacío, workspace y vista imprimible están disponibles.
 - Los smokes relacionados, Rules, build y lint terminan sin regresiones.
+
+## Cambios posteriores
+
+- Nueva y Editar orden de compra (borrador) adoptan el patrón visual de Nueva compra y Nueva venta (23-nov-2026): cabecera "← Órdenes de compra" con título, chip, fecha y origen (el aviso de que el número se asigna al crear se conserva, discreto); proveedor con buscador por nombre o identificación fiscal y "Ver todos los proveedores" (`InlinePartySelector` mediante `PurchaseProviderSelector`); secciones "¿A quién le pides?" y "¿Qué pides?"; "Agregar desde inventario" con el diálogo compartido `InventoryCatalogDialog` (cantidad y reagrupado como en Compras; "Escanear producto" sigue igual); líneas con selector de cantidad − y + además de costo unitario y descuento; Entrega y Condiciones comerciales como tarjetas visibles, sin acordeones ("Editar condiciones" abre un diálogo); resumen con el total destacado. Sin cambios de cálculos, validaciones, modelo, estados, stock ni costos, ni de los textos de los botones (Crear orden de compra, Guardar cambios, Enviar por correo, Cancelar, etc.). Emitida y cancelada siguen en la vista de detalle. Solo cliente (`purchase-order-new-page-structure-smoke.mjs`).

@@ -1,9 +1,11 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {useLocation, useNavigate, useParams} from "react-router-dom";
+import {addInventoryItemToLines, catalogEntryFromInventoryItem, sumQuantitiesByItem} from "../domain/inventoryLineAdd.mjs";
 import {adaptDocumentAmountDecimals, resolveDocumentTaxRate} from "../domain/localization.mjs";
 import {useBusinessMoney} from "../hooks/useBusinessFormat";
 import {sileo} from "sileo";
 import Button from "../components/ui/Button";
+import InventoryCatalogDialog from "../components/ui/InventoryCatalogDialog";
 import LoadingState from "../components/ui/LoadingState";
 import ResponsiveDialog from "../components/ui/ResponsiveDialog";
 import SupplyTrace from "../components/ui/SupplyTrace";
@@ -18,9 +20,8 @@ import {
 } from "../domain/purchaseOrderModel.mjs";
 import {getOrderReceptionStatus, getOrderReceptionStatusLabel} from "../domain/receptionModel.mjs";
 import {incrementScannedItem} from "../domain/barcode.mjs";
-import ProviderSelector from "../features/purchaseOrders/ProviderSelector";
+import PurchaseProviderSelector from "../features/purchases/PurchaseProviderSelector";
 import PurchaseOrderDeleteDialog from "../features/purchaseOrders/PurchaseOrderDeleteDialog";
-import PurchaseOrderCatalogDialog from "../features/purchaseOrders/PurchaseOrderCatalogDialog";
 import PurchaseOrderDetailView from "../features/purchaseOrders/PurchaseOrderDetailView";
 import PurchaseOrderItemsEditor from "../features/purchaseOrders/PurchaseOrderItemsEditor";
 import PurchaseOrderPrintView from "../features/purchaseOrders/PurchaseOrderPrintView";
@@ -55,6 +56,10 @@ import "../features/purchaseOrders/purchase-order-delete.css";
 import {userErrorMessage} from "../domain/userFacingError.mjs";
 
 const EMPTY_TOTALS = {subtotal: 0, descuentoTotal: 0, neto: 0, iva: 0, total: 0};
+const PROVIDER_AT_ORDER_NOTE = "Datos del proveedor al momento de la orden";
+const orderStatusLabel = (order) => (order
+  ? (order.estado === "emitida" ? "Emitida" : order.estado === "cancelada" ? "Cancelada" : "Pendiente de envío")
+  : "Borrador");
 
 function traceDate(value, locale = "es-CL") {
   const date = value?.toDate?.() || (value ? new Date(value) : null);
@@ -120,6 +125,7 @@ export default function NewPurchaseOrderPage({businessId, role}) {
   const [members, setMembers] = useState([]);
   const [receptions, setReceptions] = useState([]);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [conditionsOpen, setConditionsOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [actionDialog, setActionDialog] = useState("");
@@ -243,23 +249,41 @@ export default function NewPurchaseOrderPage({businessId, role}) {
     setActionDialog("supplier");
   };
 
+  const catalogEntries = useMemo(() => inventory.map((item) => catalogEntryFromInventoryItem(item, "costoBase")), [inventory]);
+  const catalogAddedQuantities = useMemo(() => sumQuantitiesByItem(draft.items), [draft.items]);
+
+  const newLine = (item) => ({
+    lineaId: lineId(),
+    itemId: item.id,
+    codigo: item.codigoInterno || item.sku || "",
+    nombre: item.nombre,
+    descripcion: item.descripcion || "",
+    tipoItem: item.tipoItem || "producto",
+    unidad: item.unidad || "unidad",
+    cantidad: 1,
+    costoUnitario: Number(item.costoBase || 0),
+    descuentoPct: 0,
+  });
+
+  // Escaneo: suma 1 a la línea del ítem (sin reemplazar costo ni descuento editados) o crea una (SPEC 005).
   const addItem = (item) => {
     setDraft((current) => ({
       ...current,
-      items: incrementScannedItem(current.items, item.id, () => ({
-        lineaId: lineId(),
-        itemId: item.id,
-        codigo: item.codigoInterno || item.sku || "",
-        nombre: item.nombre,
-        descripcion: item.descripcion || "",
-        tipoItem: item.tipoItem || "producto",
-        unidad: item.unidad || "unidad",
-        cantidad: 1,
-        costoUnitario: Number(item.costoBase || 0),
-        descuentoPct: 0,
-      })),
+      items: incrementScannedItem(current.items, item.id, () => newLine(item)),
     }));
   };
+
+  // Diálogo "Agregar desde inventario": como en Compra, suma a una línea limpia (mismo ítem, sin descuento, mismo costo
+  // actual) o crea otra. La orden no consume stock: sin tope.
+  const addCatalogItem = (item, quantity = 1) => setDraft((current) => ({
+    ...current,
+    items: addInventoryItemToLines(current.items, item, {
+      itemId: item.id,
+      quantity,
+      priceKey: "costoUnitario",
+      createLine: () => newLine(item),
+    }).items,
+  }));
 
   const addScannedProduct = async (barcode) => {
     const product = await findActiveProductByBarcode(businessId, barcode);
@@ -518,7 +542,7 @@ export default function NewPurchaseOrderPage({businessId, role}) {
   const showDetailView = Boolean(order && order.estado !== "borrador");
 
   return (
-    <main className="po-workspace">
+    <main className="po-workspace purchase-workspace">
       {showDetailView ? <PurchaseOrderDetailView
         canManage={canManage}
         company={company}
@@ -544,27 +568,18 @@ export default function NewPurchaseOrderPage({businessId, role}) {
         totals={totals}
         whatsAppAvailability={whatsAppAvailability}
       /> : <>
-      <button type="button" className="po-back-link no-print" onClick={() => navigate("/ordenes-compra")}>← Volver al historial</button>
-      <header className="po-header no-print">
-        <div className="po-header__copy">
-          <div className="po-header__title-row">
-            <h1>{order?.numero || "Nueva orden de compra"}</h1>
-            {order && (
-              <span className={`po-status po-status--${order.estado}`}>
-                {order.estado === "emitida"
-                  ? "Emitida"
-                  : order.estado === "cancelada"
-                    ? "Cancelada"
-                    : "Pendiente de envío"}
-              </span>
-            )}
-          </div>
-          <div className="po-header__meta">
-            <span>
-              {order
-                ? `Creada ${documentDate(order.creadoEn || order.fechaEmision, orderLocale)}`
-                : "El número se asignará al crearla."}
-            </span>
+      {/* Un solo h1 por pantalla: el de la barra superior (navigation.js). Por eso el título va en un <p>. */}
+      <header className="ui-doc-head no-print">
+        <div className="ui-doc-head__main">
+          <button type="button" className="ui-doc-back" onClick={() => navigate("/ordenes-compra")}>← Órdenes de compra</button>
+          <p className="ui-doc-head__title">{order?.numero || "Nueva orden de compra"}</p>
+          <span className={`po-status po-status--${order?.estado || "borrador"}`}>{orderStatusLabel(order)}</span>
+        </div>
+        <div className="ui-doc-head__side">
+          <div className="ui-doc-head__meta">
+            <span>{order ? `Creada ${documentDate(order.creadoEn || order.fechaEmision, orderLocale)}` : documentDate(new Date(), orderLocale)}</span>
+            <span>{order?.ordenCompraOrigenNumero ? `Copia de ${order.ordenCompraOrigenNumero}` : "Orden directa"}</span>
+            {!order && <span>El número se asignará al crearla.</span>}
           </div>
         </div>
         {order && (
@@ -594,9 +609,11 @@ export default function NewPurchaseOrderPage({businessId, role}) {
       {order?.estado === "emitida" && <section className="po-linked-purchase no-print"><div><span>Estado de recepción</span><strong>{getOrderReceptionStatusLabel(receptionStatus)}</strong><small>Confirmación del proveedor: {getSupplierResponseLabel(order)}</small></div></section>}
       {order && <div className="no-print"><SupplyTrace currentType="order" order={order} receptions={receptions} /></div>}
       {message && <p className="po-message po-message--error no-print">{message}</p>}
-      <div className="no-print">
-        <ProviderSelector
+      <section className="ui-step-card no-print" aria-labelledby="po-provider-title">
+        <h2 id="po-provider-title" className="ui-step-title">¿A quién le pides?</h2>
+        <PurchaseProviderSelector
           disabled={readOnly}
+          historicalNote={PROVIDER_AT_ORDER_NOTE}
           onChange={(proveedorId) => {
             const provider = providers.find((entry) => entry.proveedorId === proveedorId);
             setDraft((current) => ({
@@ -607,8 +624,11 @@ export default function NewPurchaseOrderPage({businessId, role}) {
           }}
           originalSnapshot={order?.proveedorSnapshot}
           providers={providers}
+          purpose="pedir"
           value={draft.proveedorId}
         />
+      </section>
+      <div className="no-print">
         <div className="po-layout">
           <div className="po-main">
             <PurchaseOrderItemsEditor
@@ -620,27 +640,36 @@ export default function NewPurchaseOrderPage({businessId, role}) {
               onScanProduct={addScannedProduct}
               readOnly={Boolean(order && order.estado !== "borrador")}
             />
-            <details className="po-panel po-details" open>
-              <summary>
-                <span><strong>Entrega</strong><small>{draft.fechaEntregaEstimada ? documentDate(draft.fechaEntregaEstimada, orderLocale) : draft.direccionEntrega || "Sin información adicional"}</small></span>
-                <span className="po-details__indicator" aria-hidden="true" />
-              </summary>
+            <section className="po-panel po-delivery-panel" aria-labelledby="po-delivery-title">
+              <header className="ui-section-head">
+                <div><span className="po-kicker">Datos de la orden</span><h2 id="po-delivery-title" className="ui-section-head__title">Entrega</h2></div>
+              </header>
               <div className="po-fields">
                 <label>Fecha estimada<input disabled={readOnly} type="date" value={draft.fechaEntregaEstimada} onChange={(event) => setDraft({...draft, fechaEntregaEstimada: event.target.value})} /></label>
                 <label>Dirección de entrega<input disabled={readOnly} value={draft.direccionEntrega} onChange={(event) => setDraft({...draft, direccionEntrega: event.target.value})} /></label>
               </div>
-            </details>
-            <details className="po-panel po-details">
-              <summary>
-                <span><strong>Condiciones y observaciones</strong><small>{draft.condicionesPago || draft.observaciones || "Sin información adicional"}</small></span>
-                <span className="po-details__indicator" aria-hidden="true" />
-              </summary>
-              <div className="po-fields">
-                <label>Condiciones de pago<textarea disabled={readOnly} value={draft.condicionesPago} onChange={(event) => setDraft({...draft, condicionesPago: event.target.value})} /></label>
-                <label>Observaciones<textarea disabled={readOnly} value={draft.observaciones} onChange={(event) => setDraft({...draft, observaciones: event.target.value})} /></label>
+            </section>
+            <section className="po-panel purchase-conditions-panel" aria-labelledby="po-conditions-title">
+              <header className="ui-section-head">
+                <div><span className="po-kicker">Condiciones</span><h2 id="po-conditions-title" className="ui-section-head__title">Condiciones comerciales</h2></div>
+                {!readOnly && <Button type="button" variant="secondary" onClick={() => setConditionsOpen(true)}>Editar condiciones</Button>}
+              </header>
+              <div className="purchase-conditions-summary">
+                <div><strong>Condiciones de pago</strong><p>{draft.condicionesPago || "Sin condiciones informadas."}</p></div>
+                {String(draft.observaciones || "").trim() && <div><strong>Observaciones</strong><p>{draft.observaciones}</p></div>}
               </div>
-            </details>
-            {order && <section className="po-panel po-preview-panel"><header className="po-panel__header"><div><span className="po-kicker">Documento</span><h2>Vista previa imprimible</h2><p>Documento profesional para el proveedor.</p></div><button type="button" className="po-button po-button--secondary" aria-expanded={previewOpen} onClick={() => setPreviewOpen((current) => !current)}>{previewOpen ? "Ocultar vista previa" : "Ver vista previa"}</button></header>{previewOpen && <div className="po-preview-body"><PurchaseOrderPrintView company={company} order={printableOrder} /></div>}</section>}
+            </section>
+            {order && (
+              <section className="po-panel po-preview-panel" aria-labelledby="po-preview-title">
+                <header className="ui-section-head">
+                  <div><span className="po-kicker">Documento</span><h2 id="po-preview-title" className="ui-section-head__title">Vista previa imprimible</h2><p className="ui-section-head__hint">Documento profesional para el proveedor.</p></div>
+                  <div className="ui-section-head__actions">
+                    <Button type="button" variant="secondary" aria-expanded={previewOpen} onClick={() => setPreviewOpen((current) => !current)}>{previewOpen ? "Ocultar vista previa" : "Ver vista previa"}</Button>
+                  </div>
+                </header>
+                {previewOpen && <div className="po-preview-body"><PurchaseOrderPrintView company={company} order={printableOrder} /></div>}
+              </section>
+            )}
             {order && (
               <section className="po-panel po-trace">
                 <header><h2>Historial de la orden</h2></header>
@@ -670,12 +699,28 @@ export default function NewPurchaseOrderPage({businessId, role}) {
       </div>
       <div className="print-only"><PurchaseOrderPrintView company={company} order={printableOrder} /></div>
       </>}
-      <PurchaseOrderCatalogDialog
-        items={inventory}
-        onAdd={addItem}
+      <InventoryCatalogDialog
+        addedQuantities={catalogAddedQuantities}
+        entries={catalogEntries}
+        onAdd={addCatalogItem}
         onClose={() => setCatalogOpen(false)}
         open={catalogOpen}
+        priceLabel="Costo"
       />
+      <ResponsiveDialog
+        open={conditionsOpen}
+        onClose={() => setConditionsOpen(false)}
+        eyebrow="Condiciones"
+        title="Editar condiciones comerciales"
+        description="Agrega las condiciones de pago y observaciones que deben acompañar la orden de compra."
+        size="medium"
+        footer={<Button type="button" onClick={() => setConditionsOpen(false)}>Listo</Button>}
+      >
+        <div className="purchase-conditions-form">
+          <label>Condiciones de pago<textarea rows="4" disabled={readOnly} value={draft.condicionesPago} onChange={(event) => setDraft({...draft, condicionesPago: event.target.value})} /></label>
+          <label>Observaciones<textarea rows="4" disabled={readOnly} value={draft.observaciones} onChange={(event) => setDraft({...draft, observaciones: event.target.value})} /></label>
+        </div>
+      </ResponsiveDialog>
       <SendPurchaseOrderEmailDialog companyProfile={company} open={emailOpen} onClose={() => setEmailOpen(false)} onSend={sendEmail} order={order} processing={saving} />
       <ResponsiveDialog open={actionDialog === "supplier"} onClose={() => !saving && setActionDialog("")} eyebrow="Confirmación del proveedor" title="Registrar confirmación" description="Registra aquí la respuesta recibida por correo, teléfono o WhatsApp. Una confirmación rechazada mantiene el bloqueo vigente para nuevas recepciones." size="small" footer={<><Button type="button" variant="secondary" disabled={saving} onClick={() => setActionDialog("")}>Volver</Button><Button type="button" loading={saving} onClick={saveSupplierAnswer}>{saving ? "Guardando..." : "Guardar confirmación"}</Button></>}><div className="po-fields"><label>Estado<select value={supplierAnswer.estado} onChange={(event) => setSupplierAnswer({...supplierAnswer, estado: event.target.value})}><option value="pendiente">Pendiente</option><option value="confirmada">Confirmada</option><option value="rechazada">Rechazada</option><option value="confirmada_con_observaciones">Confirmada con observaciones</option></select></label><label>Observación{supplierAnswer.estado === "confirmada_con_observaciones" ? " *" : " (opcional)"}<textarea required={supplierAnswer.estado === "confirmada_con_observaciones"} maxLength={2000} placeholder="Ej. Confirma cantidades y solicita ajustar la fecha de entrega." value={supplierAnswer.comentario} onChange={(event) => setSupplierAnswer({...supplierAnswer, comentario: event.target.value})} /></label></div></ResponsiveDialog>
       <ResponsiveDialog open={actionDialog === "whatsapp"} onClose={() => !saving && setActionDialog("")} eyebrow="WhatsApp" title="¿Enviaste la orden de compra?" description="Abrir WhatsApp no confirma que el proveedor haya recibido la orden." size="small" footer={<><Button type="button" variant="secondary" disabled={saving} onClick={() => setActionDialog("")}>Mantener pendiente</Button><Button type="button" loading={saving} onClick={confirmWhatsApp}>{saving ? "Registrando..." : "Sí, fue enviada"}</Button></>}><p>ValoraCloud registrará la emisión por WhatsApp, sin afirmar entrega ni lectura.</p></ResponsiveDialog>
