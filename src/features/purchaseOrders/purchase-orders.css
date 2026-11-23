@@ -1695,34 +1695,7 @@ button.supply-trace__document:hover strong { text-decoration: underline; text-un
    sale de los propios tokens. */
 .purchase-workspace .po-layout { margin-top: 0; }
 
-/* Ítems: cada fila = ítem | cantidad con − y + | costo unitario | descuento | total | quitar. Con poco ancho (del contenedor,
-   no de la ventana) baja a dos renglones y, más angosto, a tres. Áreas táctiles de 2.75rem (44 px). */
-.purchase-items-card { container-type: inline-size; }
-.purchase-lines { display: grid; }
-.purchase-line { border-top: 1px solid var(--color-border-subtle); display: grid; gap: var(--space-1); padding: var(--space-3) 0; }
-.purchase-line__row { align-items: end; display: grid; gap: var(--space-3); grid-template-areas: "identity qty cost discount total remove"; grid-template-columns: minmax(0, 1fr) auto 7rem 5rem 6.5rem auto; }
-.purchase-line__identity { align-self: center; display: grid; gap: var(--space-1); grid-area: identity; min-width: 0; }
-.purchase-line__name { color: var(--color-text-strong); font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.purchase-line__meta { color: var(--color-text-muted); font-size: var(--font-size-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.purchase-line__field, .purchase-line__static, .purchase-line__total { display: grid; gap: var(--space-1); min-width: 0; }
-.purchase-line__field--qty, .purchase-line__static--qty { grid-area: qty; justify-items: start; }
-.purchase-line__field--cost, .purchase-line__static--cost { grid-area: cost; }
-.purchase-line__field--discount, .purchase-line__static--discount { grid-area: discount; }
-.purchase-line__caption { color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); }
-.purchase-line__input { background: var(--color-surface-panel); border: 1px solid var(--color-border-control); border-radius: var(--radius-sm); box-sizing: border-box; color: var(--color-text-default); font: inherit; font-size: var(--font-size-sm); min-height: 2.75rem; min-width: 0; padding: 0 var(--space-3); text-align: right; width: 100%; }
-.purchase-line__input:focus-visible { outline: var(--focus-outline); outline-offset: var(--focus-offset); }
-.purchase-line__input:disabled { opacity: .6; }
-.purchase-line__amount { align-items: center; color: var(--color-text-default); display: flex; font-size: var(--font-size-sm); min-height: 2.75rem; }
-.purchase-line__total { grid-area: total; justify-items: end; }
-.purchase-line__total .purchase-line__amount { color: var(--color-text-strong); font-weight: var(--font-weight-bold); }
-.purchase-line .purchase-line__remove { border-color: transparent; grid-area: remove; min-height: 2.75rem; min-width: 2.75rem; padding: 0; }
-.purchase-line__description { color: var(--color-text-muted); font-size: var(--font-size-xs); margin: 0; }
-@container (max-width: 46rem) {
-  .purchase-line__row { grid-template-areas: "identity identity identity remove" "qty cost discount total"; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto; }
-}
-@container (max-width: 30rem) {
-  .purchase-line__row { grid-template-areas: "identity identity remove" "qty qty total" "cost discount discount"; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
-}
+/* Ítems del documento: ver .ui-doc-items en src/styles/components.css (bloque compartido DocumentItemsEditor). */
 
 /* Documento y fechas: mismos campos de siempre, dentro de una tarjeta abierta (sin acordeón). */
 .purchase-data-grid { padding-top: var(--space-3); }

@@ -117,7 +117,7 @@ assert.doesNotMatch(purchasePage, /stockLimit/);
 assert.match(quotePage, /addInventoryItemToLines\(/);
 assert.match(purchasePage, /addInventoryItemToLines\(/);
 assert.doesNotMatch(purchasePage, /items: \[\.\.\.current\.items, \{/, "Compra ya no agrega sin buscar la línea existente");
-for (const [file, label] of [["src/features/sales/SaleItemsEditor.jsx", "Venta"], ["src/features/quotes/QuoteItemsEditor.jsx", "Cotización"], ["src/features/purchases/PurchaseItemsEditor.jsx", "Compra"]]) {
+for (const [file, label] of [["src/components/ui/DocumentItemsEditor.jsx", "Venta, Compra y Orden de compra (bloque compartido)"], ["src/features/quotes/QuoteItemsEditor.jsx", "Cotización"]]) {
   const source = read(file);
   assert.match(source, /Agregar desde inventario/, `${label}: el botón que lo abre dice "Agregar desde inventario"`);
   assert.doesNotMatch(source, /Agregar desde catálogo/);

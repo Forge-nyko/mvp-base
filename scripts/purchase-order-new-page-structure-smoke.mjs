@@ -117,18 +117,18 @@ try {
   assert.match(html, /aria-label="Cantidad de Filtro de aceite"[^>]*value="3"/, "la cantidad se edita directo");
   assert.match(html, /aria-label="Costo unitario de Filtro de aceite"[^>]*step="0\.01"[^>]*value="60"/, "el costo usa el paso de la moneda");
   assert.match(html, /aria-label="Descuento % de Filtro de aceite"[^>]*max="100"[^>]*value="5"/);
-  assert.ok(html.includes("Mano de obra en sitio") && !html.includes('purchase-line__description">Filtro de aceite'), "la descripción solo si difiere del nombre");
-  assert.equal(count(html, /class="purchase-line"/g), 2, "una fila por ítem");
-  assert.ok(html.includes('class="purchase-line__total"'), "total por línea");
+  assert.ok(html.includes("Mano de obra en sitio") && !html.includes('ui-doc-line__description">Filtro de aceite'), "la descripción solo si difiere del nombre");
+  assert.equal(count(html, /class="ui-doc-line"/g), 2, "una fila por ítem");
+  assert.ok(html.includes('class="ui-doc-line__total"'), "total por línea");
   assert.ok(html.includes("Bs") && html.includes("171"), "total de la primera línea: 3 × 60 − 5 %");
   // Estado vacío y bloqueos
-  assert.ok(renderEditor({items: []}).includes("Agrega productos, servicios o actividades del inventario."), "vacío");
+  assert.ok(renderEditor({items: []}).includes("Agrega productos, servicios o actividades."), "vacío");
   assert.ok(renderEditor({items: []}).includes("0 ítems"));
   const locked = renderEditor({disabled: true});
   assert.ok(!locked.includes("Agregar desde inventario") && !locked.includes("Escanear producto") && !locked.includes('aria-label="Quitar'), "sin permiso: no se agrega, no se escanea ni se quita");
   const staticHtml = renderEditor({readOnly: true, disabled: true});
   assert.ok(!staticHtml.includes("<input") && !staticHtml.includes("ui-qty"), "solo lectura: valores estáticos");
-  assert.ok(staticHtml.includes("Costo unitario") && staticHtml.includes("Descuento"), "solo lectura: etiquetas de costo y descuento");
+  assert.ok(staticHtml.includes("Costo unitario") && staticHtml.includes("Desc. %"), "solo lectura: etiquetas de costo y descuento");
 
   // --- 3b. Selector de proveedor: buscador, "Ver todos los proveedores" y tarjeta con "Cambiar proveedor" --------------------
   const selector = (await vite.ssrLoadModule("/src/features/purchases/PurchaseProviderSelector.jsx")).default;
@@ -186,7 +186,7 @@ for (const file of ["src/features/purchaseOrders/ProviderSelector.jsx", "src/fea
 // --- 5. CSS: lo compartido vive en components.css (ui-*) y purchase-orders.css; solo tokens -------------------------------
 const orderCss = read("src/features/purchaseOrders/purchase-orders.css");
 const purchaseCss = read("src/features/purchases/purchases.css");
-for (const selector of [".purchase-line", ".purchase-line__input", ".purchase-conditions-summary", ".purchase-conditions-form", ".purchase-summary__primary", ".purchase-items-card"]) {
+for (const selector of [".purchase-conditions-summary", ".purchase-conditions-form", ".purchase-summary__primary"]) {
   assert.ok(orderCss.includes(`${selector} {`) || orderCss.includes(`${selector}:`), `purchase-orders.css define ${selector}`);
   assert.ok(!purchaseCss.includes(`${selector} {`), `purchases.css no duplica ${selector}`);
 }

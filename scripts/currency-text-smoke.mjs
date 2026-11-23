@@ -96,8 +96,7 @@ assert.match(indexSource, /formatMoneyText\(quote\.total, quote\.moneda, quote\.
 for (const path of [
   "src/features/sales/SaleItemsEditor.jsx",
   "src/components/ui/InventoryCatalogDialog.jsx",
-  "src/features/purchases/PurchaseItemsEditor.jsx",
-  "src/features/purchaseOrders/PurchaseOrderItemsEditor.jsx",
+  "src/components/ui/DocumentItemsEditor.jsx",
   "src/features/purchaseOrders/PurchaseOrderCatalogDialog.jsx",
   "src/pages/PurchaseOrdersPage.jsx",
 ]) {

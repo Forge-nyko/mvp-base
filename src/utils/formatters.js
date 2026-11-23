@@ -67,6 +67,16 @@ export function formatBusinessMoney(value, currency = DEFAULT_CURRENCY, locale =
   return new Intl.NumberFormat(safeLocale(locale), options).format(Number(value || 0));
 }
 
+// Símbolo de la moneda del negocio tal como lo escribe formatBusinessMoney ("Bs" en BOB, "$" en CLP), para los campos de
+// importe que lo muestran aparte del número. Solo presentación.
+export function getCurrencySymbol(currency = DEFAULT_CURRENCY, locale = DEFAULT_LOCALE) {
+  const code = safeCurrency(currency);
+  const part = new Intl.NumberFormat(safeLocale(locale), { style: "currency", currency: code })
+    .formatToParts(0)
+    .find((entry) => entry.type === "currency");
+  return part?.value || code;
+}
+
 export function formatPercent(value, decimals = 1) {
   const n = Number(value || 0);
   const formatted = n.toLocaleString("es-CL", {

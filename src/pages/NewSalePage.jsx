@@ -130,6 +130,8 @@ export default function NewSalePage({businessId, role}) {
   const documentDecimals = sale
     ? adaptDocumentAmountDecimals(sale, sale.moneda)
     : businessMoney.amountDecimals;
+  // Paso del precio: "any" con 0 decimales (como siempre) y "0.01" con 2. La cantidad no cambia.
+  const moneyStep = documentDecimals > 0 ? String(10 ** -documentDecimals) : "any";
   const [clients, setClients] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [company, setCompany] = useState(null);
@@ -523,10 +525,10 @@ export default function NewSalePage({businessId, role}) {
               <span className={`po-status po-status--${sale?.estado || "borrador"}`}>{getSaleStatusLabel(sale?.estado || "borrador")}</span>
             </div>
             <div className="sale-head__meta">
-              <span>{formatDate(draft.fechaVenta)}</span>
+              <span>{formatDate(draft.fechaVenta, printable.locale)}</span>
               {sale?.cotizacionId ? <span>Originada desde <button type="button" className="sale-inline-link" onClick={openOriginQuote}>{sale.cotizacionNumero || "cotización aceptada"}</button></span> : <span>Venta directa</span>}
               {trabajoDisplay && <span>Proyecto <button type="button" className="sale-inline-link" onClick={openProject}>{trabajoDisplay.numero || trabajoDisplay.titulo || trabajoDisplay.id}</button></span>}
-              {sale?.cotizacionId && sale?.aceptadaEn && <span>Aceptada {formatDate(sale.aceptadaEn)}</span>}
+              {sale?.cotizacionId && sale?.aceptadaEn && <span>Aceptada {formatDate(sale.aceptadaEn, printable.locale)}</span>}
             </div>
           </header>
           <section className="sale-client-card no-print" aria-labelledby="sale-client-title">
@@ -545,7 +547,7 @@ export default function NewSalePage({businessId, role}) {
 
             {historical && <SaleInfoCard alert={Boolean(sale.alertasStock?.length)} onOpenProject={openProject} onOpenQuote={openOriginQuote} project={trabajoDisplay} sale={sale} stockMessage={stockSummary} />}
 
-            <SaleItemsEditor disabled={readOnly} historical={historical} inventory={inventory} items={draft.items} onChange={(items) => setDraft((current) => ({...current, items}))} onOpenCatalog={() => setCatalogOpen(true)} onScanProduct={addScannedProduct} readOnly={Boolean(readOnly && sale)} referencesLocked={referencesLocked} />
+            <SaleItemsEditor disabled={readOnly} historical={historical} inventory={inventory} items={draft.items} moneyStep={moneyStep} onChange={(items) => setDraft((current) => ({...current, items}))} onOpenCatalog={() => setCatalogOpen(true)} onScanProduct={addScannedProduct} readOnly={Boolean(readOnly && sale)} referencesLocked={referencesLocked} />
 
             {draft.trabajoId && !readOnly && (
               <AdditionalSelector
@@ -566,9 +568,9 @@ export default function NewSalePage({businessId, role}) {
               {readOnly ? (
                 <dl className="sale-data-readonly">
                   <div><dt>Tipo de documento</dt><dd>{getSaleDocumentTypeLabel(draft.tipoDocumento)}</dd></div>
-                  <div><dt>Fecha de venta</dt><dd>{formatDate(draft.fechaVenta)}</dd></div>
+                  <div><dt>Fecha de venta</dt><dd>{formatDate(draft.fechaVenta, printable.locale)}</dd></div>
                   {draft.tipoDocumento !== "sin_documento" && <div><dt>Número</dt><dd>{draft.numeroDocumento || "—"}</dd></div>}
-                  {draft.tipoDocumento !== "sin_documento" && <div><dt>Fecha documento</dt><dd>{formatDate(draft.fechaDocumento)}</dd></div>}
+                  {draft.tipoDocumento !== "sin_documento" && <div><dt>Fecha documento</dt><dd>{formatDate(draft.fechaDocumento, printable.locale)}</dd></div>}
                 </dl>
               ) : (
                 <div className="purchase-document-grid sale-document-grid">

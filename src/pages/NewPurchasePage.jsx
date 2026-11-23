@@ -26,7 +26,7 @@ import PurchaseProviderSelector from "../features/purchases/PurchaseProviderSele
 import PurchasePrintView from "../features/purchases/PurchasePrintView";
 import PurchaseSummaryPanel from "../features/purchases/PurchaseSummaryPanel";
 import {getCompanyProfile} from "../services/companyService";
-import {getInventoryItems} from "../services/inventoryService";
+import {findActiveProductByBarcode, getInventoryItems} from "../services/inventoryService";
 import {listarProveedores} from "../services/providerService";
 import {
   actualizarCompraBorrador,
@@ -247,6 +247,14 @@ export default function NewPurchasePage({businessId, role}) {
     }).items,
   }));
 
+  // "Escanear producto": el mismo escáner continuo de Venta y Orden de compra; agrega como el diálogo de inventario (cantidad 1).
+  const addScannedProduct = async (barcode) => {
+    const product = await findActiveProductByBarcode(businessId, barcode);
+    if (!product) throw new Error("Producto no encontrado para este código.");
+    addItem(product);
+    return {key: product.id, label: product.nombre};
+  };
+
   const applyDocumentImport = (imported) => {
     setDraft((current) => ({
       ...current,
@@ -441,6 +449,7 @@ export default function NewPurchasePage({businessId, role}) {
               items={draft.items}
               onChange={(items) => setDraft((current) => ({...current, items}))}
               onOpenCatalog={() => setCatalogOpen(true)}
+              onScanProduct={addScannedProduct}
               readOnly={Boolean(readOnly && purchase)}
               referencesLocked={referencesLocked}
             />
@@ -461,7 +470,7 @@ export default function NewPurchasePage({businessId, role}) {
                   {draft.tipoDocumento !== "sin_documento" && <label>Número documento proveedor
                     <input value={draft.numeroDocumentoProveedor} onChange={(event) => setDraft({...draft, numeroDocumentoProveedor: event.target.value})} />
                   </label>}
-                  <label>Fecha compra
+                  <label>Fecha de compra
                     <input type="date" value={draft.fechaCompra} onChange={(event) => setDraft({...draft, fechaCompra: event.target.value})} />
                   </label>
                   {draft.tipoDocumento !== "sin_documento" && <label>Fecha documento

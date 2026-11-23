@@ -108,9 +108,9 @@ try {
   assert.match(html, /aria-label="Cantidad de Filtro de aceite"[^>]*value="3"/, "la cantidad se edita directo");
   assert.match(html, /aria-label="Costo unitario de Filtro de aceite"[^>]*step="0\.01"[^>]*value="60"/, "el costo usa el paso de la moneda");
   assert.match(html, /aria-label="Descuento % de Filtro de aceite"[^>]*max="100"[^>]*value="5"/);
-  assert.ok(html.includes("Mano de obra en sitio") && !html.includes('purchase-line__description">Filtro de aceite'), "la descripción solo si difiere del nombre");
-  assert.equal(count(html, /class="purchase-line"/g), 2, "una fila por ítem");
-  assert.ok(html.includes('class="purchase-line__total"') && html.includes("Total"), "total por línea");
+  assert.ok(html.includes("Mano de obra en sitio") && !html.includes('ui-doc-line__description">Filtro de aceite'), "la descripción solo si difiere del nombre");
+  assert.equal(count(html, /class="ui-doc-line"/g), 2, "una fila por ítem");
+  assert.ok(html.includes('class="ui-doc-line__total"') && html.includes("Total"), "total por línea");
   // Estado vacío y bloqueos
   assert.ok(renderEditor({items: []}).includes("Agrega productos, servicios o actividades."), "vacío");
   assert.ok(renderEditor({items: []}).includes("0 ítems"));
@@ -118,7 +118,7 @@ try {
   assert.ok(!locked.includes("Agregar desde inventario") && !locked.includes('aria-label="Quitar'), "con referencias bloqueadas no se agrega ni se quita");
   const staticHtml = renderEditor({readOnly: true, disabled: true});
   assert.ok(!staticHtml.includes("<input") && !staticHtml.includes("ui-qty"), "solo lectura: valores estáticos");
-  assert.ok(staticHtml.includes("Costo unitario") && staticHtml.includes("Descuento"), "solo lectura: etiquetas de costo y descuento");
+  assert.ok(staticHtml.includes("Costo unitario") && staticHtml.includes("Desc. %"), "solo lectura: etiquetas de costo y descuento");
 
   // --- 5. Selector de proveedor: buscador, "Ver todos los proveedores" y tarjeta con "Cambiar proveedor" ---------------
   const selector = (await vite.ssrLoadModule("/src/features/purchases/PurchaseProviderSelector.jsx")).default;
@@ -199,7 +199,7 @@ assert.match(newUiCss, /\.ui-party__all \{[^}]*min-height: 44px;/, "área tácti
 assert.match(newUiCss, /\.ui-qty__button \{[^}]*min-height: 2\.75rem;[^}]*min-width: 2\.75rem;/, "área táctil de 44 px en − y +");
 assert.match(newUiCss, /\.ui-party__search:focus-visible[\s\S]*?outline: var\(--focus-outline\)/, "foco visible en el buscador");
 assert.match(newUiCss, /\.ui-qty__button:focus-visible,\s*\.ui-qty__input:focus-visible \{[^}]*outline: var\(--focus-outline\)/, "foco visible en el selector de cantidad");
-assert.match(newPurchaseCss, /\.purchase-line__input:focus-visible \{ outline: var\(--focus-outline\)/, "foco visible en costo y descuento");
-assert.match(newPurchaseCss, /@container \(max-width: 46rem\)[\s\S]*@container \(max-width: 30rem\)/, "la fila baja a dos y tres renglones con poco ancho");
+assert.match(newUiCss, /\.ui-doc-line__input:focus-visible \{ outline: var\(--focus-outline\)/, "foco visible en costo y descuento");
+assert.match(newUiCss, /@container \(max-width: 46rem\)[\s\S]*@container \(max-width: 30rem\)/, "la fila baja a dos y tres renglones con poco ancho");
 
 console.log("PURCHASE_NEW_PAGE_STRUCTURE_SMOKE_OK");

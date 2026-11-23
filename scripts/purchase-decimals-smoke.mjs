@@ -436,14 +436,19 @@ assert.match(receptionPage, /const moneyStep = documentDecimals > 0 \? String\(1
 assert.match(receptionPage, /className="reception-cost" type="number" min="0" step=\{moneyStep\}/);
 assert.match(receptionPage, /className="reception-qty" type="number" min="0" max=\{pending\} step="any"/, "la cantidad recibida no cambia");
 assert.match(receptionPage, /className="reception-discount" type="number" min="0" max="100" step="any"/);
+// Los editores de Compra y de Orden de compra son envoltorios del bloque compartido DocumentItemsEditor: el paso del importe
+// llega por `moneyStep` y el bloque dibuja los campos (el costo con su aria-label; la cantidad en QuantityStepper).
+const itemsBlock = await read("src/components/ui/DocumentItemsEditor.jsx");
 for (const [name, source] of [["PurchaseItemsEditor", purchaseEditor], ["PurchaseOrderItemsEditor", orderEditor]]) {
   assert.match(source, /moneyStep = "any"/, `${name}: por defecto "any" (como hoy)`);
-  // Ambos editores (Compra y Orden de compra): el costo es un campo con su aria-label; la cantidad vive en QuantityStepper (mismo selector que Venta).
-  assert.match(source, /aria-label=\{`Costo unitario de \$\{item\.nombre\}`\}[^>]*step=\{moneyStep\}/, `${name}: el costo usa moneyStep`);
-  assert.match(purchaseQuantityStepper, /min="0\.000001" step="any"/, `${name}: la cantidad sigue en "any"`);
-  assert.match(source, /<QuantityStepper /, `${name}: la cantidad vive en QuantityStepper`);
-  assert.match(source, /min="0" max="100" step="any"/, `${name}: el porcentaje sigue en "any"`);
+  assert.match(source, /moneyStep=\{moneyStep\}/, `${name}: pasa moneyStep al bloque compartido`);
+  assert.match(source, /mode="compra"/, `${name}: costo unitario`);
 }
+assert.match(itemsBlock, /moneyStep = "any"/, "bloque compartido: por defecto \"any\" (como hoy)");
+assert.match(itemsBlock, /aria-label=\{`\$\{priceLabel\} de \$\{item\.nombre\}`\}[^>]*step=\{moneyStep\}/, "bloque compartido: el importe usa moneyStep");
+assert.match(purchaseQuantityStepper, /min="0\.000001"[^>]*step="any"/,"la cantidad sigue en \"any\"");
+assert.match(itemsBlock, /<QuantityStepper /, "bloque compartido: la cantidad vive en QuantityStepper");
+assert.match(itemsBlock, /min="0" max="100" step="any"/, "bloque compartido: el porcentaje sigue en \"any\"");
 assert.match(purchasePage, /const documentDecimals = purchase\s+\? adaptDocumentAmountDecimals\(purchase, purchase\.moneda\)\s+: businessMoney\.amountDecimals;/);
 assert.match(orderPage, /const documentDecimals = order\s+\? adaptDocumentAmountDecimals\(order, order\.moneda\)\s+: businessMoney\.amountDecimals;/);
 assert.match(receptionPage, /adaptDocumentAmountDecimals\(reception \|\| \{\}, reception\?\.moneda\)/);
