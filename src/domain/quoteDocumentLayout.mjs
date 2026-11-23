@@ -59,6 +59,6 @@ export function buildQuoteClientRows(client = {}, project = "") {
     ["Teléfono", client.telefono],
     ["Dirección", client.direccion],
     ["Ciudad", client.ciudad],
-    ["Proyecto", project],
+    ["Asunto", project],
   ].filter(([, value]) => hasText(value)).map(([label, value]) => [label, String(value).trim()]);
 }

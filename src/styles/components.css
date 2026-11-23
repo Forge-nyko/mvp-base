@@ -4478,4 +4478,15 @@
 @container (max-width: 30rem) {
   .ui-doc-line__row { grid-template-areas: "identity identity remove" "qty qty total" "price discount discount"; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
 }
+/* Línea resaltada al agregarla y flechas de orden (opcionales: solo cuando el documento las pide, p. ej. Cotización). */
+.ui-doc-line--highlighted { background: var(--color-surface-hover); }
+.ui-doc-line__move { align-items: end; display: flex; grid-area: move; }
+.ui-doc-line__move .ui-button { min-height: 2.75rem; min-width: 2.75rem; padding: 0; }
+.ui-doc-line__row--movable { grid-template-areas: "identity qty price discount total move remove"; grid-template-columns: minmax(0, 1fr) auto 8rem 5rem 6.5rem auto auto; }
+@container (max-width: 46rem) {
+  .ui-doc-line__row--movable { grid-template-areas: "identity identity identity move remove" "qty price discount total total"; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto auto; }
+}
+@container (max-width: 30rem) {
+  .ui-doc-line__row--movable { grid-template-areas: "identity identity move remove" "qty qty total total" "price discount discount discount"; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto; }
+}
 /* Fin del bloque de ítems del documento. */

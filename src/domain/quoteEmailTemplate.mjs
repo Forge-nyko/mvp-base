@@ -33,7 +33,7 @@ export const DEFAULT_QUOTE_EMAIL_TEMPLATE = Object.freeze({
     "",
     "Te enviamos la cotización {numero}[, por un total de {total}].",
     "",
-    "Proyecto: {proyecto}",
+    "Asunto: {proyecto}",
     "Propuesta {vigencia}.",
     "",
     "Puedes revisar y responder la propuesta desde el enlace de este correo.",

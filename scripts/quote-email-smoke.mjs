@@ -118,7 +118,7 @@ assert.equal(
       "",
       "Te enviamos la cotización COT-2026-0001, por un total de $1.190.000.",
       "",
-      "Proyecto: Red eléctrica bodega",
+      "Asunto: Red eléctrica bodega",
       "Propuesta vigente hasta el fecha(2026-08-16).",
       "",
       "Puedes revisar y responder la propuesta desde el enlace de este correo.",
@@ -198,7 +198,7 @@ assert.equal(
     ...context,
     quote: { ...fullQuote, proyectoNombre: "" },
   });
-  assert.doesNotMatch(noProject.mensaje, /Proyecto:/);
+  assert.doesNotMatch(noProject.mensaje, /Asunto:/);
   assert.equal(noProject.asunto, "Cotización COT-2026-0001 | Bagner");
 
   // Vigencia: borrador sin emitir = días desde la emisión; emitida = fecha.

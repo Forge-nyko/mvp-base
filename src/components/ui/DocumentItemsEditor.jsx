@@ -1,5 +1,5 @@
 import React from "react";
-import {X} from "lucide-react";
+import {ChevronDown, ChevronUp, X} from "lucide-react";
 import BarcodeInput from "../barcode/BarcodeInput";
 import useBusinessFormat, {useBusinessMoney} from "../../hooks/useBusinessFormat";
 import {getCurrencySymbol} from "../../utils/formatters";
@@ -18,6 +18,11 @@ import QuantityStepper from "./QuantityStepper";
 // - Ganchos opcionales por línea, para lo propio de cada documento: getMaxQuantity(item), getLineMeta(item) (texto que
 //   se suma a "código · tipo · unidad", p. ej. "Disponible 7"), renderTitleExtra(item) (marca junto al nombre),
 //   renderLineAlert(item) (aviso bajo la fila) y getDescription(item) (descripción a mostrar, "" si no hay).
+// - Ganchos opcionales para un documento que además ordena o describe sus líneas (Cotización); sin ellos el bloque se
+//   dibuja exactamente igual: getLineTotal(item) (total ya calculado por el documento; por defecto cantidad × precio ×
+//   descuento), onMoveLine(index, direction) (flechas "Subir"/"Bajar"), renderLineDescription(item, index) (reemplaza el
+//   texto de la descripción, p. ej. por un campo editable), getLineClassName(item) (clase extra de la línea) y notice
+//   (aviso bajo la cabecera).
 // - El símbolo de la moneda sale de la moneda del negocio, con los mismos criterios de formatBusinessMoney.
 const MODES = Object.freeze({
   venta: Object.freeze({priceKey: "precioUnitario", priceLabel: "Precio unitario"}),
@@ -36,16 +41,21 @@ export default function DocumentItemsEditor({
   disabled = false,
   emptyText = "Agrega productos, servicios o actividades.",
   getDescription = defaultDescription,
+  getLineClassName,
   getLineMeta,
+  getLineTotal,
   getMaxQuantity,
   items,
   mode = "compra",
   moneyStep = "any",
+  notice,
   onChange,
+  onMoveLine,
   onOpenCatalog,
   onScanProduct,
   readOnly = false,
   renderLineAlert,
+  renderLineDescription,
   renderTitleExtra,
   title,
   titleId,
@@ -73,6 +83,7 @@ export default function DocumentItemsEditor({
           </div>
         )}
       </header>
+      {notice}
       {!items.length ? (
         <div className="ui-doc-items__empty">{emptyText}</div>
       ) : (
@@ -80,13 +91,15 @@ export default function DocumentItemsEditor({
           {items.map((item, index) => {
             const price = item[priceKey];
             const total = Number(item.cantidad || 0) * Number(price || 0) * (1 - Number(item.descuentoPct || 0) / 100);
+            const lineTotal = getLineTotal ? getLineTotal(item) : total;
             const description = getDescription(item);
+            const movable = Boolean(onMoveLine) && canChange && !readOnly;
             const showUnit = item.unidad && !sameText(item.unidad, "unidad");
             const meta = [item.codigo || "Sin código", typeLabel(item.tipoItem), showUnit ? item.unidad : "", getLineMeta?.(item)].filter(Boolean).join(" · ");
             const alert = renderLineAlert?.(item);
             return (
-              <article className="ui-doc-line" key={item.lineaId}>
-                <div className="ui-doc-line__row">
+              <article className={["ui-doc-line", getLineClassName?.(item)].filter(Boolean).join(" ")} key={item.lineaId}>
+                <div className={movable ? "ui-doc-line__row ui-doc-line__row--movable" : "ui-doc-line__row"}>
                   <div className="ui-doc-line__identity">
                     <div className="ui-doc-line__title">
                       <strong className="ui-doc-line__name" title={item.nombre}>{item.nombre}</strong>
@@ -119,13 +132,19 @@ export default function DocumentItemsEditor({
                       </label>
                     </>
                   )}
-                  <strong className="ui-doc-line__total"><span className="ui-doc-line__caption">Total</span><span className="ui-doc-line__amount">{money(total)}</span></strong>
+                  <strong className="ui-doc-line__total"><span className="ui-doc-line__caption">Total</span><span className="ui-doc-line__amount">{money(lineTotal)}</span></strong>
+                  {movable && (
+                    <div className="ui-doc-line__move">
+                      <Button type="button" variant="ghost" icon={ChevronUp} aria-label={`Subir ${item.nombre}`} disabled={disabled || index === 0} onClick={() => onMoveLine(index, -1)} />
+                      <Button type="button" variant="ghost" icon={ChevronDown} aria-label={`Bajar ${item.nombre}`} disabled={disabled || index === items.length - 1} onClick={() => onMoveLine(index, 1)} />
+                    </div>
+                  )}
                   {canChange && !readOnly && (
                     <Button type="button" variant="ghost-danger" icon={X} className="ui-doc-line__remove" aria-label={`Quitar ${item.nombre}`} onClick={() => onChange(items.filter((_, current) => current !== index))} />
                   )}
                 </div>
                 {alert}
-                {description && <p className="ui-doc-line__description">{description}</p>}
+                {renderLineDescription ? renderLineDescription(item, index) : description && <p className="ui-doc-line__description">{description}</p>}
               </article>
             );
           })}

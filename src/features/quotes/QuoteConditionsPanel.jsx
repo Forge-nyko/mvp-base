@@ -118,33 +118,35 @@ function QuoteConditionsPanel({
   const scopeFieldId = `${idPrefix}-scope`;
 
   return (
-    <section className="quote-workspace__panel quote-conditions no-print" aria-labelledby="quote-conditions-title">
-      <header className="quote-conditions__head">
-        <h2 id="quote-conditions-title">3 · Condiciones</h2>
-        <p>
-          {isEditMode ? "" : "Vienen de los valores de Empresa. "}
-          Cambiarlas solo afecta a esta cotización.
-        </p>
+    <section className="po-panel quote-conditions no-print" aria-labelledby="quote-conditions-title">
+      <header className="ui-section-head">
+        <div>
+          <h2 id="quote-conditions-title" className="ui-section-head__title">Condiciones</h2>
+          <p className="ui-section-head__hint">
+            {isEditMode ? "" : "Vienen de los valores de Empresa. "}
+            Cambiarlas solo afecta a esta cotización.
+          </p>
+        </div>
       </header>
 
-      <div className="quote-conditions-primary__grid">
-        <label className="quote-workspace__field">
+      <div className="purchase-document-grid purchase-data-grid quote-conditions-primary__grid">
+        <label>
           <span>Vigencia (días)</span>
           <input type="number" min="1" max="3650" value={validezDias} onChange={(event) => onField("validezDias", event.target.value)} />
         </label>
-        <label className="quote-workspace__field">
+        <label>
           <span>Tratamiento tributario</span>
           <select value={afectaIva === false ? "exenta" : "afecta"} onChange={(event) => onField("afectaIva", event.target.value === "afecta")}>
             <option value="afecta">{`Afecta ${taxLabel}${rateLabel}`}</option>
             <option value="exenta">{`Exenta de ${taxLabel}`}</option>
           </select>
         </label>
-        <label className="quote-workspace__field">
+        <label>
           <span>Forma de pago</span>
           <input value={conditions.formaPago} onChange={(event) => onCondition("formaPago", event.target.value)} placeholder="Ej: 50% al iniciar y 50% contra entrega" />
         </label>
-        <div className="quote-workspace__field">
-          <label className="quote-workspace__field">
+        <div className="quote-conditions__plazo">
+          <label>
             <span>Plazo de ejecución o entrega</span>
             <input value={conditions.plazoEntrega} onChange={(event) => onCondition("plazoEntrega", event.target.value)} placeholder="Ej: 10 días hábiles" />
           </label>
@@ -154,15 +156,15 @@ function QuoteConditionsPanel({
                 <input type="date" aria-label="Plazo desde" value={plazoRangeDraft.desde} onChange={(event) => setPlazoRangeDraft((current) => ({...current, desde: event.target.value}))} />
                 <span aria-hidden="true">→</span>
                 <input type="date" aria-label="Plazo hasta" min={plazoRangeDraft.desde || undefined} value={plazoRangeDraft.hasta} onChange={(event) => setPlazoRangeDraft((current) => ({...current, hasta: event.target.value}))} />
-                <button type="button" disabled={!plazoRangeValid} onClick={onPlazoApply} className="quote-workspace__button quote-workspace__button--primary">Aceptar</button>
-                <button type="button" onClick={() => setPlazoRangeOpen(false)} className="quote-workspace__button quote-workspace__button--secondary">Cancelar</button>
+                <Button type="button" disabled={!plazoRangeValid} onClick={onPlazoApply}>Aceptar</Button>
+                <Button type="button" variant="secondary" onClick={() => setPlazoRangeOpen(false)}>Cancelar</Button>
               </div>
               {plazoRangeShowError && (
                 <span className="quote-conditions__error">La fecha "hasta" no puede ser anterior a "desde".</span>
               )}
             </div>
           ) : (
-            <button type="button" onClick={() => setPlazoRangeOpen(true)} className="quote-workspace__link-button">Definir con fecha desde/hasta</button>
+            <button type="button" onClick={() => setPlazoRangeOpen(true)} className="quote-conditions__link">Definir con fecha desde/hasta</button>
           )}
         </div>
       </div>
@@ -185,10 +187,10 @@ function QuoteConditionsPanel({
         </div>
       </div>
 
-      <div className="quote-conditions__fields">
+      <div className="purchase-document-grid purchase-data-grid quote-conditions__fields">
         {scopeActive && (
-          <div id={scopeFieldId} ref={scopeRef} className="quote-workspace__field">
-            <span>Qué incluye esta propuesta</span>
+          <div id={scopeFieldId} ref={scopeRef} className="purchase-field-wide quote-conditions__group" role="group" aria-labelledby={`${scopeFieldId}-label`}>
+            <span id={`${scopeFieldId}-label`} className="quote-conditions__label">Qué incluye esta propuesta</span>
             {isAdvancedScope ? (
               <div className="quote-scope-list">
                 {scopeSections.map((section, index) => {
@@ -198,8 +200,8 @@ function QuoteConditionsPanel({
                       <div className="quote-scope-card__head">
                         <input value={section.titulo} onChange={(event) => onUpdateScopeSection(section.id, {titulo: event.target.value})} placeholder="Título del apartado" aria-label={`Título del apartado ${index + 1}`} />
                         <div className="quote-scope-card__actions">
-                          <Button type="button" variant="secondary" icon={ChevronUp} className="quote-line__icon-button" aria-label="Subir apartado" disabled={index === 0} onClick={() => onMoveScopeSection(index, -1)} />
-                          <Button type="button" variant="secondary" icon={ChevronDown} className="quote-line__icon-button" aria-label="Bajar apartado" disabled={index === scopeSections.length - 1} onClick={() => onMoveScopeSection(index, 1)} />
+                          <Button type="button" variant="secondary" icon={ChevronUp} className="quote-scope-card__icon" aria-label="Subir apartado" disabled={index === 0} onClick={() => onMoveScopeSection(index, -1)} />
+                          <Button type="button" variant="secondary" icon={ChevronDown} className="quote-scope-card__icon" aria-label="Bajar apartado" disabled={index === scopeSections.length - 1} onClick={() => onMoveScopeSection(index, 1)} />
                           <Button type="button" variant="ghost-danger" onClick={() => onRemoveScopeSection(section.id)}>Eliminar</Button>
                         </div>
                       </div>
@@ -220,7 +222,7 @@ function QuoteConditionsPanel({
             )}
             <small className="quote-conditions__hint">Una línea por renglón; cada una sale como viñeta. Los apartados vacíos no aparecen en el PDF.</small>
             {isAdvancedScope ? (
-              <button type="button" onClick={onAddScopeSection} className="quote-workspace__button quote-workspace__button--secondary quote-conditions__add-section">+ Agregar apartado</button>
+              <Button type="button" variant="secondary" className="quote-conditions__add-section" onClick={onAddScopeSection}>+ Agregar apartado</Button>
             ) : (
               hasText(primaryScopeText) && (
                 <button type="button" onClick={onAddScopeSection} className="quote-conditions__link">Dividir en apartados con título</button>
@@ -233,7 +235,7 @@ function QuoteConditionsPanel({
           if (!opened[key] && !hasText(conditions[key])) return null;
           const fieldId = `${idPrefix}-${key}`;
           return (
-            <label key={key} id={fieldId} className="quote-workspace__field">
+            <label key={key} id={fieldId} className="purchase-field-wide">
               <span>{label}</span>
               {multiline ? (
                 <textarea

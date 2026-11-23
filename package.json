@@ -101,6 +101,7 @@
     "test:money": "node scripts/money-smoke.mjs",
     "test:quote-sale-decimals": "node scripts/quote-sale-decimals-smoke.mjs",
     "test:quote-initial-render": "node scripts/quote-new-page-initial-render-smoke.mjs",
+    "test:quote-new-page": "node scripts/quote-new-page-structure-smoke.mjs",
     "test:sale-add-items": "node scripts/sale-add-items-smoke.mjs",
     "test:purchase-new-page": "node scripts/purchase-new-page-structure-smoke.mjs",
     "test:document-items": "node scripts/document-items-editor-smoke.mjs",

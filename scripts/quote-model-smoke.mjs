@@ -483,6 +483,10 @@ const sourceQuoteCollapsible = fs.readFileSync(
   "src/features/quotes/QuoteCollapsibleSection.jsx",
   "utf8"
 );
+const sourceQuoteClientSelector = fs.readFileSync("src/features/quotes/QuoteClientSelector.jsx", "utf8");
+const sourceDocumentItems = fs.readFileSync("src/components/ui/DocumentItemsEditor.jsx", "utf8");
+const sourceComponentsCss = fs.readFileSync("src/styles/components.css", "utf8");
+const sourcePurchaseOrdersCss = fs.readFileSync("src/features/purchaseOrders/purchase-orders.css", "utf8");
 const sourceQuoteWorkspaceCss = fs.readFileSync(
   "src/features/quotes/quote-workspace.css",
   "utf8"
@@ -527,7 +531,7 @@ const commercialStatusSource = sourceHistory.slice(
 );
 assert.match(sourceNewQuote, /createManagedInventoryItem/);
 assert.doesNotMatch(sourceNewQuote, /\bcreateInventoryItem\b/);
-assert.match(sourceNewQuote, /<ClientSelector/);
+assert.match(sourceNewQuote, /<QuoteClientSelector/);
 assert.doesNotMatch(sourceNewQuote, /quote-client-suggestions/);
 assert.match(
   sourceNewQuote,
@@ -563,28 +567,33 @@ assert.doesNotMatch(sourceQuoteSummary, /Vista previa|Enviar por correo|Descarga
 // del número va bajo el botón y, en edición, número y fecha en el resumen.
 assert.doesNotMatch(sourceNewQuote, /quote-workspace__header|quote-workspace__eyebrow/);
 assert.doesNotMatch(sourceQuoteWorkspaceCss, /quote-workspace__header|quote-workspace__eyebrow/);
-assert.match(sourceQuoteSummary, /\{!isEditMode && <small className="quote-summary__hint">El número se asignará al crear la cotización\.<\/small>\}/);
-assert.match(sourceQuoteSummary, /quoteNumber, quoteDate/);
+assert.match(sourceQuoteSummary, /\{!isEditMode && <p className="quote-summary__hint">El número se asignará al crear la cotización\.<\/p>\}/);
+assert.match(sourceNewQuote, /const headerDate = isEditMode && quote\.fecha \? formatDate\(quote\.fecha\) : "";/, "número y fecha del borrador van en la cabecera");
 // "Crear cotización" también se deshabilita sin ítems y explica qué falta.
 assert.match(sourceNewQuote, /const saveBlocked = saveBlockedByClient \|\| saveBlockedByItems;/);
 assert.match(sourceNewQuote, /missingRequirements\.push\("cliente"\)/);
 assert.match(sourceNewQuote, /missingRequirements\.push\("al menos un ítem"\)/);
 assert.match(sourceNewQuote, /`Falta: \$\{missingRequirements\.join\(" · "\)\}`/);
-assert.match(sourceQuoteSummary, /disabled=\{saving \|\| saveBlocked\} aria-describedby=/);
+assert.match(sourceQuoteSummary, /disabled=\{saving \|\| saveBlocked\}/);
+assert.match(sourceQuoteSummary, /aria-describedby=\{saveBlockedReason \? "quote-save-blocked-reason" : undefined\}/);
 assert.match(sourceQuoteSummary, /id="quote-save-blocked-reason"/);
 // Ítems: un solo botón relleno (el del encabezado); el vacío es solo texto.
-assert.equal((sourceQuoteItems.match(/quote-workspace__button--primary/g) || []).length, 1);
+assert.doesNotMatch(sourceQuoteItems, /quote-workspace__button/, "sin otra familia de botón: el bloque compartido trae los suyos");
+assert.match(sourceQuoteItems, /<DocumentItemsEditor/, "los ítems usan el bloque compartido");
 assert.doesNotMatch(sourceQuoteItems, /Abrir catálogo/);
 // "Asunto" sólo en el formulario: sigue guardándose como proyectoNombre y el
-// PDF y la vista de impresión conservan "Proyecto".
-assert.match(sourceNewQuote, /<span className="quote-workspace__kicker">Asunto<\/span>/);
-assert.match(sourceNewQuote, /Aparece como 'Proyecto' en el PDF\./);
+// PDF, vista de impresión y correo rotulan el mismo dato como "Asunto".
+assert.match(sourceNewQuote, /<span>Asunto<\/span>/);
+assert.match(sourceNewQuote, /placeholder="Escribe el asunto de la cotización"/, "texto guía genérico, sin ejemplos de rubro");
+assert.doesNotMatch(sourceNewQuote, /Escalera zona de estanque/);
+assert.match(sourceNewQuote, /Resume en pocas palabras qué se cotiza\. Aparece como 'Asunto' en el PDF\./);
+assert.doesNotMatch(sourceNewQuote, /Aparece como 'Proyecto'/);
 assert.doesNotMatch(sourceNewQuote, /Proyecto o trabajo/);
 assert.match(sourceQuoteDocument, /buildQuoteClientRows\(client, client\.proyecto \|\| quote\.trabajoTitulo\)/);
 assert.match(sourceQuotePrintView, /buildQuoteClientRows\(client, project\)/);
 assert.deepEqual(
   buildQuoteClientRows({ empresa: "Cliente SA", contacto: "", email: "a@b.cl" }, "Escalera").map(([label]) => label),
-  ["Empresa", "Correo", "Proyecto"]
+  ["Empresa", "Correo", "Asunto"]
 );
 // Condiciones: campos alineados arriba, placeholder corto y "Qué incluye"
 // cerrado salvo que tenga contenido.
@@ -598,11 +607,11 @@ assert.match(sourceQuoteCatalog, /<ResponsiveDialog/);
 assert.match(sourceQuoteCatalog, /initialFocusRef=\{searchRef\}/);
 assert.match(sourceQuoteCatalog, /Agregar otra vez/);
 assert.doesNotMatch(sourceQuoteItems, /<table/);
-assert.match(sourceQuoteItems, /Descripción y descuento/);
+assert.match(sourceQuoteItems, /Descripción para esta cotización/, "la descripción de la línea queda visible bajo la fila");
+assert.doesNotMatch(sourceQuoteItems, /<details|Descripción y descuento/, "sin desplegable");
 assert.doesNotMatch(sourceQuoteItems, /Descripción, unidad y descuento/);
 assert.doesNotMatch(sourceQuoteItems, /Personalizar ítem/);
 assert.doesNotMatch(sourceQuoteItems, /Subtotal/, "el encabezado de ítems muestra solo el conteo; el subtotal vive en el resumen");
-assert.match(sourceQuoteItems, /items\.length === 1 \? "1 ítem" : `\$\{items\.length\} ítems`/);
 assert.match(sourceQuoteItems, /Agrega productos, servicios o actividades para construir la cotización\./);
 assert.match(sourceNewQuote, /saveAttempted \|\| itemsInteracted/);
 assert.match(sourceNewQuote, /setSaveAttempted\(true\)/);
@@ -611,28 +620,28 @@ assert.match(sourceHistory, />\s*Nueva cotización/);
 assert.match(sourceHistory, />\s*Crear cliente/);
 assert.match(sourceHistory, />\s*Ir al inventario/);
 assert.doesNotMatch(sourceHistory, /Ya puedes comenzar a trabajar con ValoraCloud/);
-assert.match(sourceQuoteItems, /Sin ítems agregados/);
 assert.match(sourceNewQuote, /subtotal=\{totals\.subtotal\}/);
 // Filas de ítems compactas: mismos manejadores y mismos campos que antes; solo cambia la presentación.
-assert.match(sourceQuoteItems, /<h2 id="quote-items-title">2 · ¿Qué cotizas\?<\/h2>/);
-assert.match(sourceQuoteItems, /onUpdate\(lineId, "cantidad", event\.target\.value\)/);
-assert.match(sourceQuoteItems, /onUpdate\(lineId, "cantidad", next\)/, "− y + usan el mismo manejador de cantidad");
-assert.match(sourceQuoteItems, /onUpdate\(lineId, "precioUnitarioEditable", event\.target\.value\)/);
-assert.match(sourceQuoteItems, /onUpdate\(lineId, "descripcionComercial", event\.target\.value\)/);
-assert.doesNotMatch(sourceQuoteItems, /onUpdate\(lineId, "unidad"/, "la unidad ya no se edita en la cotización");
-assert.match(sourceQuoteItems, /onUpdate\(lineId, "descuentoPorcentaje", event\.target\.value\)/);
-assert.match(sourceQuoteItems, /onMove\(index, -1\)/);
-assert.match(sourceQuoteItems, /onMove\(index, 1\)/);
-assert.match(sourceQuoteItems, /onRemove\(lineId\)/);
-assert.match(sourceQuoteItems, /aria-label=\{`Subir \$\{item\.nombre\}`\}/);
-assert.match(sourceQuoteItems, /aria-label=\{`Bajar \$\{item\.nombre\}`\}/);
-assert.match(sourceQuoteItems, /aria-label=\{`Quitar \$\{item\.nombre\}`\}/);
-assert.match(sourceQuoteItems, /variant="ghost-danger"/, "Quitar usa el Button compartido, sin otra familia de botón");
-assert.match(sourceQuoteItems, /aria-label=\{`Disminuir cantidad de \$\{item\.nombre\}`\}/);
-assert.match(sourceQuoteItems, /aria-label=\{`Aumentar cantidad de \$\{item\.nombre\}`\}/);
+assert.match(sourceQuoteItems, /title="¿Qué cotizas\?"/);
+assert.match(sourceQuoteItems, /titleId="quote-items-title"/);
+assert.match(sourceQuoteItems, /mode="venta"/);
+// El adaptador traduce cada cambio del bloque compartido a los mismos manejadores de siempre (onUpdate / onRemove / onMove).
+assert.match(sourceQuoteItems, /cantidad: "cantidad",\s*precioUnitario: "precioUnitarioEditable",\s*descuentoPct: "descuentoPorcentaje"/, "cantidad, precio y descuento llegan a los mismos campos de la línea");
+assert.match(sourceQuoteItems, /onUpdate\(entry\.lineaId, quoteField, entry\[field\]\)/);
+assert.match(sourceQuoteItems, /onRemove\(removed\.lineaId\)/);
+assert.match(sourceQuoteItems, /onMoveLine=\{onMove\}/);
+assert.match(sourceQuoteItems, /getLineTotal=\{\(line\) => line\.totalLinea\}/, "el total de línea sigue siendo el que calcula la página");
+assert.match(sourceQuoteItems, /onUpdate\(line\.lineaId, "descripcionComercial", event\.target\.value\)/);
+assert.match(sourceQuoteItems, /line\.descripcionComercial \?\? line\.descripcion \?\? ""/);
+assert.doesNotMatch(sourceQuoteItems, /onUpdate\([^)]*"unidad"/, "la unidad ya no se edita en la cotización");
 assert.doesNotMatch(sourceQuoteItems, /Unidad de cobro/);
-assert.match(sourceQuoteItems, /Solo cambia esta cotización; el inventario no se modifica\./);
-assert.match(sourceQuoteItems, /\{item\.unidad \|\| "Sin unidad"\}/, "la unidad se sigue mostrando en la fila, sin editar");
+assert.match(sourceQuoteItems, /solo cambian esta cotización; el inventario no se modifica\./);
+assert.match(sourceDocumentItems, /aria-label=\{`Subir \$\{item\.nombre\}`\}/);
+assert.match(sourceDocumentItems, /aria-label=\{`Bajar \$\{item\.nombre\}`\}/);
+assert.match(sourceDocumentItems, /onMoveLine\(index, -1\)/);
+assert.match(sourceDocumentItems, /onMoveLine\(index, 1\)/);
+assert.match(sourceDocumentItems, /aria-label=\{`Quitar \$\{item\.nombre\}`\}/);
+assert.match(sourceDocumentItems, /variant="ghost-danger"/, "Quitar usa el Button compartido, sin otra familia de botón");
 // La unidad la leen el PDF, la vista formal y la propuesta pública de la línea guardada (item.unidad), no de un campo del formulario.
 assert.match(sourceQuoteDocument, /unit: item\.unidad \|\| "-"/);
 assert.match(sourceQuotePrintView, /\{item\.unidad \|\| "-"\}/);
@@ -641,12 +650,12 @@ assert.equal(normalizeQuoteItem({nombre: "Pintura", cantidad: 1, precioUnitarioE
 assert.equal(createQuoteItemFromValuation({itemId: "i1", nombre: "Cable", unidad: "metro", item: {id: "i1", unidad: "rollo", precioInterno: 10}}).unidad, "metro", "una línea nueva toma la unidad del inventario");
 assert.equal(createQuoteItemFromValuation({itemId: "i2", nombre: "Cable", item: {id: "i2", unidad: "rollo", precioInterno: 10}}).unidad, "rollo");
 assert.equal(buildQuotePayload("uid-1", {items: [{nombre: "Pintura", cantidad: 1, precioUnitarioEditable: 100, unidad: "m2"}], clienteId: "c1", cliente: {nombreRazonSocial: "X"}}).items[0].unidad, "m2", "el payload conserva la unidad guardada");
-assert.match(sourceQuoteItems, /quote-line__chip/);
-assert.match(sourceQuoteItems, /key=\{lineId\}/, "la fila conserva su clave estable: el plegable no se cierra al reordenar");
+assert.match(sourceQuoteItems, /lineaId: lineKey\(item\)/, "la fila conserva su clave estable al reordenar");
+assert.match(sourceDocumentItems, /key=\{item\.lineaId\}/);
 assert.doesNotMatch(sourceQuoteItems, /features\/sales|\.\.\/sales\//, "Cotización no importa nada de Venta");
 assert.doesNotMatch(sourceQuoteWorkspaceCss, /\.quote-item\b|\.quote-item__|\.quote-items__head/, "sin reglas de la fila anterior");
-assert.match(sourceQuoteWorkspaceCss, /\.quote-line \.quote-line__icon-button \{[^}]*min-height: 2\.75rem;[^}]*min-width: 2\.75rem;/, "íconos de 44 px");
-assert.match(sourceQuoteWorkspaceCss, /@container \(max-width: 38rem\)/);
+assert.match(sourceComponentsCss, /\.ui-doc-line__move \.ui-button \{[^}]*min-height: 2\.75rem;[^}]*min-width: 2\.75rem;/, "íconos de 44 px");
+assert.match(sourceComponentsCss, /\.ui-doc-line__row--movable \{/);
 // Stepper propio de Cotización: devuelve la cantidad siguiente o null; la validación real sigue en calculateQuoteLineAmounts.
 assert.equal(stepQuoteQuantity(1, 1), 2);
 assert.equal(stepQuoteQuantity("2", 1), 3);
@@ -678,9 +687,9 @@ assert.equal(calculateQuoteLineTotal({cantidad: stepQuoteQuantity(2, 1), precioU
   assert.ok(escapeSequence.test(`x${BS}u00f3y`), "la aserción detecta una secuencia de escape");
   assert.equal(escapeSequence.test("identificación · línea"), false, "los caracteres reales no se marcan");
 }
-console.log("OK editor de ítems de cotización: filas compactas, stepper propio, plegable por fila y sin escapes unicode");
+console.log("OK editor de ítems de cotización: bloque compartido, flechas de orden, descripción visible y sin escapes unicode");
 // Paso 3: condiciones. Botones "+" de borde punteado; con contenido el apartado queda activo y visible; sin "Quitar" nuevo.
-assert.match(sourceQuoteConditions, /<h2 id="quote-conditions-title">3 · Condiciones<\/h2>/);
+assert.match(sourceQuoteConditions, /<h2 id="quote-conditions-title" className="ui-section-head__title">Condiciones<\/h2>/);
 assert.match(sourceQuoteConditions, /isEditMode \? "" : "Vienen de los valores de Empresa\. "/, "la primera frase solo vale al crear");
 assert.match(sourceQuoteConditions, /Cambiarlas solo afecta a esta cotización\./);
 assert.doesNotMatch(sourceNewQuote, /se copiaron a este documento/);
@@ -714,7 +723,6 @@ assert.match(sourceQuoteConditions, /aria-label="Subir apartado"/);
 assert.match(sourceQuoteConditions, /aria-label="Bajar apartado"/);
 assert.match(sourceQuoteConditions, />Eliminar<\/Button>/);
 assert.match(sourceQuoteWorkspaceCss, /\.quote-chip \{[^}]*border: 1px dashed var\(--color-border-control\);/, "botones + de borde punteado");
-assert.match(sourceQuoteWorkspaceCss, /\.quote-line__discount \{[^}]*width: 6rem;/, "descuento en un campo de 6 rem");
 // Selección de cliente en línea: solo los primeros 6 resultados, aviso del total y mensaje claro sin clientes. Mismo filtro y mismo onChange.
 assert.match(sourceClientSelector, /const INLINE_RESULTS_LIMIT = 6;/);
 assert.match(sourceClientSelector, /visibleClients\.slice\(0, INLINE_RESULTS_LIMIT\)\.map/);
@@ -740,12 +748,20 @@ assert.match(sourceClientSelector, /onClose=\{\(\) => \{ setOpen\(false\); setDi
 assert.match(sourceClientSelector + fs.readFileSync("src/styles/interior.css", "utf8"), /\.client-selector__all \{[^}]*min-height: 2\.75rem;/, "área táctil de 44 px");
 assert.match(sourceQuoteWorkspaceCss + fs.readFileSync("src/styles/interior.css", "utf8"), /\.client-selector--inline \.client-selector__results \{[^}]*max-height: 14rem;/, "alto máximo con scroll");
 // Cabecera corta, paso 1 (cliente y asunto en línea) y resumen: solo presentación.
-assert.match(sourceNewQuote, /<header className="quote-head no-print">/);
-assert.match(sourceNewQuote, /<Link to="\/cotizaciones" className="quote-back-link">← Cotizaciones<\/Link>/);
-assert.match(sourceNewQuote, /<p className="quote-head__title">\{isEditMode \? getQuoteDisplayNumber\(quote, "Editar cotización"\) : "Nueva cotización"\}<\/p>/);
+assert.match(sourceNewQuote, /<header className="ui-doc-head no-print">/);
+assert.match(sourceNewQuote, /<Link to="\/cotizaciones" className="ui-doc-back">← Cotizaciones<\/Link>/);
+assert.match(sourceNewQuote, /<p className="ui-doc-head__title">\{isEditMode \? getQuoteDisplayNumber\(quote, "Editar cotización"\) : "Nueva cotización"\}<\/p>/);
+assert.match(sourceNewQuote, /<UiStatusBadge variant=\{quote\.estado === "borrador" \? "warning" : "neutral"\}>\{getQuoteStatusLabel\(quote\.estado\)\}<\/UiStatusBadge>/, "chip con el estado que ya tiene la cotización");
 assert.doesNotMatch(sourceNewQuote, /<h1/, "el único h1 de la pantalla es el de la barra superior");
-assert.match(sourceNewQuote, /<h2 id="quote-client-title">1 · ¿A quién le cotizas\?<\/h2>/);
-assert.match(sourceNewQuote, /<ClientSelector inline businessId=\{userId\} value=\{quote\.clienteId\} snapshot=\{quote\.cliente\} onChange=\{handleClientChange\} onAvailabilityChange=\{setClientAvailability\} \/>/, "mismo onChange y misma disponibilidad que antes");
+assert.match(sourceNewQuote, /<h2 id="quote-client-title" className="ui-step-title">¿A quién le cotizas\?<\/h2>/);
+assert.doesNotMatch(sourceNewQuote + sourceQuoteItems + sourceQuoteConditions, /[123] · /, "títulos de sección sin numeración");
+assert.match(sourceNewQuote, /onAvailabilityChange=\{setClientAvailability\}/, "misma disponibilidad que antes");
+assert.match(sourceNewQuote, /onChange=\{handleClientChange\}/, "mismo onChange que antes");
+assert.match(sourceQuoteClientSelector, /<InlinePartySelector/, "el cliente se elige con el selector en línea compartido");
+assert.match(sourceQuoteClientSelector, /listarClientes\(businessId\)/);
+assert.match(sourceQuoteClientSelector, /filterSelectableClients\(clients, businessId\)/);
+assert.match(sourceQuoteClientSelector, /matches=\{matchesClientSearch\}/);
+assert.match(sourceQuoteClientSelector, /onChange\?\.\(client\)/, "un solo punto de elección: onChange(client) con el objeto");
 assert.equal((sourceNewQuote.match(/La cotización guarda una copia histórica de los datos del cliente\./g) || []).length, 1, "el texto de guía no se repite");
 assert.match(sourceClientSelector, /inline = false/, "la prop inline es opcional: sin ella el selector es el de siempre");
 assert.doesNotMatch(sourceClientSelector, /\{!inline && <ResponsiveDialog/, "con inline la ventana también se dibuja (cerrada) y se abre con el enlace");
@@ -755,13 +771,14 @@ assert.equal((sourceClientSelector.match(/onChange\?\.\(client\)/g) || []).lengt
 assert.match(sourceClientSelector, /placeholder=\{nameOnly \? "Buscar cliente por nombre" : `Buscar cliente por nombre o \$\{fiscalLabel\}`\}/);
 assert.match(sourceQuoteSummary, /<h2>Resumen<\/h2>/);
 assert.doesNotMatch(sourceQuoteSummary, /Totales|quote-workspace__kicker/, "el resumen ya no repite el rótulo");
-assert.match(sourceQuoteWorkspaceCss, /\.quote-summary__row--total strong \{\s*color: var\(--color-text-brand\);\s*font-size: var\(--font-size-2xl\);/, "Total en color de marca, como en Venta");
-assert.match(sourceQuoteWorkspaceCss, /\.quote-summary__discount input \{\s*max-width: 8rem;/, "campo de descuento con ancho razonable");
+assert.match(sourceQuoteSummary, /className=\{strong \? "po-summary__total" : undefined\}/, "Total destacado con la clase del resumen de Compras y Ventas");
+assert.match(sourcePurchaseOrdersCss, /\.purchase-summary \.po-summary__total strong \{[^}]*color: var\(--color-text-brand\);[^}]*font-size: var\(--font-size-2xl\);/, "Total en color de marca, como en Venta");
+assert.match(sourceQuoteWorkspaceCss, /\.quote-summary__discount input \{\s*flex: 0 0 auto;\s*width: 8rem;/, "campo de descuento con ancho razonable");
 assert.doesNotMatch(sourceQuoteWorkspaceCss, /quote-workspace__client-project/);
 assert.match(sourceQuoteCollapsible, /aria-expanded=\{open\}/);
-assert.match(sourceQuoteWorkspaceCss, /position:\s*sticky/);
-assert.match(sourceQuoteWorkspaceCss, /@media \(max-width: 620px\)/);
-assert.match(sourceQuoteWorkspaceCss, /position:\s*static/);
+assert.match(sourcePurchaseOrdersCss, /\.po-summary \{\s*position: sticky;/);
+assert.match(sourcePurchaseOrdersCss, /@media \(max-width: 620px\)/);
+assert.match(sourcePurchaseOrdersCss, /position: static;/);
 assert.match(sourcePdf, /buildQuotePdfBase64/);
 assert.match(sourceEmail, /buildQuotePdfAttachment/);
 assert.match(sourceHistory, /downloadQuotePdf/);

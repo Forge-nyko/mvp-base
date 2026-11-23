@@ -4,6 +4,7 @@ import { sileo } from "sileo";
 import AiAvailabilityStatus from "../components/ai/AiAvailabilityStatus";
 import InventoryCatalogDialog from "../components/ui/InventoryCatalogDialog";
 import Spinner from "../components/ui/Spinner";
+import UiStatusBadge from "../components/ui/StatusBadge";
 import { AI_MODELS } from "../config/aiModels";
 import {
   createQuoteItemFromValuation,
@@ -12,6 +13,7 @@ import {
 import {
   calculateQuoteLineAmounts,
   DEFAULT_QUOTE_CONDITIONS,
+  getQuoteStatusLabel,
   isAdvancedQuoteScope,
   isValidQuoteDateRange,
   QUOTE_SIMPLE_SCOPE_TITLE,
@@ -26,11 +28,12 @@ import { adaptDocumentAmountDecimals, resolveDocumentTaxRate } from "../domain/l
 import { roundMoney, sanitizeDecimals } from "../domain/money.mjs";
 import { buildValuationForItem, PRICING_STATUS } from "../domain/pricing";
 import useAiRateLimit from "../hooks/useAiRateLimit";
-import ClientSelector from "../features/clients/ClientSelector";
+import QuoteClientSelector from "../features/quotes/QuoteClientSelector";
 import QuoteCollapsibleSection from "../features/quotes/QuoteCollapsibleSection";
 import QuoteConditionsPanel from "../features/quotes/QuoteConditionsPanel";
 import QuoteItemsEditor from "../features/quotes/QuoteItemsEditor";
 import QuoteSummaryPanel from "../features/quotes/QuoteSummaryPanel";
+import "../features/purchases/purchases.css";
 import "../features/quotes/quote-workspace.css";
 import { suggestQuoteItems } from "../services/aiQuoteService";
 import { getCompanyProfile } from "../services/companyService";
@@ -451,6 +454,8 @@ function NewQuotePage({ userId }) {
     ? adaptDocumentAmountDecimals(quote, quote.moneda)
     : formatBusinessAmount.amountDecimals;
   const moneyStep = documentDecimals > 0 ? String(10 ** -documentDecimals) : "1";
+  // Paso del precio de cada línea: el mismo criterio que Ventas y Compras ("any" con 0 decimales).
+  const lineMoneyStep = documentDecimals > 0 ? String(10 ** -documentDecimals) : "any";
   const [assistantDescription, setAssistantDescription] = useState("");
   const [assistantSuggestions, setAssistantSuggestions] = useState([]);
   const [assistantLoading, setAssistantLoading] = useState(false);
@@ -1779,6 +1784,8 @@ function NewQuotePage({ userId }) {
     }
   };
 
+  const headerDate = isEditMode && quote.fecha ? formatDate(quote.fecha) : "";
+
   if (!userId) {
     return (
       <section className="page-section">
@@ -1814,41 +1821,53 @@ function NewQuotePage({ userId }) {
   }
 
   return (
-    <section className="quote-page quote-workspace">
+    <section className="po-workspace quote-page quote-workspace">
       {/* Un solo h1 por pantalla: el de la barra superior (navigation.js). Por eso el título va en un <p>. */}
-      <header className="quote-head no-print">
-        <Link to="/cotizaciones" className="quote-back-link">← Cotizaciones</Link>
-        <p className="quote-head__title">{isEditMode ? getQuoteDisplayNumber(quote, "Editar cotización") : "Nueva cotización"}</p>
+      <header className="ui-doc-head no-print">
+        <div className="ui-doc-head__main">
+          <Link to="/cotizaciones" className="ui-doc-back">← Cotizaciones</Link>
+          <p className="ui-doc-head__title">{isEditMode ? getQuoteDisplayNumber(quote, "Editar cotización") : "Nueva cotización"}</p>
+          <UiStatusBadge variant={quote.estado === "borrador" ? "warning" : "neutral"}>{getQuoteStatusLabel(quote.estado)}</UiStatusBadge>
+        </div>
+        {(headerDate || quote.trabajoId) && (
+          <div className="ui-doc-head__side">
+            <div className="ui-doc-head__meta">
+              {headerDate && <span>{headerDate}</span>}
+              {quote.trabajoId && (
+                <span>
+                  Proyecto <Link to="/trabajos" state={{openWorkId: quote.trabajoId}} className="quote-head__link">{quote.trabajoNumero || quote.trabajoTitulo || quote.trabajoId}</Link>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </header>
 
-      <section className="quote-workspace__panel quote-client-project no-print" aria-labelledby="quote-client-title">
-        <h2 id="quote-client-title">1 · ¿A quién le cotizas?</h2>
-        <div className="quote-client-project__grid">
-          <div className="quote-client-project__client">
-            <span className="quote-workspace__kicker">Cliente</span>
-            <ClientSelector inline businessId={userId} value={quote.clienteId} snapshot={quote.cliente} onChange={handleClientChange} onAvailabilityChange={setClientAvailability} />
-          </div>
-          <div className="quote-workspace__project">
-            <label className="quote-workspace__project-field">
-              <span className="quote-workspace__kicker">Asunto</span>
-              <input type="text" value={quote.proyectoNombre} onChange={(event) => updateField("proyectoNombre", event.target.value)} placeholder="Ej. Escalera zona de estanque" />
-              <small>Resume en pocas palabras qué se cotiza. Aparece como 'Proyecto' en el PDF.</small>
-            </label>
-            {quote.trabajoId && (
-              <Link to="/trabajos" state={{openWorkId: quote.trabajoId}} className="quote-workspace__project-link">
-                Proyecto {quote.trabajoNumero || quote.trabajoTitulo || quote.trabajoId}
-              </Link>
-            )}
-          </div>
+      <section className="ui-step-card no-print" aria-labelledby="quote-client-title">
+        <h2 id="quote-client-title" className="ui-step-title">¿A quién le cotizas?</h2>
+        <QuoteClientSelector
+          businessId={userId}
+          onAvailabilityChange={setClientAvailability}
+          onChange={handleClientChange}
+          originalSnapshot={originalLinkedClientRef.current.snapshot && {...originalLinkedClientRef.current.snapshot, clienteId: originalLinkedClientRef.current.clienteId}}
+          snapshot={quote.cliente}
+          value={quote.clienteId}
+        />
+        <div className="purchase-document-grid purchase-data-grid">
+          <label className="purchase-field-wide">
+            <span>Asunto</span>
+            <input type="text" value={quote.proyectoNombre} onChange={(event) => updateField("proyectoNombre", event.target.value)} placeholder="Escribe el asunto de la cotización" />
+            <small className="quote-conditions__hint">Resume en pocas palabras qué se cotiza. Aparece como 'Asunto' en el PDF.</small>
+          </label>
         </div>
-        <p className="quote-client-project__note">La cotización guarda una copia histórica de los datos del cliente.</p>
+        <p className="quote-client-note">La cotización guarda una copia histórica de los datos del cliente.</p>
       </section>
 
       {error && <p className="no-print" style={styles.errorText}>{error}</p>}
       {success && <p className="no-print" style={styles.successText}>{success}</p>}
 
-      <div className="quote-workspace__layout">
-        <main className="quote-workspace__main">
+      <div className="po-layout no-print">
+        <div className="po-main">
       {false && assistantOpen && (
       <QuoteCollapsibleSection
         title="Usar asistente para sugerir ítems"
@@ -2074,6 +2093,7 @@ function NewQuotePage({ userId }) {
           subtotal={totals.subtotal}
           feedback={itemFeedback}
           highlightedItemId={highlightedItemId}
+          moneyStep={lineMoneyStep}
           onOpenCatalog={() => setManualCatalogOpen(true)}
           onScanProduct={addScannedProduct}
           onUpdate={updateItem}
@@ -2116,7 +2136,7 @@ function NewQuotePage({ userId }) {
         taxRate={Number(resolveDocumentTaxRate(quote, companyProfile)) * 100}
         validezDias={quote.validezDias}
       />
-        </main>
+        </div>
 
         <QuoteSummaryPanel
           currency={quote.moneda || companyProfile?.monedaCodigo || "CLP"}
@@ -2129,8 +2149,6 @@ function NewQuotePage({ userId }) {
           taxRate={Number(resolveDocumentTaxRate(quote, companyProfile)) * 100}
           saving={saving}
           savingEstado={savingEstado}
-          quoteDate={isEditMode && quote.fecha ? formatDate(quote.fecha) : ""}
-          quoteNumber={isEditMode ? getQuoteDisplayNumber(quote) : ""}
           saveBlocked={saveBlocked}
           saveBlockedReason={saveBlocked ? saveBlockedReason : ""}
           onDiscountChange={(event) => updateField("descuento", event.target.value)}
