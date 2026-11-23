@@ -1,19 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Check,
-  Copy,
-  ExternalLink,
-  Eye,
-  FileText,
-  Info,
-  PencilLine,
-  Send,
-} from "lucide-react";
+import { Copy, ExternalLink } from "lucide-react";
 import { sileo } from "sileo";
-import Button from "../../components/ui/Button";
 import AppIcon from "../../components/ui/AppIcon";
-import ResponsiveDialog from "../../components/ui/ResponsiveDialog";
-import SegmentedControl from "../../components/ui/SegmentedControl";
+import DocumentEmailDialog from "../../components/ui/DocumentEmailDialog";
 import QuoteEmailPreview from "./QuoteEmailPreview";
 import { firebaseEnvironment } from "../../config/firebaseEnvironment.mjs";
 import {
@@ -69,18 +58,15 @@ function SendQuoteEmailModal({
   );
   const canSendQuote = isQuoteEmailSendable(quote, quoteId);
   const pdfFileName = useMemo(() => getQuotePdfFileName(quote), [quote]);
-  const emailInputRef = useRef(null);
   const submittingRef = useRef(false);
   const requestIdRef = useRef("");
   const [emailCliente, setEmailCliente] = useState(defaults.emailCliente);
-  const [usingAlternateEmail, setUsingAlternateEmail] = useState(false);
   const [asunto, setAsunto] = useState(defaults.asunto);
   const [mensaje, setMensaje] = useState(defaults.mensaje);
   const [enviarCopia, setEnviarCopia] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [qaPublicUrl, setQaPublicUrl] = useState("");
-  const [view, setView] = useState("edit");
   const preview = useMemo(
     () =>
       buildQuoteEmailPanelPreview({
@@ -101,11 +87,9 @@ function SendQuoteEmailModal({
       return;
     }
     setEmailCliente(defaults.emailCliente);
-    setUsingAlternateEmail(false);
     setAsunto(defaults.asunto);
     setMensaje(defaults.mensaje);
     setEnviarCopia(false);
-    setView("edit");
     setError("");
     setQaPublicUrl("");
     submittingRef.current = false;
@@ -259,258 +243,88 @@ function SendQuoteEmailModal({
     }
   };
 
-  const footer = (
+  const qaResultActions = qaPublicUrl ? (
     <>
-      <Button
+      <a
+        className="quote-email-dialog__qa-action"
+        href={qaPublicUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <AppIcon icon={ExternalLink} size={16} />
+        <span>Abrir propuesta QA</span>
+      </a>
+      <button
+        className="quote-email-dialog__qa-action"
         type="button"
-        variant="secondary"
-        onClick={closeDialog}
-        disabled={sending}
+        onClick={copyQaPublicUrl}
       >
-        Cancelar
-      </Button>
-      <Button
-        type="submit"
-        form="send-quote-email-form"
-        className="quote-email-dialog__send"
-        icon={Send}
-        loading={sending} disabled={!canSendQuote}
-      >
-        {firebaseEnvironment.isEmulator
-          ? sending
-            ? "Preparando..."
-            : "Preparar simulación"
-          : sending
-            ? "Enviando..."
-            : "Enviar cotización"}
-      </Button>
+        <AppIcon icon={Copy} size={16} />
+        <span>Copiar enlace</span>
+      </button>
     </>
-  );
+  ) : null;
 
+  // Estructura compartida con la orden de compra (DocumentEmailDialog). Aquí quedan
+  // el envío, la simulación, los estados y los textos propios de la cotización: al
+  // cliente se le responde desde un enlace.
   return (
-    <ResponsiveDialog
-      className="quote-email-dialog"
-      description={firebaseEnvironment.isEmulator
-        ? "Revisa los datos que se usarán en esta simulación local."
-        : "Revisa los datos del correo antes de enviar el documento al cliente."}
-      footer={footer}
-      initialFocusRef={emailInputRef}
+    <DocumentEmailDialog
+      accountEmail={accountEmail}
+      asunto={asunto}
+      attachmentName={pdfFileName}
+      copyTo={preview.copyTo}
+      description="Revisa los datos del correo antes de enviar el documento al cliente."
+      disabled={!canSendQuote}
+      disabledReason={
+        canSendQuote ? "" : "La cotización no puede enviarse desde su estado actual."
+      }
+      documentName="cotización"
+      error={error}
+      eyebrow="Envío al cliente"
+      from={preview.from}
+      mensaje={mensaje}
+      note={{
+        title: "El cliente podrá aceptar o rechazar",
+        description:
+          "La persona que reciba este correo podrá revisar, aceptar o rechazar esta cotización desde el enlace.",
+      }}
+      onAsuntoChange={setAsunto}
       onClose={closeDialog}
+      onMensajeChange={setMensaje}
+      onRecipientToggle={() => setError("")}
+      onSendCopyChange={setEnviarCopia}
+      onSubmit={handleSubmit}
       open={open}
-      size="large"
-      title={firebaseEnvironment.isEmulator
-        ? "Simular correo de cotización"
-        : "Enviar cotización por correo"}
-    >
-      <form
-        id="send-quote-email-form"
-        className="quote-email-dialog__content"
-        onSubmit={handleSubmit}
-      >
-        {firebaseEnvironment.isEmulator && (
-          <div
-            className={`quote-email-dialog__qa-notice${
-              qaPublicUrl ? " quote-email-dialog__qa-notice--result" : ""
-            }`}
-            role="status"
-          >
-            <strong>Simulación de correo — QA local</strong>
-            <span>
-              {qaPublicUrl
-                ? "No se envió un correo real. Usa este enlace para revisar exactamente la propuesta que recibiría el cliente."
-                : "No se enviará un correo real. El destinatario se registrará solo como dato de prueba."}
-            </span>
-            {qaPublicUrl && (
-              <div className="quote-email-dialog__qa-actions">
-                <a
-                  className="quote-email-dialog__qa-action"
-                  href={qaPublicUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <AppIcon icon={ExternalLink} size={16} />
-                  <span>Abrir propuesta QA</span>
-                </a>
-                <button
-                  className="quote-email-dialog__qa-action"
-                  type="button"
-                  onClick={copyQaPublicUrl}
-                >
-                  <AppIcon icon={Copy} size={16} />
-                  <span>Copiar enlace</span>
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-        <section className="quote-email-dialog__fields">
-          <div className="quote-email-dialog__field">
-            <div className="quote-email-dialog__field-heading">
-              <label htmlFor="quote-email-recipient">Destinatario</label>
-              <button
-                type="button"
-                className="quote-email-dialog__recipient-action"
-                onClick={() => {
-                  if (usingAlternateEmail) {
-                    setEmailCliente(defaults.emailCliente);
-                    setUsingAlternateEmail(false);
-                  } else {
-                    setUsingAlternateEmail(true);
-                    window.requestAnimationFrame(() => {
-                      emailInputRef.current?.focus();
-                      emailInputRef.current?.select();
-                    });
-                  }
-                  setError("");
-                }}
-                disabled={sending}
-              >
-                {usingAlternateEmail
-                  ? "Volver al correo del cliente"
-                  : "Usar otro correo"}
-              </button>
-            </div>
-            <input
-              id="quote-email-recipient"
-              ref={emailInputRef}
-              type="email"
-              value={emailCliente}
-              maxLength={180}
-              autoComplete="email"
-              onChange={(event) => setEmailCliente(event.target.value)}
-              placeholder="cliente@empresa.cl"
-              disabled={sending}
-              readOnly={!usingAlternateEmail}
-            />
-            {usingAlternateEmail && (
-              <p
-                className="quote-email-dialog__alternate-note"
-                role="status"
-              >
-                <AppIcon icon={Info} size={14} aria-hidden="true" />
-                <span>
-                  Correo alternativo: solo para este envío. No modifica los
-                  datos del cliente.
-                </span>
-              </p>
-            )}
-          </div>
-
-          <dl className="quote-email-dialog__envelope" aria-label="Datos de envío">
-            <div>
-              <dt>De</dt>
-              <dd>{preview.from}</dd>
-            </div>
-            <div>
-              <dt>Responder a</dt>
-              <dd>
-                {preview.replyTo ||
-                  "Sin correo de respuesta: el cliente responderá desde el enlace"}
-              </dd>
-            </div>
-            <div>
-              <dt>Copia oculta</dt>
-              <dd>{preview.copyTo || "Sin copia"}</dd>
-            </div>
-          </dl>
-
-          {accountEmail && (
-            <label className="ui-checkbox">
-              <input
-                className="ui-checkbox__input"
-                type="checkbox"
-                checked={enviarCopia}
-                onChange={(event) => setEnviarCopia(event.target.checked)}
-                disabled={sending}
-              />
-              <span className="ui-checkbox__label">
-                Enviarme una copia a {accountEmail}
-              </span>
-            </label>
-          )}
-
-          <SegmentedControl
-            className="quote-email-dialog__views"
-            legend="Contenido del correo"
-            name="quote-email-view"
-            onChange={setView}
-            options={[
-              { value: "edit", label: "Redactar", icon: PencilLine },
-              { value: "preview", label: "Vista previa", icon: Eye },
-            ]}
-            value={view}
-          />
-
-          {view === "edit" ? (
-            <>
-              <label className="quote-email-dialog__field">
-                <span>Asunto</span>
-                <input
-                  value={asunto}
-                  maxLength={180}
-                  onChange={(event) => setAsunto(event.target.value)}
-                  disabled={sending}
-                />
-              </label>
-
-              <label className="quote-email-dialog__field">
-                <span>Mensaje</span>
-                <textarea
-                  value={mensaje}
-                  maxLength={2000}
-                  onChange={(event) => setMensaje(event.target.value)}
-                  disabled={sending}
-                />
-              </label>
-            </>
-          ) : (
-            <QuoteEmailPreview preview={preview} />
-          )}
-        </section>
-
-        <aside className="quote-email-dialog__summary">
-          <p className="quote-email-dialog__reply-notice">
-            <AppIcon icon={Info} size={18} aria-hidden="true" />
-            <span>
-              <strong>El cliente podrá aceptar o rechazar</strong>
-              <small>
-                La persona que reciba este correo podrá revisar, aceptar o
-                rechazar esta cotización desde el enlace.
-              </small>
-            </span>
-          </p>
-          <h3>Resumen</h3>
-          <dl>
-            <div>
-              <dt>Cotización</dt>
-              <dd>{quoteNumber}</dd>
-            </div>
-            <div>
-              <dt>Cliente</dt>
-              <dd>{quote.clienteNombre || "—"}</dd>
-            </div>
-            <div>
-              <dt>Total</dt>
-              <dd>{formatBusinessAmount(quote.total)}</dd>
-            </div>
-          </dl>
-          <div className="quote-email-dialog__attachment">
-            <AppIcon icon={FileText} size={20} />
-            <span>
-              <strong>PDF adjunto</strong>
-              <small>{pdfFileName}</small>
-            </span>
-            <AppIcon icon={Check} size={18} aria-hidden="true" />
-          </div>
-        </aside>
-
-        {error && (
-          <p className="quote-email-dialog__error" role="alert">
-            {error}
-          </p>
-        )}
-      </form>
-    </ResponsiveDialog>
+      previewContent={<QuoteEmailPreview preview={preview} />}
+      processing={sending}
+      recipient={{
+        defaultValue: defaults.emailCliente,
+        onChange: setEmailCliente,
+        value: emailCliente,
+      }}
+      replyTo={preview.replyTo}
+      replyToEmptyText="Sin correo de respuesta: el cliente responderá desde el enlace"
+      resetKey={quoteId}
+      savedEmailLabel="Volver al correo del cliente"
+      sendCopy={enviarCopia}
+      simulationResult={
+        qaPublicUrl
+          ? {
+              actions: qaResultActions,
+              text: "No se envió un correo real. Usa este enlace para revisar exactamente la propuesta que recibiría el cliente.",
+            }
+          : null
+      }
+      simulationText="No se enviará un correo real. El destinatario se registrará solo como dato de prueba."
+      submitLabel="Enviar cotización"
+      submittingLabel="Enviando..."
+      summaryRows={[
+        { label: "Cotización", value: quoteNumber },
+        { label: "Cliente", value: quote.clienteNombre || "—" },
+        { label: "Total", value: formatBusinessAmount(quote.total) },
+      ]}
+    />
   );
 }
 

@@ -783,6 +783,11 @@ const modalSource = fs.readFileSync(
   "src/features/quotes/SendQuoteEmailModal.jsx",
   "utf8"
 );
+// La estructura del diálogo (destinatario, copia, pestañas, botón) vive en el diálogo compartido.
+const sharedDialogSource = fs.readFileSync(
+  "src/components/ui/DocumentEmailDialog.jsx",
+  "utf8"
+);
 const historySource = fs.readFileSync("src/pages/QuoteHistoryPage.jsx", "utf8");
 const toastRouteSyncSource = fs.readFileSync(
   "src/components/ToastRouteSync.jsx",
@@ -796,10 +801,11 @@ assert.match(functionSource, /sendQuoteEmailHandler/);
 const templateSource = fs.readFileSync("src/domain/quoteEmailTemplate.mjs", "utf8");
 assert.match(templateSource, /resolveDocumentCompany\(quote, companyProfile\)/);
 assert.match(emailServiceSource, /buildQuoteEmailFromTemplate/);
-assert.match(modalSource, /<ResponsiveDialog/);
-assert.match(modalSource, /Usar otro correo/);
+assert.match(modalSource, /<DocumentEmailDialog/);
+assert.match(sharedDialogSource, /<ResponsiveDialog/);
+assert.match(sharedDialogSource, /Usar otro correo/);
 assert.match(modalSource, /Volver al correo del cliente/);
-assert.match(modalSource, /Enviarme una copia a \{accountEmail\}/);
+assert.match(sharedDialogSource, /Enviarme una copia a \{accountEmail\}/);
 assert.match(modalSource, /enviarCopia: Boolean\(accountEmail\) && enviarCopia/);
 assert.match(templateSource, /buildQuoteReplyLine\(Boolean\(replyTo\)\)/);
 assert.doesNotMatch(templateSource, /Puedes responder la propuesta desde el enlace\./);
@@ -811,7 +817,7 @@ assert.match(modalSource, /preview\.copyTo/);
 assert.match(modalSource, /<QuoteEmailPreview preview=\{preview\} \/>/);
 assert.match(modalSource, /El cliente podrá aceptar o rechazar/);
 assert.doesNotMatch(modalSource, /Envío puntual a un correo alternativo/);
-assert.match(modalSource, /quote-email-dialog__send/);
+assert.match(sharedDialogSource, /quote-email-dialog__send/);
 const previewSource = fs.readFileSync("src/features/quotes/QuoteEmailPreview.jsx", "utf8");
 assert.doesNotMatch(previewSource, /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|style=/);
 assert.match(functionSource, /getLiveCompanyProfile/);

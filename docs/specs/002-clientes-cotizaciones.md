@@ -118,3 +118,7 @@ Reabrir `aceptada`, `rechazada` o `vencida` incrementa `oportunidadVersion`, cal
 una nueva vigencia y emite un token público ligado a esa versión. Los tokens de
 versiones anteriores ya no pueden responder. Si existe `ventaId`, la reapertura se
 rechaza siempre; la COT puede reenviarse como copia sin alterar su venta.
+
+## Cambios posteriores
+
+- El diálogo de envío por correo de la cotización usa el diálogo compartido `DocumentEmailDialog` (el mismo de las órdenes de compra; 23-nov-2026). Se conserva el envío, la simulación en QA local con su enlace de prueba, los estados y la nota «El cliente podrá aceptar o rechazar» con su explicación del enlace. Cambios visibles: el título es siempre «Enviar cotización por correo» (en QA local el aviso de simulación y el botón «Preparar simulación» lo indican), el texto guía del destinatario es genérico, la ayuda del correo alternativo está siempre visible y el botón deshabilitado explica el motivo. Sin cambios de Functions, estados ni modelo (`document-email-dialog-smoke.mjs`, `quote-email-smoke.mjs`).

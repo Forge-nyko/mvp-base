@@ -3018,12 +3018,32 @@
   outline-offset: 2px;
 }
 
-.quote-email-dialog__field-heading {
+/* Destinatario: etiqueta y "Usar otro correo" en la misma fila, el campo debajo.
+   En el HTML el enlace va después del campo para que el orden de tabulación sea
+   campo, enlace, resto. */
+.quote-email-dialog__recipient {
   align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  justify-content: space-between;
+  column-gap: var(--space-2);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.quote-email-dialog__recipient > label {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.quote-email-dialog__recipient > .quote-email-dialog__recipient-action {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.quote-email-dialog__recipient > input {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.quote-email-dialog__recipient > p {
+  grid-column: 1 / -1;
 }
 
 .quote-email-dialog__recipient-action {
@@ -3102,20 +3122,20 @@
   cursor: default;
 }
 
-.quote-email-dialog__alternate-note {
-  align-items: flex-start;
-  color: var(--color-text-muted);
-  display: flex;
+.quote-email-dialog__help,
+.quote-email-dialog__field-error {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-regular);
-  gap: var(--space-2);
   line-height: var(--line-height-default);
-  margin: var(--space-1) 0 0;
+  margin: 0;
 }
 
-.quote-email-dialog__alternate-note .app-icon {
-  color: var(--color-text-brand-accent);
-  margin-top: 2px;
+.quote-email-dialog__help {
+  color: var(--color-text-muted);
+}
+
+.quote-email-dialog__field-error {
+  color: var(--color-danger-700);
 }
 
 .quote-email-dialog__envelope {
@@ -3181,6 +3201,16 @@
   color: var(--color-text-default);
   font-size: var(--font-size-xs);
   line-height: var(--line-height-default);
+}
+
+/* Motivo por el que el botón principal está deshabilitado: a la izquierda del pie. */
+.quote-email-dialog__footer-hint {
+  color: var(--color-text-muted);
+  flex: 1 1 0;
+  font-size: var(--font-size-xs);
+  margin: 0;
+  min-width: 0;
+  text-align: left;
 }
 
 .quote-email-dialog__send {
@@ -3431,6 +3461,10 @@
 
   .quote-email-dialog__send {
     flex: 1 1 auto;
+  }
+
+  .quote-email-dialog__footer-hint {
+    flex-basis: 100%;
   }
 }
 
