@@ -1,0 +1,57 @@
+.veterinary-list-panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.veterinary-search-control {
+  display: block;
+  min-width: 0;
+  position: relative;
+}
+
+.veterinary-search-control .app-icon {
+  color: var(--color-text-muted);
+  inset-block-start: 50%;
+  inset-inline-start: var(--space-3);
+  pointer-events: none;
+  position: absolute;
+  transform: translateY(-50%);
+}
+
+.veterinary-search-control .erp-control {
+  padding-inline-start: var(--space-10);
+  width: 100%;
+}
+
+.veterinary-record-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.veterinary-record-list > li {
+  display: grid;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+  padding-block: var(--space-3);
+}
+
+.veterinary-record-list > li + li {
+  border-block-start: thin solid var(--color-border-subtle);
+}
+
+.veterinary-record-list a {
+  color: var(--color-text-brand);
+  justify-self: start;
+}
+
+@media (max-width: 640px) {
+  header.veterinary-module-header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .veterinary-module-header > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
+}

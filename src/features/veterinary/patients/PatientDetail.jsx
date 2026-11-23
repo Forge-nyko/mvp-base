@@ -10,6 +10,8 @@ import {
 
 import Button from "../../../components/ui/Button";
 import StatusBadge from "../../../components/ui/StatusBadge";
+import useBusinessFormat from "../../../hooks/useBusinessFormat";
+import {formatDate} from "../../../utils/formatters";
 
 import {VETERINARY_CLINICAL_OUTCOME_LABELS} from "../domain/clinicalClosureModel.mjs";
 import {formatVeterinaryPatientAge} from "../domain/patientModel.mjs";
@@ -20,24 +22,6 @@ const PATIENT_STATUS_LABELS = Object.freeze({
   inactivo: "Inactivo",
   fallecido: "Fallecido",
 });
-
-function formatDate(value) {
-  if (!value) return "No registrada";
-
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
-    ? new Date(`${value}T12:00:00`)
-    : value?.toDate?.() ?? new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "No registrada";
-  }
-
-  return date.toLocaleDateString("es-CL", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
 
 function patientStatusVariant(status) {
   if (status === "activo") return "success";
@@ -69,6 +53,7 @@ export default function PatientDetail({
   onScheduleAppointment,
   onStartAttention,
 }) {
+  const {locale} = useBusinessFormat();
   if (loading) {
     return (
       <main className="erp-page veterinary-patient-page">
@@ -202,7 +187,7 @@ export default function PatientDetail({
 
             <div>
               <dt>Fecha de nacimiento</dt>
-              <dd>{formatDate(patient.fechaNacimiento)}</dd>
+              <dd>{formatDate(patient.fechaNacimiento, locale)}</dd>
             </div>
 
             <div>
@@ -379,7 +364,7 @@ export default function PatientDetail({
                     >
                       <div>
                         <strong>
-                          {formatDate(appointment.fecha)}
+                          {formatDate(appointment.fecha, locale)}
                         </strong>
 
                         <p>
@@ -435,7 +420,8 @@ export default function PatientDetail({
                       <div className="veterinary-patient-history-date">
                         {formatDate(
                           attention.finalizadaEn ||
-                          attention.iniciadaEn
+                          attention.iniciadaEn,
+                          locale
                         )}
                       </div>
 

@@ -1,7 +1,11 @@
 import React, {useEffect, useRef, useState} from "react";
+import {PawPrint, Plus, Search} from "lucide-react";
 import {Link, useNavigate, useParams} from "react-router-dom";
+import AppIcon from "../../../components/ui/AppIcon";
 import Button from "../../../components/ui/Button";
+import EmptyState from "../../../components/ui/EmptyState";
 import LoadingState from "../../../components/ui/LoadingState";
+import ModuleHeader from "../../../components/ui/ModuleHeader";
 import {crearCliente, listarClientes} from "../../../services/clientService";
 import ClientFormDialog from "../../clients/ClientFormDialog";
 import {guardarPacienteVeterinario, subscribeToVeterinaryAttentions, subscribeToVeterinaryPatients} from "../data/veterinaryDataService";
@@ -9,6 +13,7 @@ import {buildVeterinaryPatientMutationPayload, formatVeterinaryPatientAge, getVe
 import VeterinaryPhotoMap from "../attention/VeterinaryPhotoMap";
 import PatientDetail from "./PatientDetail";
 import VeterinaryField from "../VeterinaryField";
+import "../veterinary-lists.css";
 
 const patientListPath = "/clinica-veterinaria/pacientes";
 const patientPath = (id) => patientListPath + "/" + encodeURIComponent(id);
@@ -200,34 +205,59 @@ export default function VeterinaryPatients({businessId, countryCode, mode}) {
       (value) => String(value ?? "").toLocaleLowerCase("es-CL").includes(query)
     ))
     .sort((a, b) => String(a.nombre ?? "").localeCompare(String(b.nombre ?? ""), "es-CL"));
+  const registerPatient = () => navigate(patientListPath + "/nuevo");
 
   return (
     <div className="erp-page">
-      <nav aria-label="Clínica Veterinaria">
-        <Link to="/clinica-veterinaria">Resumen clínico</Link>
-        {" · "}
-        <Link to={patientListPath}>Pacientes</Link>
-      </nav>
+      {mode !== "list" && <nav aria-label="Clínica Veterinaria"><Link to={patientListPath}>Volver a Pacientes</Link></nav>}
       {mode === "list" && (
-        <section className="erp-panel">
-          <h1>Pacientes</h1>
-          <Link to={patientListPath + "/nuevo"}>Registrar paciente</Link>
-          <label className="erp-field">
-            <span>Buscar por nombre, especie, tutor o microchip</span>
-            <input className="erp-control" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          </label>
-          {visiblePatients.length ? (
-            <ul>
-              {visiblePatients.map((item) => (
-                <li key={item.id}>
-                  <Link to={patientPath(item.id)}>{item.nombre || "Paciente"}</Link>
-                  {" · "}{item.especie || "Especie sin registrar"}
-                  {getTutor(item) && " · " + getTutor(item).nombreRazonSocial}
-                </li>
-              ))}
-            </ul>
-          ) : <p className="erp-empty-state">{query ? "No se encontraron coincidencias." : "No hay pacientes registrados."}</p>}
-        </section>
+        <>
+          <ModuleHeader
+            className="veterinary-module-header"
+            actions={<Button type="button" icon={Plus} onClick={registerPatient}>Registrar paciente</Button>}
+            description="Registra y consulta las fichas de los pacientes de tu clínica."
+            hasData={patients.length > 0}
+            icon={PawPrint}
+            title="Pacientes"
+          />
+          {patients.length === 0 ? (
+            <EmptyState
+              action={{label: "Registrar paciente", icon: Plus, onClick: registerPatient}}
+              description="Crea la ficha del primer paciente y asóciala a su tutor."
+              icon={PawPrint}
+              title="Aún no hay pacientes"
+            />
+          ) : (
+            <section className="erp-panel veterinary-list-panel">
+              <label className="erp-field">
+                <span className="erp-field__label">Buscar pacientes</span>
+                <span className="veterinary-search-control">
+                  <AppIcon icon={Search} />
+                  <input
+                    className="erp-control"
+                    type="search"
+                    placeholder="Nombre, especie, tutor o microchip"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                </span>
+              </label>
+              {visiblePatients.length ? (
+                <ul className="veterinary-record-list">
+                  {visiblePatients.map((item) => (
+                    <li key={item.id}>
+                      <Link to={patientPath(item.id)}>{item.nombre || "Paciente"}</Link>
+                      <span className="erp-secondary-text">
+                        {item.especie || "Especie sin registrar"}
+                        {getTutor(item) && " · " + getTutor(item).nombreRazonSocial}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="erp-empty-state">No se encontraron coincidencias.</p>}
+            </section>
+          )}
+        </>
       )}
       {mode === "new" && <PatientForm key="nuevo" businessId={businessId} countryCode={countryCode} tutors={tutors} onTutorCreated={addTutor} />}
       {mode === "edit" && patient && <PatientForm key={patient.id} businessId={businessId} countryCode={countryCode} patient={patient} tutors={tutors} onTutorCreated={addTutor} />}

@@ -4,8 +4,13 @@ import React, {
   useState,
 } from "react";
 
-import { Link } from "react-router-dom";
+import { Activity, PawPrint, Plus, CalendarDays } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import Button from "../../components/ui/Button";
+import EmptyState from "../../components/ui/EmptyState";
 import LoadingState from "../../components/ui/LoadingState";
+import ModuleHeader from "../../components/ui/ModuleHeader";
+import "./veterinary-lists.css";
 
 import {
   subscribeToInventory,
@@ -26,6 +31,7 @@ import {
 function VeterinaryManager({
   businessId,
 }) {
+  const navigate = useNavigate();
   const [
     inventoryItems,
     setInventoryItems,
@@ -264,57 +270,55 @@ function VeterinaryManager({
 
   return (
     <section className="erp-page">
-      <div className="erp-module-intro">
-        <div className="erp-page-intro">
-          <h1>
-            Clínica Veterinaria
-          </h1>
-
-          <p>
-            Gestión clínica de pacientes, agenda,
-            atenciones y farmacia veterinaria.
-          </p>
-        </div>
-      </div>
+      <ModuleHeader
+        className="veterinary-module-header"
+        icon={Activity}
+        title="Resumen clínico"
+        description="Consulta los pacientes, las citas y las atenciones de tu clínica."
+        actions={
+          <>
+            <Button type="button" icon={PawPrint} onClick={() => navigate("/clinica-veterinaria/pacientes")}>Ver pacientes</Button>
+            <Button type="button" icon={CalendarDays} variant="secondary" onClick={() => navigate("/clinica-veterinaria/agenda")}>Ver agenda</Button>
+          </>
+        }
+      />
 
 
       {loadingVeterinaryData || loadingInventory ? (
         <LoadingState variant="section" label="Cargando Clínica Veterinaria..." />
       ) : (
         <>
-          <div className="erp-panel">
-            <h2>Resumen clínico</h2>
-            <Link to="/clinica-veterinaria/pacientes">Ver pacientes</Link>
-            {" · "}
-            <Link to="/clinica-veterinaria/agenda">Ver agenda</Link>
-
-            {veterinaryDataError ? (
-              <div className="erp-empty-state" role="alert">
-                {veterinaryDataError}
-              </div>
-            ) : patients.length === 0 ? (
-              <div className="erp-empty-state">
-                No hay pacientes veterinarios registrados.
-              </div>
-            ) : (
-              <>
-                <p>Pacientes: <strong>{patients.length}</strong></p>
-                <p>Citas: <strong>{appointments.length}</strong></p>
-                <p>Atenciones: <strong>{attentions.length}</strong></p>
-              </>
-            )}
-          </div>
+          {veterinaryDataError ? (
+            <div className="erp-empty-state" role="alert">
+              {veterinaryDataError}
+            </div>
+          ) : patients.length === 0 ? (
+            <EmptyState
+              action={{ label: "Registrar paciente", icon: Plus, onClick: () => navigate("/clinica-veterinaria/pacientes/nuevo") }}
+              description="Registra al primer paciente de la clínica para comenzar su atención."
+              icon={PawPrint}
+              title="Aún no hay pacientes"
+            />
+          ) : (
+            <VeterinaryCounts label="Actividad clínica" counts={[
+              ["Pacientes", patients.length],
+              ["Citas", appointments.length],
+              ["Atenciones", attentions.length],
+            ]} />
+          )}
 
           {inventoryError ? (
             <div className="erp-empty-state" role="alert">
               {inventoryError}
             </div>
           ) : (
-            <div className="erp-panel">
-              <h2>Servicios y farmacia</h2>
-              <p>Servicios disponibles: <strong>{veterinaryServices.length}</strong></p>
-              <p>Productos de farmacia: <strong>{pharmacyProducts.length}</strong></p>
-            </div>
+            <section className="erp-panel">
+              <h2 className="erp-panel-title">Servicios y farmacia</h2>
+              <VeterinaryCounts label="Disponibilidad en el inventario" counts={[
+                ["Servicios disponibles", veterinaryServices.length],
+                ["Productos de farmacia", pharmacyProducts.length],
+              ]} />
+            </section>
           )}
         </>
       )}
@@ -322,5 +326,17 @@ function VeterinaryManager({
   );
 }
 
+function VeterinaryCounts({ label, counts }) {
+  return (
+    <div className="erp-metric-grid" role="group" aria-label={label}>
+      {counts.map(([name, value]) => (
+        <div className="erp-metric-card" key={name}>
+          <span className="erp-metric-card__label">{name}</span>
+          <strong className="erp-metric-card__value">{value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default VeterinaryManager;

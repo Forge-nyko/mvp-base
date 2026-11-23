@@ -1,22 +1,29 @@
 import React, {useEffect, useState} from "react";
+import {CalendarDays, Plus} from "lucide-react";
 import {Link, useNavigate, useParams} from "react-router-dom";
 import Button from "../../../components/ui/Button";
+import EmptyState from "../../../components/ui/EmptyState";
 import LoadingState from "../../../components/ui/LoadingState";
+import ModuleHeader from "../../../components/ui/ModuleHeader";
 import VeterinaryReceptionForm, {triageLabels} from "./VeterinaryReceptionForm";
 import VeterinaryField from "../VeterinaryField";
-import {formatVeterinaryAppointmentDate, getVeterinaryAppointmentFieldErrors} from "../domain/appointmentModel.mjs";
+import useBusinessFormat from "../../../hooks/useBusinessFormat";
+import {formatDate} from "../../../utils/formatters";
+import {getVeterinaryAppointmentFieldErrors} from "../domain/appointmentModel.mjs";
 import {
   guardarAtencionVeterinaria,
   guardarCitaVeterinaria,
   subscribeToVeterinaryAppointments,
   subscribeToVeterinaryPatients,
 } from "../data/veterinaryDataService";
+import "../veterinary-lists.css";
 
 const base = "/clinica-veterinaria";
 const appointmentPath = (id) => base + "/citas/" + encodeURIComponent(id);
 const statusLabels = {agendada: "Agendada", confirmada: "Confirmada", en_espera: "En espera", en_atencion: "En atención", finalizada: "Finalizada", cancelada: "Cancelada", completada: "Completada"};
 
 function AppointmentForm({appointment, businessId, patients}) {
+  const {locale} = useBusinessFormat();
   const navigate = useNavigate();
   const [form, setForm] = useState(() => appointment ?? {});
   const [newId] = useState(() => crypto.randomUUID());
@@ -87,7 +94,7 @@ function AppointmentForm({appointment, businessId, patients}) {
     <>
       <section className="erp-panel">
         <h1>{appointment ? "Cita veterinaria" : "Nueva cita veterinaria"}</h1>
-        {appointment && <p>Fecha y hora: {formatVeterinaryAppointmentDate(appointment.fecha)} · {appointment.hora || "—"}</p>}
+        {appointment && <p>Fecha y hora: {formatDate(appointment.fecha, locale)} · {appointment.hora || "—"}</p>}
         {appointment && <p>Estado: {statusLabels[appointment.estado] || "Sin estado"}</p>}
         {appointment?.triage?.prioridad && <p>Prioridad: {triageLabels[appointment.triage.prioridad]}</p>}
         {!appointment && !activePatients.length && <p>Registra un paciente activo antes de crear una cita.</p>}
@@ -154,7 +161,9 @@ function AppointmentForm({appointment, businessId, patients}) {
 }
 
 export default function VeterinaryAgenda({businessId, mode}) {
+  const {locale} = useBusinessFormat();
   const {citaId} = useParams();
+  const navigate = useNavigate();
   const [appointments, setAppointments] = useState(null);
   const [patients, setPatients] = useState(null);
   const [error, setError] = useState("");
@@ -177,26 +186,44 @@ export default function VeterinaryAgenda({businessId, mode}) {
   const appointment = appointments.find((item) => item.id === citaId);
   const names = new Map(patients.map((patient) => [patient.id, patient.nombre]));
   const sorted = [...appointments].sort((a,b) => (a.fecha + a.hora).localeCompare(b.fecha + b.hora));
+  const scheduleAppointment = () => navigate(base + "/agenda/nueva");
 
   return (
     <div className="erp-page">
-      <nav aria-label="Clínica Veterinaria"><Link to={base}>Resumen clínico</Link>{" · "}<Link to={base + "/agenda"}>Agenda</Link></nav>
+      {mode !== "list" && <nav aria-label="Clínica Veterinaria"><Link to={base + "/agenda"}>Volver a la agenda</Link></nav>}
       {mode === "list" && (
-        <section className="erp-panel">
-          <h1>Agenda veterinaria</h1>
-          <Link to={base + "/agenda/nueva"}>Agendar cita</Link>
-          {sorted.length ? (
-            <ul>
-              {sorted.map((item) => (
-                <li key={item.id}>
-                  <Link to={appointmentPath(item.id)}>{formatVeterinaryAppointmentDate(item.fecha)} · {item.hora} · {names.get(item.pacienteId) || "Paciente"} · {item.motivo}</Link>
-                  {" · "}{statusLabels[item.estado] || "Sin estado"}
-                  {item.estado === "en_espera" && item.triage?.prioridad && " · Prioridad: " + triageLabels[item.triage.prioridad]}
-                </li>
-              ))}
-            </ul>
-          ) : <p className="erp-empty-state">Todavía no hay citas registradas.</p>}
-        </section>
+        <>
+          <ModuleHeader
+            className="veterinary-module-header"
+            actions={<Button type="button" icon={Plus} onClick={scheduleAppointment}>Agendar cita</Button>}
+            description="Agenda consultas y revisa las citas de tu clínica."
+            hasData={appointments.length > 0}
+            icon={CalendarDays}
+            title="Agenda"
+          />
+          {sorted.length === 0 ? (
+            <EmptyState
+              action={{label: "Agendar cita", icon: Plus, onClick: scheduleAppointment}}
+              description="Agenda la primera cita para un paciente registrado."
+              icon={CalendarDays}
+              title="Aún no hay citas"
+            />
+          ) : (
+            <section className="erp-panel">
+              <ul className="veterinary-record-list">
+                {sorted.map((item) => (
+                  <li key={item.id}>
+                    <Link to={appointmentPath(item.id)}>{formatDate(item.fecha, locale)} · {item.hora} · {names.get(item.pacienteId) || "Paciente"} · {item.motivo}</Link>
+                    <span className="erp-secondary-text">
+                      {statusLabels[item.estado] || "Sin estado"}
+                      {item.estado === "en_espera" && item.triage?.prioridad && " · Prioridad: " + triageLabels[item.triage.prioridad]}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
       )}
       {mode === "new" && <AppointmentForm key="nueva" businessId={businessId} patients={patients} />}
       {mode === "detail" && (appointment
