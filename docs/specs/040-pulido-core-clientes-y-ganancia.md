@@ -50,3 +50,9 @@ Campos de texto sin ejemplo en otros formularios Core, detectados y no modificad
 ## 6. Despliegue y revisión visual
 
 Solo Hosting. Revisar en el navegador: Clientes → Nuevo cliente (Empresa y Persona) en Chile y en Bolivia, y `/reportes` → Ganancia en un negocio de Taller o Veterinaria (subtítulo y tabla "Total") y en uno de Informática (sin cambios), en claro y oscuro.
+
+## 7. Cambios posteriores
+
+- Textos del formulario "Crear un nuevo negocio" (cajón del selector de empresa): con el país sin elegir se quita el aviso de moneda bajo País y queda solo el del final del formulario ("La moneda se asigna según el país elegido. El resto de los datos se completa desde Empresa."); la ayuda del Rubro principal pasa a "Elige la actividad que mejor representa tu servicio principal. Define los módulos que verás en el menú." Solo cliente.
+
+- Mejora visual del cajón "Crear un nuevo negocio" (solo estilo y estructura, sin lógica ni textos nuevos salvo los títulos "Datos del negocio" y "Ubicación" y el botón "Cancelar"): campos con el mismo ritmo vertical (el mensaje solo ocupa lugar si hay ayuda o error), País y Región con el mismo chevron y aspecto que el selector de rubro, "Cancelar" a la izquierda de "Crear negocio" (cierra como la X), dos bloques con el patrón `.business-drawer-section` y ayuda del pie separada por línea sutil. Los selects con flecha propia también valen para el alta del primer negocio; el agrupado y el ritmo son solo del cajón (`grouped`).

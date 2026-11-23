@@ -123,7 +123,7 @@ assert.match(quickFields, /<BusinessCategoryPicker/);
 assert.match(company, /<BusinessCategoryPicker/);
 assert.match(quickFields, /Rubro principal/);
 assert.match(company, /Rubro principal/);
-assert.match(quickFields, /Elige la actividad que mejor representa tu servicio principal\./);
+assert.match(quickFields, /Elige la actividad que mejor representa tu servicio principal\. Define los módulos que verás en el menú\./);
 assert.match(company, /Selecciona la actividad que mejor representa los servicios de tu empresa\./);
 assert.doesNotMatch(quickFields, /BUSINESS_CATEGORIES\.filter/);
 assert.doesNotMatch(company, /BUSINESS_CATEGORIES\.filter/);

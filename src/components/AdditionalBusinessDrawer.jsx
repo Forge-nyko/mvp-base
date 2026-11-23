@@ -240,15 +240,25 @@ function AdditionalBusinessDrawer({
       className="business-create-drawer business-create-drawer--quick"
       layerClassName="business-create-drawer-layer"
       footer={
-        <Button
-          type="submit"
-          form="additional-business-form"
-          className="business-create-drawer__submit"
-          icon={Building2}
-          loading={isSubmitting}
-        >
-          {isSubmitting ? "Creando negocio..." : "Crear negocio"}
-        </Button>
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={requestClose}
+            disabled={isSubmitting}
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form="additional-business-form"
+            className="business-create-drawer__submit"
+            icon={Building2}
+            loading={isSubmitting}
+          >
+            {isSubmitting ? "Creando negocio..." : "Crear negocio"}
+          </Button>
+        </>
       }
     >
       <p className="business-create-drawer__required-note">
@@ -278,10 +288,11 @@ function AdditionalBusinessDrawer({
           onBlur={handleBlur}
           showCountry
           showRegion
+          grouped
           countryHint={
             selectedCountry && selectedCurrency
               ? `${selectedCountry.name} · ${selectedCurrency.code}`
-              : "La moneda inicial se asignará según el país."
+              : ""
           }
           setFieldRef={(field, node) => {
             fieldRefs.current[field] = node;

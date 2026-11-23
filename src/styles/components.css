@@ -2363,6 +2363,52 @@
   outline: none;
 }
 
+/* Los selects (País, Región o Departamento) se ven como el selector de rubro: sin la flecha
+   nativa, con el mismo chevron a la derecha, borde de marca al pasar el cursor y el texto guía
+   atenuado mientras no hay valor. Siguen siendo <select> nativos. */
+.quick-business-select {
+  display: block;
+  position: relative;
+}
+
+.quick-business-select select {
+  appearance: none;
+  cursor: pointer;
+  padding-right: var(--space-10);
+}
+
+.quick-business-select select:disabled {
+  cursor: default;
+}
+
+.quick-business-select__icon {
+  align-items: center;
+  bottom: 0;
+  color: var(--color-text-strong);
+  display: flex;
+  pointer-events: none;
+  position: absolute;
+  right: var(--space-3);
+  top: 0;
+}
+
+.quick-business-select--disabled .quick-business-select__icon {
+  color: var(--color-text-muted);
+}
+
+.quick-business-field select:hover:not(:disabled):not([aria-invalid="true"]) {
+  border-color: var(--color-brand-500);
+}
+
+.quick-business-field select[data-empty="true"] {
+  color: var(--color-text-muted);
+}
+
+.quick-business-field select option {
+  background-color: var(--color-surface-panel);
+  color: var(--color-text-strong);
+}
+
 .quick-business-field input[aria-invalid="true"],
 .quick-business-field select[aria-invalid="true"],
 .business-category-picker[aria-invalid="true"] {

@@ -1121,8 +1121,31 @@ body:has(.topbar .environment-notice--inline) .environment-notice--floating {
 }
 
 .business-create-drawer--quick .quick-business-field input,
-.business-create-drawer--quick .quick-business-field select {
+.business-create-drawer--quick .quick-business-field select,
+.business-create-drawer--quick .business-category-picker {
   border-radius: var(--radius-md);
+}
+
+/* Ritmo vertical del cajón (SPEC 040): la línea de mensaje de un campo solo ocupa lugar si tiene
+   ayuda o error. Sin esto un campo sin mensaje (Nombre) dejaba un hueco mayor que los demás. */
+.business-create-drawer--quick .quick-business-field__message {
+  min-height: 0;
+}
+
+.business-create-drawer--quick .quick-business-field__message:empty {
+  display: none;
+}
+
+/* Bloques "Datos del negocio" y "Ubicación": mismo patrón .business-drawer-section, con la
+   separación simétrica del cajón (espacio-4 a cada lado de la línea). */
+.business-create-drawer--quick .business-drawer-section + .business-drawer-section {
+  padding-top: var(--space-4);
+}
+
+/* Ayuda del pie del formulario: discreta, separada por la misma línea sutil que los bloques. */
+.business-create-drawer--quick .business-drawer-form__defaults {
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: var(--space-4);
 }
 
 .business-drawer-section {
@@ -1429,10 +1452,14 @@ body:has(.topbar .environment-notice--inline) .environment-notice--floating {
     grid-column: auto;
   }
 
+  /* Con "Cancelar" a su izquierda, los dos botones comparten la fila. */
+  .business-create-drawer .responsive-dialog__footer > * {
+    flex: 1 1 auto;
+  }
+
   .business-create-drawer__submit {
     max-width: 100%;
     min-width: 0;
-    width: 100%;
   }
 
   .business-discard-confirm {
