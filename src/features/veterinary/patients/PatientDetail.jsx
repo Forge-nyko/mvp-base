@@ -10,6 +10,7 @@ import {
 
 import Button from "../../../components/ui/Button";
 import StatusBadge from "../../../components/ui/StatusBadge";
+import {VeterinaryPrescriptionList} from "../attention/VeterinaryPrescriptions";
 import useBusinessFormat from "../../../hooks/useBusinessFormat";
 import {formatDate} from "../../../utils/formatters";
 
@@ -452,6 +453,13 @@ export default function PatientDetail({
                               <li key={item.itemId}>{item.nombre} · {item.cantidad} {item.unidad}</li>
                             ))}
                           </ul>
+                        )}
+                        {attention.profesionalNombre && <p><strong>Profesional:</strong> {attention.profesionalNombre}</p>}
+                        {attention.recetas?.length > 0 && (
+                          <section>
+                            <h4>Recetas veterinarias</h4>
+                            <VeterinaryPrescriptionList prescriptions={attention.recetas} />
+                          </section>
                         )}
                         {renderHistoryPhotos?.(attention)}
                       </div>

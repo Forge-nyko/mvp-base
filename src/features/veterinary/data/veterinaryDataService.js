@@ -210,6 +210,19 @@ export async function guardarAtencionVeterinaria(businessId, citaId, operacion, 
   return result.data.atencionId;
 }
 
+export async function operarOrdenVeterinaria(businessId, atencionId, operacion, atencion = {}, citaId) {
+  assertClientWriteAllowed("guardar órdenes de atención veterinaria");
+  const callable = httpsCallable(getFirebaseFunctions(), "guardarAtencionVeterinaria");
+  const result = await callable({
+    businessId: requireBusinessId(businessId),
+    atencionId,
+    operacion,
+    atencion,
+    ...(citaId ? {citaId} : {}),
+  });
+  return result.data.atencionId;
+}
+
 export async function guardarRecepcionVeterinaria(businessId, citaId, recepcion) {
   assertClientWriteAllowed("guardar recepción veterinaria");
   const callable = httpsCallable(getFirebaseFunctions(), "guardarRecepcionVeterinaria");

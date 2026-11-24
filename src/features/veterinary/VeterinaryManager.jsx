@@ -4,7 +4,7 @@ import React, {
   useState,
 } from "react";
 
-import { Activity, PawPrint, Plus, CalendarDays } from "lucide-react";
+import { Activity, PawPrint, Plus, CalendarDays, ClipboardList } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import EmptyState from "../../components/ui/EmptyState";
@@ -279,6 +279,8 @@ function VeterinaryManager({
           <>
             <Button type="button" icon={PawPrint} onClick={() => navigate("/clinica-veterinaria/pacientes")}>Ver pacientes</Button>
             <Button type="button" icon={CalendarDays} variant="secondary" onClick={() => navigate("/clinica-veterinaria/agenda")}>Ver agenda</Button>
+            <Button type="button" icon={ClipboardList} variant="secondary"
+              onClick={() => navigate("/clinica-veterinaria/ordenes")}>Ver órdenes de atención</Button>
           </>
         }
       />
@@ -303,7 +305,7 @@ function VeterinaryManager({
             <VeterinaryCounts label="Actividad clínica" counts={[
               ["Pacientes", patients.length],
               ["Citas", appointments.length],
-              ["Atenciones", attentions.length],
+              ["Atenciones", attentions.filter(({estado}) => estado === "en_atencion" || estado === "finalizada").length],
             ]} />
           )}
 

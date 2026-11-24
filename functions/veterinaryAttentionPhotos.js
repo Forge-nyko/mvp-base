@@ -43,6 +43,9 @@ async function fotosAtencionVeterinariaHandler(request, {db, bucket, HttpsError,
     if (!attention || attention.negocioId !== businessId) {
       throw new HttpsError("not-found", "La atención no está disponible.");
     }
+    if (writable && attention.origen && attention.profesionalUid !== uid) {
+      throw new HttpsError("permission-denied", "Solo el profesional asignado puede modificar las fotos de esta orden.");
+    }
     if (writable && attention.estado !== "en_atencion") {
       throw new HttpsError("failed-precondition", "Solo puedes agregar fotos o marcas durante una atención abierta.");
     }
@@ -152,7 +155,7 @@ async function fotosAtencionVeterinariaHandler(request, {db, bucket, HttpsError,
       actualizadoPorUid: uid,
     });
   }).catch(async (error) => {
-    if (created && ["not-found", "failed-precondition"].includes(error.code)) {
+    if (created && ["not-found", "failed-precondition", "permission-denied"].includes(error.code)) {
       const current = (await attentionRef.get()).data();
       if (!(await retiredRef.get()).exists && (!current || (!photoFrom(current) && !current.fotosRetiradas?.some((photo) => photo.fotoId === fotoId)))) {
         const [metadata] = await file.getMetadata();

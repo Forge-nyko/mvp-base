@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from "react";
-import {CalendarDays, Plus} from "lucide-react";
+import {CalendarDays, ClipboardList, Plus} from "lucide-react";
 import {Link, useNavigate, useParams} from "react-router-dom";
 import Button from "../../../components/ui/Button";
 import EmptyState from "../../../components/ui/EmptyState";
@@ -11,8 +11,8 @@ import useBusinessFormat from "../../../hooks/useBusinessFormat";
 import {formatDate} from "../../../utils/formatters";
 import {getVeterinaryAppointmentFieldErrors} from "../domain/appointmentModel.mjs";
 import {
-  guardarAtencionVeterinaria,
   guardarCitaVeterinaria,
+  operarOrdenVeterinaria,
   subscribeToVeterinaryAppointments,
   subscribeToVeterinaryPatients,
 } from "../data/veterinaryDataService";
@@ -27,6 +27,7 @@ function AppointmentForm({appointment, businessId, patients}) {
   const navigate = useNavigate();
   const [form, setForm] = useState(() => appointment ?? {});
   const [newId] = useState(() => crypto.randomUUID());
+  const [newOrderId] = useState(() => crypto.randomUUID());
   const [saving, setSaving] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [error, setError] = useState("");
@@ -34,22 +35,25 @@ function AppointmentForm({appointment, businessId, patients}) {
   const activePatients = patients.filter((patient) => ["activo", undefined].includes(patient.estado));
   const editable = !appointment || ["agendada", "confirmada"].includes(appointment.estado);
 
-  const attentionPath = appointment && appointmentPath(appointment.id) + "/atencion";
-  const canReceive = appointment && ["agendada", "confirmada", "en_espera"].includes(appointment.estado);
-  const canCancel = appointment && (editable || appointment.estado === "en_espera");
-  const canStart = appointment?.estado === "en_espera" && appointment.recepcion?.horaLlegada && appointment.triage?.prioridad;
+  const orderPath = appointment?.atencionId && base + "/ordenes/" + encodeURIComponent(appointment.atencionId);
   const hasAttention = appointment && ["en_atencion", "finalizada"].includes(appointment.estado);
+  const attentionPath = hasAttention && (orderPath ? orderPath + "/atencion" : appointmentPath(appointment.id) + "/atencion");
+  const canReceive = appointment && !orderPath && ["agendada", "confirmada", "en_espera"].includes(appointment.estado);
+  const canCancel = appointment && !orderPath && (editable || appointment.estado === "en_espera");
+  const canCreateOrder = !orderPath && appointment?.estado === "en_espera" &&
+    appointment.recepcion?.horaLlegada && appointment.triage?.prioridad;
 
-  async function startAttention() {
+  async function createOrder() {
     if (saving) return;
     setSaving(true);
     setError("");
     try {
-      await guardarAtencionVeterinaria(businessId, appointment.id, "iniciar");
-      navigate(attentionPath);
+      const attentionId = await operarOrdenVeterinaria(businessId, newOrderId, "crearOrden", {origen: "cita"}, appointment.id);
+      navigate(base + "/ordenes/" + encodeURIComponent(attentionId));
     } catch (failure) {
-      setError(String(failure?.code).endsWith("failed-precondition")
-        ? failure.message : "No se pudo iniciar la atención. Revisa tus permisos e inténtalo nuevamente.");
+      const code = String(failure?.code || "").replace(/^functions\//, "");
+      setError(["invalid-argument", "already-exists", "failed-precondition", "not-found", "aborted"].includes(code)
+        ? failure.message : "No se pudo crear la orden de atención.");
     } finally {
       setSaving(false);
     }
@@ -136,8 +140,17 @@ function AppointmentForm({appointment, businessId, patients}) {
             </VeterinaryField>
           </div>
           {error && <p role="alert">{error}</p>}
-          {canStart && !confirmCancel && <Button type="button" variant="secondary" disabled={saving} onClick={startAttention}>Iniciar atención</Button>}
-          {hasAttention && <Link to={attentionPath}>{appointment.estado === "finalizada" ? "Ver atención" : "Continuar atención"}</Link>}
+          {canCreateOrder && !confirmCancel && (
+            <Button type="button" icon={ClipboardList} loading={saving} onClick={createOrder}>Crear orden de atención</Button>
+          )}
+          {orderPath && appointment.estado === "en_espera" && (
+            <Button type="button" icon={ClipboardList} onClick={() => navigate(orderPath)}>Ver orden de atención</Button>
+          )}
+          {attentionPath && (
+            <Button type="button" variant="secondary" onClick={() => navigate(attentionPath)}>
+              {appointment.estado === "finalizada" ? "Ver atención" : "Continuar atención"}
+            </Button>
+          )}
           {editable && !confirmCancel && (
             <>
               <Button type="submit" loading={saving} disabled={!appointment && !activePatients.length}>

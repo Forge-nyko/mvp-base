@@ -213,7 +213,7 @@ function PhotoMapper({businessId, attentionId, photo, closed}) {
   );
 }
 
-export default function VeterinaryPhotoMap({businessId, attention, onPendingChange}) {
+export default function VeterinaryPhotoMap({businessId, attention, onPendingChange, readOnly = false}) {
   const [selected, setSelected] = useState("");
   const [view, setView] = useState(() =>
     bodyViewOrder.find((key) => !attention.fotosClinicas?.some((item) => item.vista === key)) ?? "general"
@@ -236,7 +236,7 @@ export default function VeterinaryPhotoMap({businessId, attention, onPendingChan
     photosByView.set(item.vista, group);
   }
   const alternatives = photosByView.get(photo?.vista) ?? [];
-  const closed = attention.estado !== "en_atencion";
+  const closed = readOnly || attention.estado !== "en_atencion";
   const photoCount = new Set([...photos, ...pendingPhotos].map((item) => item.fotoId)).size;
   const hasPending = pendingPhotos.length > 0;
   const pendingViews = new Set(pendingPhotos.map((item) => item.vista));

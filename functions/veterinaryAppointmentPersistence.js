@@ -108,6 +108,9 @@ async function guardarCitaVeterinariaHandler(request, {db, HttpsError, FieldValu
     if (operacion !== "crear" && !snapshot.updateTime.isEqual(initial.updateTime)) {
       throw new HttpsError("aborted", "La cita cambió. Recarga la agenda antes de volver a intentar.");
     }
+    if (operacion === "cancelar" && existing.atencionId) {
+      throw new HttpsError("failed-precondition", "Cancela la orden de atención vinculada para liberar este horario.");
+    }
     const oldLock = oldSlot ? byPath.get(oldSlot.path) : null;
     const audit = {actualizadoEn: FieldValue.serverTimestamp(), actualizadoPorUid: uid};
     if (operacion === "cancelar") {
