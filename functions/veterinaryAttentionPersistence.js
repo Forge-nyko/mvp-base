@@ -2,12 +2,26 @@
 
 const {createHash} = require("node:crypto");
 const {isDeepStrictEqual} = require("node:util");
-const {getAuth} = require("firebase-admin/auth");
 const {importVeterinaryModel} = require("./veterinaryModels");
+const {deliverVeterinarySale, stageVeterinarySale} = require("./veterinaryAttentionSale");
+const {
+  prepareVeterinaryControlAppointment,
+  assertVeterinaryControlAppointmentAvailable,
+  writeVeterinaryControlAppointment,
+} = require("./veterinaryAppointmentPersistence");
+const {
+  assertAssignableVeterinaryProfessional,
+  assertCurrentVeterinaryGrant,
+  canReceiveVeterinaryReferral,
+  getVeterinaryProfessionalDisplayName,
+  getVeterinaryProfessionalGrantRefs,
+  getVeterinaryProfessionalProfileRef,
+  requireVeterinaryProfessionalAccess,
+} = require("./veterinaryProfessionalAccess");
 
-const CLINICAL_ROLES = ["OWNER", "ADMIN"];
 const ORDER_ORIGINS = new Set(["cita", "directa", "emergencia"]);
 const ORDER_OPERATIONS = new Set(["crearOrden", "asignarOrden", "iniciar", "borrador", "cerrar", "emitirReceta", "cancelarOrden"]);
+const ASSIGNED_OPERATIONS = new Set(["iniciar", "borrador", "cerrar", "emitirReceta"]);
 const LEGACY_OPERATIONS = new Set(["iniciar", "borrador", "cerrar"]);
 const MAX_PRESCRIPTIONS = 5;
 const validId = (value) => typeof value === "string" && /^[a-zA-Z0-9_-]{1,120}$/.test(value);
@@ -50,21 +64,44 @@ function modelError(error, HttpsError) {
   return new HttpsError("invalid-argument", Object.values(error.fieldErrors).flat()[0], error.fieldErrors);
 }
 
-async function guardarAtencionVeterinariaHandler(request, {db, HttpsError, FieldValue, requireBusinessAccess}) {
-  const context = await requireBusinessAccess(
-      request, {db, HttpsError}, {roles: CLINICAL_ROLES, requiredVerticalModule: "veterinaria"},
-  );
+async function guardarAtencionVeterinariaHandler(request, {db, HttpsError, FieldValue, requireBusinessAccess, now = () => new Date()}) {
+  const context = await requireVeterinaryProfessionalAccess(request, {db, HttpsError, requireBusinessAccess});
   const params = request.data ?? {};
   const {operacion, atencionId, citaId} = params;
-  const dependencies = {...context, db, HttpsError, FieldValue};
+  const dependencies = {...context, db, HttpsError, FieldValue, ...(operacion === "cerrar" ? {requestedAt: now()} : {})};
+  if (operacion === "generarVenta") {
+    const id = requireId(atencionId ?? citaId, HttpsError);
+    const attention = (await context.businessRef.collection("atencionesVeterinarias").doc(id).get()).data();
+    if (attention?.negocioId !== context.businessId) throw new HttpsError("not-found", "La atención no está disponible.");
+    if (context.assignedOnly) requireAssignedProfessional(attention, context.uid, HttpsError);
+    if (attention.estado !== "finalizada" || !attention.ventaEstado) {
+      throw new HttpsError("failed-precondition", "La atención no tiene una venta pendiente de generar.");
+    }
+    await deliverVeterinarySale({...dependencies, atencionId: id});
+    return {atencionId: id};
+  }
+  if (context.assignedOnly && (atencionId === undefined || !ASSIGNED_OPERATIONS.has(operacion))) {
+    throw new HttpsError("permission-denied", "Tu perfil solo puede atender órdenes que tengas asignadas.");
+  }
+  let result;
   if (atencionId !== undefined || !LEGACY_OPERATIONS.has(operacion)) {
     requireId(atencionId, HttpsError);
     if (!ORDER_OPERATIONS.has(operacion)) throw new HttpsError("invalid-argument", "Selecciona una operación válida.");
     if (operacion === "crearOrden") return createOrder(params, dependencies);
-    return mutateOrder(params, dependencies);
+    result = await mutateOrder(params, dependencies);
+  } else {
+    requireId(citaId, HttpsError, "Selecciona una cita válida.");
+    result = await mutateLegacyAttention(params, dependencies);
   }
-  requireId(citaId, HttpsError, "Selecciona una cita válida.");
-  return mutateLegacyAttention(params, dependencies);
+  if (operacion === "cerrar") {
+    try {
+      await deliverVeterinarySale({...dependencies, atencionId: result.atencionId});
+    } catch (error) {
+      // La intención se guardó junto al cierre. Su trigger puede retomar la generación.
+      console.warn("Venta veterinaria pendiente de generación.", error.code || "internal");
+    }
+  }
+  return result;
 }
 
 async function createOrder({atencionId, citaId, atencion}, {db, uid, businessId, businessRef, HttpsError, FieldValue}) {
@@ -136,9 +173,13 @@ async function createOrder({atencionId, citaId, atencion}, {db, uid, businessId,
     const stamp = audit.actualizadoEn;
     const recepcion = appointment?.recepcion ?? {horaLlegada: intake.horaLlegada, recibidaEn: stamp, recibidaPorUid: uid};
     const triage = appointment?.triage ?? {prioridad: intake.prioridad};
+    const professional = appointment?.profesionalUid ? {
+      profesionalUid: appointment.profesionalUid, profesionalNombre: appointment.profesionalNombre ?? "",
+    } : {};
     tx.create(attentionRef, {
       ...audit, negocioId: businessId, atencionId, pacienteId, origen, estado: "en_espera",
       ...(appointmentRef ? {citaId} : {}),
+      ...professional,
       motivoConsulta: appointment ? appointment.motivo ?? "" : intake.motivoConsulta,
       recepcion, triage, recibidoEn: recepcion.recibidaEn ?? stamp,
       creadoEn: stamp, creadoPorUid: uid, huellaCreacion: creationHash,
@@ -146,23 +187,6 @@ async function createOrder({atencionId, citaId, atencion}, {db, uid, businessId,
     if (appointmentRef) tx.update(appointmentRef, {atencionId, ...audit});
     return {atencionId};
   });
-}
-
-async function professionalDisplayName(db, uid) {
-  const userRef = db.doc("usuarios/" + uid);
-  const [profileSnapshot, userSnapshot] = await db.getAll(userRef.collection("cuenta").doc("perfil"), userRef);
-  const profile = profileSnapshot.data() ?? {};
-  const userData = userSnapshot.data() ?? {};
-  const name = [profile.nombres ?? userData.nombres, profile.apellidos ?? userData.apellidos].filter((part) => typeof part === "string")
-      .map((part) => part.trim()).filter(Boolean).join(" ");
-  if (name) return name.slice(0, 240);
-  try {
-    const user = await getAuth().getUser(uid);
-    return user.displayName?.trim().slice(0, 240) || "Profesional " + uid;
-  } catch (error) {
-    if (error.code !== "auth/user-not-found") throw error;
-    return "Profesional " + uid;
-  }
 }
 
 function assignmentPayload(value, HttpsError) {
@@ -203,23 +227,17 @@ function requireAssignedProfessional(order, uid, HttpsError) {
   }
 }
 
-function requireAssignableProfessional(membership, professionalUid, businessId, HttpsError) {
-  if (membership?.negocioId !== businessId || membership.uid !== professionalUid ||
-      membership.estado !== "activo" || !CLINICAL_ROLES.includes(membership.rol)) {
-    throw new HttpsError("failed-precondition", "Selecciona un profesional activo con acceso a Veterinaria.");
-  }
-}
-
-function assignOrder(tx, orderRef, order, assignment, {nextBox, currentLock, nextLock, membership, displayName}, context) {
-  const {uid, businessId, HttpsError, audit} = context;
+function assignOrder(tx, orderRef, order, assignment, assignmentData, context) {
+  const {nextBox, currentLock, nextLock, displayName} = assignmentData;
+  const {uid, HttpsError, audit} = context;
   if (order.estado !== "en_espera") throw new HttpsError("failed-precondition", "Solo puedes asignar una orden en espera.");
-  requireAssignableProfessional(membership, assignment.profesionalUid, businessId, HttpsError);
   if (nextLock.exists && nextLock.get("atencionId") !== orderRef.id) {
     throw new HttpsError("already-exists", "El box ya está asignado a otra orden en espera o en atención.");
   }
   if (currentLock?.ref.path !== nextBox.path && currentLock?.get("atencionId") === orderRef.id) tx.delete(currentLock.ref);
   if (nextLock.get("atencionId") === orderRef.id && order.box === assignment.box &&
-      order.tipoAtencion === assignment.tipoAtencion && order.profesionalUid === assignment.profesionalUid) return;
+      order.tipoAtencion === assignment.tipoAtencion && order.profesionalUid === assignment.profesionalUid &&
+      order.profesionalNombre === displayName) return;
   tx.set(nextBox, {atencionId: orderRef.id});
   tx.update(orderRef, {
     ...assignment, profesionalNombre: displayName, ...audit, asignadoEn: audit.actualizadoEn, asignadoPorUid: uid,
@@ -248,35 +266,163 @@ function issuePrescription(tx, orderRef, order, prescription, {uid, HttpsError, 
   return result;
 }
 
-async function mutateOrder({atencionId, operacion, atencion}, {db, uid, businessId, businessRef, HttpsError, FieldValue}) {
+function clinicalFollowupFields(atencion, outcome, HttpsError, allowPartial = false) {
+  if (outcome === "control") {
+    const fecha = atencion?.control?.fecha ?? "";
+    const hora = atencion?.control?.hora ?? "";
+    const errors = {};
+    if (!(allowPartial && fecha === "") && (typeof fecha !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(fecha))) {
+      errors.controlFecha = "Selecciona la fecha del control.";
+    }
+    if (!(allowPartial && hora === "") && (typeof hora !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(hora))) {
+      errors.controlHora = "Selecciona la hora del control.";
+    }
+    const message = errors.controlFecha || errors.controlHora;
+    if (message) throw new HttpsError("invalid-argument", message, errors);
+    return {control: {fecha, hora}};
+  }
+  if (outcome === "derivacion") {
+    const tipo = atencion?.derivacion?.tipo ?? "";
+    if (allowPartial && tipo === "") return {derivacion: {tipo}};
+    if (tipo === "externa") return {derivacion: {tipo}};
+    if (tipo !== "interna") {
+      const message = "Selecciona si la derivación es interna o externa.";
+      throw new HttpsError("invalid-argument", message, {derivacionTipo: message});
+    }
+    const profesionalUid = atencion?.derivacion?.profesionalUid ?? "";
+    if (!(allowPartial && profesionalUid === "") && !validId(profesionalUid)) {
+      const message = "Selecciona un profesional veterinario para la derivación.";
+      throw new HttpsError("invalid-argument", message, {derivacionProfesionalUid: message});
+    }
+    return {derivacion: {tipo, profesionalUid}};
+  }
+  return {};
+}
+
+async function prepareFollowupProfessional(profesionalUid, {db, businessRef, businessId}, optional = false) {
+  if (!validId(profesionalUid)) return null;
+  const memberRef = db.doc("membresias/" + businessId + "__" + profesionalUid);
+  const member = (await memberRef.get()).data();
+  const currentMember = member?.negocioId === businessId && member.uid === profesionalUid && member.estado === "activo";
+  const profileRef = currentMember ? getVeterinaryProfessionalProfileRef(businessRef, member) : null;
+  const profesionalNombre = currentMember ? await getVeterinaryProfessionalDisplayName(db, profesionalUid) : "";
+  return {profesionalUid, profesionalNombre, memberRef, profileRef, optional};
+}
+
+function closureOutcome(atencion) {
+  return String(atencion?.resultadoClinico ?? "").trim().toLowerCase();
+}
+
+async function prepareClinicalFollowup(atencion, {atencionId, pacienteId, profesionalUid}, context, legacy = false) {
+  const {control, derivacion} = clinicalFollowupFields(atencion, closureOutcome(atencion), context.HttpsError);
+  if (!control && !derivacion) return null;
+  const booking = control ? await prepareVeterinaryControlAppointment(control, {
+    ...context, pacienteId, citaId: "control-" + digest(atencionId),
+  }) : null;
+  const professional = await prepareFollowupProfessional(
+      control ? profesionalUid : derivacion?.profesionalUid, context, legacy && Boolean(control),
+  );
+  const refs = [...(booking?.refs ?? []), professional?.memberRef, professional?.profileRef];
+  return {booking, derivacion, professional, sourceProfessionalUid: profesionalUid, refs};
+}
+
+function readFollowupProfessional(professional, snapshots, {businessId, HttpsError}, isReferral = false) {
+  if (!professional) return {};
+  const {memberRef, profileRef, profesionalUid, profesionalNombre, optional} = professional;
+  const member = snapshots.get(memberRef.path).data();
+  const profile = profileRef && member?.profileId === profileRef.id ? snapshots.get(profileRef.path).data() : null;
+  if (isReferral) {
+    if (!canReceiveVeterinaryReferral(member, profile, {businessId, uid: profesionalUid})) {
+      const message = "Selecciona un profesional activo con perfil veterinario de esta empresa.";
+      throw new HttpsError("failed-precondition", message, {derivacionProfesionalUid: message});
+    }
+  } else {
+    try {
+      assertAssignableVeterinaryProfessional(member, profile, {businessId, uid: profesionalUid, HttpsError});
+    } catch (error) {
+      if (optional && error.code === "failed-precondition") return {};
+      throw error;
+    }
+  }
+  if (!profesionalNombre) {
+    throw new HttpsError("aborted", "El profesional cambió. Vuelve a abrir la atención.");
+  }
+  return {profesionalUid, profesionalNombre};
+}
+
+function readClinicalFollowup(followup, closure, snapshots, identity, context) {
+  const {resultadoClinico} = closure;
+  const {HttpsError} = context;
+  if (resultadoClinico === "control") {
+    const booking = followup?.booking;
+    if (!booking || booking.appointment.pacienteId !== identity.pacienteId ||
+        followup.sourceProfessionalUid !== identity.profesionalUid) {
+      throw new HttpsError("aborted", "La atención cambió. Vuelve a abrirla para agendar el control.");
+    }
+    assertVeterinaryControlAppointmentAvailable(booking, snapshots, context);
+    const {fecha, hora} = booking.appointment;
+    const professional = readFollowupProfessional(followup.professional, snapshots, context);
+    return {booking, professional, patch: {control: {citaId: booking.appointmentRef.id, fecha, hora}}};
+  }
+  if (resultadoClinico === "derivacion") {
+    if (!followup?.derivacion) throw new HttpsError("aborted", "La atención cambió. Vuelve a abrirla para registrar la derivación.");
+    const {tipo} = followup.derivacion;
+    const professional = tipo === "interna" ? readFollowupProfessional(followup.professional, snapshots, context, true) : {};
+    return {patch: {derivacion: {tipo, ...professional}}};
+  }
+  return {};
+}
+
+function uniqueReferences(refs) {
+  return [...new Map(refs.filter(Boolean).map((ref) => [ref.path, ref])).values()];
+}
+
+async function mutateOrder({atencionId, operacion, atencion}, context) {
+  const {db, uid, businessId, businessRef, HttpsError, FieldValue} = context;
   const orderRef = businessRef.collection("atencionesVeterinarias").doc(atencionId);
   // Estas lecturas determinan las referencias de la transacción, que revalida el estado y sus vínculos.
   const initial = (await orderRef.get()).data();
   requireExistingOrder(initial, businessId, HttpsError);
+  if (context.assignedOnly) requireAssignedProfessional(initial, uid, HttpsError);
   const appointmentRef = initial.citaId
     ? businessRef.collection("citasVeterinarias").doc(requireId(initial.citaId, HttpsError))
     : null;
   const assignment = operacion === "asignarOrden" ? assignmentPayload(atencion, HttpsError) : null;
   const prescription = operacion === "emitirReceta" ? prescriptionPayload(atencion, HttpsError) : null;
   const memberRef = assignment ? db.doc("membresias/" + businessId + "__" + assignment.profesionalUid) : null;
+  const [actorMembershipRef, actorProfileRef] = getVeterinaryProfessionalGrantRefs(context);
   let displayName = "";
+  let profileRef = null;
   if (memberRef) {
     const membership = (await memberRef.get()).data();
-    requireAssignableProfessional(membership, assignment.profesionalUid, businessId, HttpsError);
-    displayName = await professionalDisplayName(db, assignment.profesionalUid);
+    profileRef = getVeterinaryProfessionalProfileRef(businessRef, membership);
+    const profile = profileRef ? (await profileRef.get()).data() : null;
+    assertAssignableVeterinaryProfessional(membership, profile, {businessId, uid: assignment.profesionalUid, HttpsError});
+    displayName = await getVeterinaryProfessionalDisplayName(db, assignment.profesionalUid);
   }
   const currentBox = boxRef(businessRef, initial.box);
   const nextBox = assignment ? boxRef(businessRef, assignment.box) : null;
   const slot = appointmentRef && operacion === "cancelarOrden"
     ? appointmentSlotRef(businessRef, (await appointmentRef.get()).data())
     : null;
-  const readRefs = [...new Map([orderRef, appointmentRef, currentBox, nextBox, memberRef, slot]
-      .filter(Boolean).map((ref) => [ref.path, ref])).values()];
+  const followup = operacion === "cerrar" && initial.estado === "en_atencion"
+    ? await prepareClinicalFollowup(atencion, {...initial, atencionId}, context)
+    : null;
+  const readRefs = uniqueReferences([
+    orderRef, appointmentRef, currentBox, nextBox, memberRef, profileRef, slot, actorMembershipRef, actorProfileRef,
+    ...(followup?.refs ?? []),
+  ]);
 
   return db.runTransaction(async (tx) => {
     const snapshots = new Map((await tx.getAll(...readRefs)).map((snapshot) => [snapshot.ref.path, snapshot]));
     const order = snapshots.get(orderRef.path).data();
     requireExistingOrder(order, businessId, HttpsError);
+    if (context.assignedOnly) {
+      assertCurrentVeterinaryGrant(
+          context, snapshots.get(actorMembershipRef.path).data(), snapshots.get(actorProfileRef.path).data(),
+      );
+      requireAssignedProfessional(order, uid, HttpsError);
+    }
     if (order.citaId !== initial.citaId || order.box !== initial.box) {
       throw new HttpsError("aborted", "La orden cambió. Vuelve a abrirla.");
     }
@@ -290,10 +436,16 @@ async function mutateOrder({atencionId, operacion, atencion}, {db, uid, business
     const actor = {uid, businessId, HttpsError, audit};
     const currentLock = currentBox ? snapshots.get(currentBox.path) : null;
     if (assignment) {
+      const membership = snapshots.get(memberRef.path).data();
+      const profile = profileRef && membership?.profileId === profileRef.id ? snapshots.get(profileRef.path).data() : null;
+      assertAssignableVeterinaryProfessional(membership, profile, {businessId, uid: assignment.profesionalUid, HttpsError});
       assignOrder(tx, orderRef, order, assignment, {
-        nextBox, currentLock, nextLock: snapshots.get(nextBox.path),
-        membership: snapshots.get(memberRef.path).data(), displayName,
+        nextBox, currentLock, nextLock: snapshots.get(nextBox.path), displayName,
       }, actor);
+      if (appointmentRef &&
+          (appointment.profesionalUid !== assignment.profesionalUid || appointment.profesionalNombre !== displayName)) {
+        tx.update(appointmentRef, {...audit, profesionalUid: assignment.profesionalUid, profesionalNombre: displayName});
+      }
       return {atencionId};
     }
     if (operacion === "cancelarOrden") {
@@ -310,8 +462,10 @@ async function mutateOrder({atencionId, operacion, atencion}, {db, uid, business
       tx.update(orderRef, {...audit, estado: "cancelada", canceladaEn: audit.actualizadoEn, canceladaPorUid: uid});
       return {atencionId};
     }
+    if (appointment?.profesionalUid && appointment.profesionalUid !== order.profesionalUid) {
+      throw new HttpsError("failed-precondition", "El profesional de la cita no coincide con el de la orden.");
+    }
     if (prescription) return issuePrescription(tx, orderRef, order, prescription, actor);
-
     if (operacion === "iniciar" && !order.profesionalUid) {
       throw new HttpsError("failed-precondition", "Asigna el box, el tipo de atención y el profesional antes de iniciar.");
     }
@@ -325,7 +479,9 @@ async function mutateOrder({atencionId, operacion, atencion}, {db, uid, business
       tx.update(orderRef, {
         ...audit, estado: "en_atencion", iniciadaEn: audit.actualizadoEn, iniciadoPorUid: uid,
       });
-      if (appointmentRef) tx.update(appointmentRef, {...audit, estado: "en_atencion"});
+      if (appointmentRef) tx.update(appointmentRef, {
+        ...audit, estado: "en_atencion", profesionalUid: order.profesionalUid, profesionalNombre: order.profesionalNombre ?? "",
+      });
       return {atencionId};
     }
 
@@ -338,20 +494,40 @@ async function mutateOrder({atencionId, operacion, atencion}, {db, uid, business
       return {atencionId};
     }
 
-    const clinicalContext = {atencionId, citaId: order.citaId || undefined, pacienteId: order.pacienteId};
-    await closeAttention(tx, orderRef, atencion, clinicalContext, {businessRef, businessId, uid, audit, HttpsError, FieldValue});
+    const clinicalContext = {
+      atencionId, citaId: order.citaId || undefined, pacienteId: order.pacienteId, profesionalUid: order.profesionalUid,
+    };
+    await closeAttention(tx, orderRef, {...atencion, items: atencion?.items ?? order.borrador?.items},
+        clinicalContext, {...context, audit}, followup, snapshots);
     if (appointmentRef) tx.update(appointmentRef, {...audit, estado: "finalizada"});
     if (currentLock?.get("atencionId") === atencionId) tx.delete(currentBox);
     return {atencionId};
   });
 }
 
-async function mutateLegacyAttention({citaId, operacion, atencion}, {db, uid, businessId, businessRef, HttpsError, FieldValue}) {
+async function mutateLegacyAttention({citaId, operacion, atencion}, context) {
+  const {db, uid, businessId, businessRef, HttpsError, FieldValue} = context;
   const appointmentRef = businessRef.collection("citasVeterinarias").doc(citaId);
   const attentionRef = businessRef.collection("atencionesVeterinarias").doc(citaId);
+  let followup;
+  if (operacion === "cerrar" && ["control", "derivacion"].includes(closureOutcome(atencion))) {
+    const [appointmentRefSnapshot, attentionRefSnapshot] = await db.getAll(appointmentRef, attentionRef);
+    const appointment = appointmentRefSnapshot.data();
+    const attention = attentionRefSnapshot.data();
+    if (appointment?.negocioId === businessId && !appointment.atencionId && appointment.estado === "en_atencion" &&
+        attention?.negocioId === businessId && attention.estado === "en_atencion" &&
+        attention.pacienteId === appointment.pacienteId && attention.citaId === citaId) {
+      followup = await prepareClinicalFollowup(atencion, {
+        atencionId: citaId, pacienteId: attention.pacienteId,
+        profesionalUid: attention.profesionalUid || appointment.profesionalUid,
+      }, context, true);
+    }
+  }
+  const refs = uniqueReferences([appointmentRef, attentionRef, ...(followup?.refs ?? [])]);
 
   return db.runTransaction(async (tx) => {
-    const [appointmentSnapshot, attentionSnapshot] = await tx.getAll(appointmentRef, attentionRef);
+    const snapshots = await tx.getAll(...refs);
+    const [appointmentSnapshot, attentionSnapshot] = snapshots;
     const appointment = appointmentSnapshot.data();
     const existing = attentionSnapshot.data();
     if (!appointment || appointment.negocioId !== businessId) {
@@ -397,8 +573,9 @@ async function mutateLegacyAttention({citaId, operacion, atencion}, {db, uid, bu
       throw new HttpsError("failed-precondition", "Inicia la atención antes de cerrarla.");
     }
 
-    await closeAttention(tx, attentionRef, atencion, {citaId, pacienteId},
-        {businessRef, businessId, uid, audit, HttpsError, FieldValue});
+    await closeAttention(tx, attentionRef, {...atencion, items: atencion?.items ?? existing.borrador?.items},
+        {citaId, pacienteId, profesionalUid: existing.profesionalUid || appointment.profesionalUid}, {...context, audit},
+        followup, new Map(snapshots.map((snapshot) => [snapshot.ref.path, snapshot])));
     tx.update(appointmentRef, {...audit, estado: "finalizada"});
     return {atencionId: citaId};
   });
@@ -412,14 +589,24 @@ async function saveDraft(tx, attentionRef, existing, atencion, {audit, HttpsErro
   } catch (error) {
     throw modelError(error, HttpsError);
   }
+  const previous = existing.borrador?.resultadoClinico === draft.resultadoClinico ? existing.borrador : undefined;
+  const followup = clinicalFollowupFields({
+    control: atencion?.control ?? previous?.control,
+    derivacion: atencion?.derivacion ?? previous?.derivacion,
+  }, draft.resultadoClinico, HttpsError, true);
   // Sin lista de ítems en la solicitud se conserva la del borrador anterior.
-  tx.update(attentionRef, {borrador: {...draft, items: draft.items ?? existing.borrador?.items ?? []}, ...audit});
+  tx.update(attentionRef, {borrador: {...draft, ...followup, items: draft.items ?? existing.borrador?.items ?? []}, ...audit});
 }
 
-async function closeAttention(tx, attentionRef, atencion, identity, {businessRef, businessId, uid, audit, HttpsError, FieldValue}) {
+async function closeAttention(tx, attentionRef, atencion, identity, context, followup, snapshots) {
+  const {businessRef, businessId, uid, audit, HttpsError, FieldValue} = context;
   const {buildVeterinaryAttentionMutationPayload} = await importVeterinaryModel("attentionModel");
   const {buildVeterinaryClinicalClosureMutationPayload} = await importVeterinaryModel("clinicalClosureModel");
-  const references = await loadReferences(tx, businessRef, businessId, atencion?.items ?? [], HttpsError);
+  const entries = await loadReferences(tx, businessRef, businessId, atencion?.items ?? [], HttpsError);
+  if (identity.atencionId && entries.length === 0) {
+    throw new HttpsError("failed-precondition", "Añade al menos un servicio o producto de Inventario para generar la venta.");
+  }
+  const references = entries.map(({reference}) => reference);
   let clinical;
   let closure;
   try {
@@ -432,10 +619,13 @@ async function closeAttention(tx, attentionRef, atencion, identity, {businessRef
   } catch (error) {
     throw modelError(error, HttpsError);
   }
+  const {booking, professional, patch} = readClinicalFollowup(followup, closure, snapshots, identity, context);
+  const sale = entries.length ? await stageVeterinarySale(tx, attentionRef, identity, entries, context) : {};
+  if (booking) writeVeterinaryControlAppointment(tx, booking, professional, context);
   tx.update(attentionRef, {
     ...clinical, ...audit, resultadoClinico: closure.resultadoClinico,
     estado: "finalizada", finalizadaEn: audit.actualizadoEn, finalizadoPorUid: uid,
-    borrador: FieldValue.delete(),
+    borrador: FieldValue.delete(), ...sale, ...patch,
   });
 }
 
@@ -458,7 +648,11 @@ async function loadReferences(tx, business, businessId, items, HttpsError) {
       throw new HttpsError("failed-precondition", "El ítem no está disponible en el inventario de esta empresa.");
     }
     try {
-      return buildVeterinaryInventoryReference({...snapshot.data(), id: snapshot.id}, items[index].cantidad);
+      const inventory = snapshot.data();
+      return {
+        reference: buildVeterinaryInventoryReference({...inventory, id: snapshot.id}, items[index].cantidad),
+        snapshot: inventory,
+      };
     } catch (error) {
       throw new HttpsError("failed-precondition", error.message);
     }

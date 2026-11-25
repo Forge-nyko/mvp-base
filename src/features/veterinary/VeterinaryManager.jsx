@@ -10,6 +10,8 @@ import Button from "../../components/ui/Button";
 import EmptyState from "../../components/ui/EmptyState";
 import LoadingState from "../../components/ui/LoadingState";
 import ModuleHeader from "../../components/ui/ModuleHeader";
+import VeterinaryDailyAppointments from "./agenda/VeterinaryDailyAppointments";
+import useVeterinaryPatientDirectory from "./useVeterinaryPatientDirectory";
 import "./veterinary-lists.css";
 
 import {
@@ -290,6 +292,7 @@ function VeterinaryManager({
         <LoadingState variant="section" label="Cargando Clínica Veterinaria..." />
       ) : (
         <>
+          {!veterinaryDataError && <VeterinaryDailyAppointments appointments={appointments} patients={patients} />}
           {veterinaryDataError ? (
             <div className="erp-empty-state" role="alert">
               {veterinaryDataError}
@@ -338,6 +341,37 @@ function VeterinaryCounts({ label, counts }) {
         </div>
       ))}
     </div>
+  );
+}
+
+export function VeterinaryProfessionalHome({businessId, professionalUid}) {
+  const navigate = useNavigate();
+  const [appointments, setAppointments] = useState(null);
+  const [appointmentsError, setAppointmentsError] = useState("");
+  const {patients, error: patientError} = useVeterinaryPatientDirectory(businessId, professionalUid, appointments);
+
+  useEffect(() => {
+    if (!businessId) return undefined;
+    return subscribeToVeterinaryAppointments(businessId, setAppointments,
+      () => setAppointmentsError("No se pudieron consultar tus citas."), professionalUid);
+  }, [businessId, professionalUid]);
+
+  const error = appointmentsError || patientError;
+  return (
+    <section className="erp-page">
+      <ModuleHeader className="veterinary-module-header" icon={Activity}
+        title="Resumen clínico" description="Consulta tus citas y órdenes de atención asignadas."
+        actions={
+          <>
+            <Button type="button" icon={CalendarDays} onClick={() => navigate("/clinica-veterinaria/agenda")}>Mis citas</Button>
+            <Button type="button" variant="secondary" icon={ClipboardList}
+              onClick={() => navigate("/clinica-veterinaria/ordenes")}>Mis órdenes</Button>
+          </>
+        } />
+      {error ? <p className="erp-empty-state" role="alert">{error}</p>
+        : appointments && patients ? <VeterinaryDailyAppointments appointments={appointments} patients={patients} />
+        : <LoadingState variant="section" label="Cargando tus citas..." />}
+    </section>
   );
 }
 

@@ -15,6 +15,8 @@ const {HttpsError} = require("firebase-functions/v2/https");
 const {requireOperationalBusinessAccess} = require("../functions/businessOnboarding");
 const {guardarRecepcionVeterinariaHandler} = require("../functions/veterinaryReceptionPersistence");
 const {guardarAtencionVeterinariaHandler} = require("../functions/veterinaryAttentionPersistence");
+const {guardarCitaVeterinariaHandler} = require("../functions/veterinaryAppointmentPersistence");
+const {listarCatalogoVeterinarioParaAtencionHandler} = require("../functions/veterinaryAssignedCatalog");
 
 const adminApp = admin.initializeApp({projectId});
 const app = initializeApp({projectId, apiKey: "demo-key"});
@@ -32,6 +34,8 @@ try {
   const professional = await admin.auth().createUser({displayName: "Profesional de prueba"});
   const outsider = await admin.auth().createUser({displayName: "Profesional de otra clínica"});
   const technician = await admin.auth().createUser({displayName: "Técnico de prueba"});
+  const veterinarian = await admin.auth().createUser({displayName: "Veterinaria de prueba"});
+  const otherVeterinarian = await admin.auth().createUser({displayName: "Veterinario de prueba"});
   const businessId = "ordenes-" + randomUUID();
   const otherBusinessId = "otra-" + randomUUID();
   const business = db.doc("negocios/" + businessId);
@@ -41,6 +45,8 @@ try {
   };
   const membership = (member, rol, company = businessId) =>
     db.doc("membresias/" + company + "__" + member.uid).set({uid: member.uid, negocioId: company, estado: "activo", rol});
+  const vetProfile = {negocioId: businessId, estado: "activo", nombre: "Veterinario", modulos: ["veterinaria_asignada"]};
+  const vetProfileRef = business.collection("perfilesEmpleados").doc("perfil-veterinario");
   const patients = business.collection("pacientesVeterinarios");
   const appointments = business.collection("citasVeterinarias");
   const orders = business.collection("atencionesVeterinarias");
@@ -50,6 +56,7 @@ try {
   const cancelCitaId = "cita-por-cancelar";
   const cancelOrderId = "orden-por-cancelar";
   const cancelSlot = business.collection("cuposVeterinarios").doc("2026-11-29_1130");
+  const unreservedSlot = {fecha: "2099-11-20", hora: "10:45"};
   const orderId = "orden-programada";
   const emergencyId = "orden-emergencia";
   const directId = "orden-directa";
@@ -60,16 +67,24 @@ try {
     membership(professional, "ADMIN"),
     membership(technician, "TECNICO"),
     membership(outsider, "OWNER", otherBusinessId),
+    vetProfileRef.set(vetProfile),
+    ...[veterinarian, otherVeterinarian].map(({uid}) => db.doc("membresias/" + businessId + "__" + uid)
+      .set({uid, negocioId: businessId, estado: "activo", rol: "MEMBER", profileId: vetProfileRef.id})),
     db.doc("usuarios/" + professional.uid + "/cuenta/perfil").set({nombres: "Profesional", apellidos: "de prueba"}),
-    business.collection("clientes").doc("tutor-ficticio").set({negocioId: businessId, estado: "activo"}),
+    business.collection("clientes").doc("tutor-ficticio").set({
+      negocioId: businessId, estado: "activo", clienteId: "tutor-ficticio", nombreRazonSocial: "Tutor ficticio",
+    }),
     patients.doc(pacienteId).set({negocioId: businessId, estado: "activo", tutorClienteId: "tutor-ficticio"}),
+    business.collection("inventario").doc("control-ficticio").set({
+      negocioId: businessId, estado: "activo", nombre: "Control ficticio", tipoItem: "servicio", costo: 123, precioInterno: 10000,
+    }),
     otherBusiness.collection("pacientesVeterinarios").doc("paciente-ajeno").set({negocioId: otherBusinessId, estado: "activo"}),
     appointments.doc(cancelCitaId).set({
       negocioId: businessId, pacienteId, estado: "agendada", motivo: "Cita para cancelar", fecha: "2026-11-29", hora: "11:30",
     }),
     cancelSlot.set({citaId: cancelCitaId}),
-    ...[citaId, legacyCitaId].map((id) =>
-      appointments.doc(id).set({negocioId: businessId, pacienteId, estado: "agendada", motivo: "Control ficticio"})),
+    appointments.doc(legacyCitaId).set({negocioId: businessId, pacienteId, estado: "agendada", motivo: "Control ficticio"}),
+    appointments.doc("cita-sin-reserva").set({negocioId: businessId, pacienteId, estado: "confirmada", ...unreservedSlot}),
   ]);
 
   const handle = (operacion, data, uid = owner.uid) =>
@@ -81,6 +96,21 @@ try {
   const directData = {origen: "directa", pacienteId, horaLlegada: "09:20", prioridad: "normal", motivoConsulta: "Llegada sin cita"};
   const emergencyData = {...directData, origen: "emergencia", horaLlegada: "09:25", prioridad: "urgente", motivoConsulta: "Urgencia ficticia"};
   const fromCalendar = {atencionId: orderId, citaId, atencion: {origen: "cita"}};
+  const appointmentData = {pacienteId, fecha: "2099-11-20", hora: "10:00", motivo: "Control ficticio"};
+  const saveAppointment = (operacion, cita, actorUid = owner.uid) => guardarCitaVeterinariaHandler({
+    auth: {uid: actorUid}, data: {businessId, citaId, operacion, cita},
+  }, dependencies);
+
+  await assert.rejects(saveAppointment("crear", {...appointmentData, profesionalUid: outsider.uid}), {code: "failed-precondition"});
+  await assert.rejects(saveAppointment("crear", {...appointmentData, profesionalUid: veterinarian.uid}, veterinarian.uid),
+    {code: "permission-denied"});
+  await saveAppointment("crear", {...appointmentData, profesionalUid: veterinarian.uid});
+  assert.equal((await appointments.doc(citaId).get()).get("profesionalUid"), veterinarian.uid);
+  await saveAppointment("reprogramar", {...appointmentData, hora: "10:15", profesionalUid: ""});
+  assert.equal((await appointments.doc(citaId).get()).get("profesionalUid"), "");
+  await saveAppointment("reprogramar", {...appointmentData, profesionalUid: otherVeterinarian.uid});
+  await saveAppointment("reprogramar", {...appointmentData, hora: "10:15"});
+  assert.equal((await appointments.doc(citaId).get()).get("profesionalUid"), otherVeterinarian.uid);
 
   await assert.rejects(handle("crearOrden", fromCalendar), {code: "failed-precondition"});
   await assert.rejects(handle("crearOrden", fromCalendar, outsider.uid), {code: "permission-denied"});
@@ -94,6 +124,7 @@ try {
   assert.equal(waiting.origen, "cita");
   assert.equal(waiting.pacienteId, pacienteId);
   assert.equal(waiting.citaId, citaId);
+  assert.equal(waiting.profesionalUid, otherVeterinarian.uid);
   assert.equal(waiting.recepcion.horaLlegada, "09:15");
   assert.equal(waiting.triage.prioridad, "prioritaria");
   assert.equal(waiting.triage.pesoKg, 5);
@@ -102,7 +133,7 @@ try {
   assert.deepEqual(await handle("crearOrden", fromCalendar), {atencionId: orderId});
   await assert.rejects(create("otra-orden", {origen: "cita"}, {citaId}), {code: "already-exists"});
   assert.equal((await orders.doc("otra-orden").get()).exists, false);
-  await assert.rejects(handle("iniciar", {atencionId: orderId}), {code: "failed-precondition"});
+  await assert.rejects(handle("iniciar", {atencionId: orderId}, otherVeterinarian.uid), {code: "failed-precondition"});
 
   const appointmentCount = (await appointments.get()).size;
   assert.deepEqual(await create(directId, directData), {atencionId: directId});
@@ -127,12 +158,29 @@ try {
   await assert.rejects(handle("asignarOrden", {
     atencionId: orderId, atencion: {...assignment, profesionalUid: technician.uid},
   }), {code: "failed-precondition"});
+
+  const vetAssignment = {atencionId: directId, atencion: {...assignment, box: "Box de prueba", profesionalUid: veterinarian.uid}};
+  for (const invalidProfile of [
+    {...vetProfile, nombre: "Tecnico veterinario", modulos: ["inventario"]},
+    {...vetProfile, estado: "inactivo"},
+    {...vetProfile, negocioId: otherBusinessId},
+  ]) {
+    await vetProfileRef.set(invalidProfile);
+    await assert.rejects(handle("asignarOrden", vetAssignment), {code: "failed-precondition"});
+  }
+  await vetProfileRef.set(vetProfile);
+  await assert.rejects(handle("asignarOrden", vetAssignment, veterinarian.uid), {code: "permission-denied"});
+  assert.deepEqual(await handle("asignarOrden", vetAssignment), {atencionId: directId});
+  assert.equal((await orders.doc(directId).get()).get("profesionalUid"), veterinarian.uid);
+  await assert.rejects(handle("iniciar", {atencionId: directId}, otherVeterinarian.uid), {code: "permission-denied"});
+
   assert.deepEqual(await handle("asignarOrden", {atencionId: orderId, atencion: assignment}), {atencionId: orderId});
   const assigned = (await orders.doc(orderId).get()).data();
   assert.equal(assigned.box, assignment.box);
   assert.equal(assigned.tipoAtencion, assignment.tipoAtencion);
   assert.equal(assigned.profesionalUid, professional.uid);
   assert.equal(assigned.profesionalNombre, "Profesional de prueba");
+  assert.equal((await appointments.doc(citaId).get()).get("profesionalUid"), professional.uid);
   await assert.rejects(handle("asignarOrden", {
     atencionId: directId, atencion: {...assignment, box: "  box 1  "},
   }), {code: "already-exists"});
@@ -150,7 +198,8 @@ try {
 
   const clinical = {
     motivoConsulta: "Control ficticio", diagnostico: "Diagnóstico de prueba", tratamiento: "Observación",
-    indicaciones: "Seguimiento", resultadoClinico: "control",
+    indicaciones: "Seguimiento", resultadoClinico: "alta",
+    items: [{itemId: "control-ficticio", cantidad: 1}],
   };
   const recipe = {
     recetaId: "receta-ficticia",
@@ -178,10 +227,27 @@ try {
 
   await handle("borrador", {atencionId: orderId, atencion: {diagnostico: "Borrador ficticio"}}, professional.uid);
   assert.equal((await orders.doc(orderId).get()).get("borrador.diagnostico"), "Borrador ficticio");
+  await handle("borrador", {atencionId: orderId, atencion: {
+    resultadoClinico: "derivacion", derivacion: {tipo: "interna"},
+  }}, professional.uid);
+  assert.deepEqual((await orders.doc(orderId).get()).get("borrador.derivacion"), {tipo: "interna", profesionalUid: ""});
   await assert.rejects(handle("cerrar", {atencionId: orderId, atencion: clinical}), {code: "permission-denied"});
-  assert.deepEqual(await handle("cerrar", {atencionId: orderId, atencion: clinical}, professional.uid), {atencionId: orderId});
+  const refer = (derivacion) => handle("cerrar", {
+    atencionId: orderId, atencion: {...clinical, resultadoClinico: "derivacion", derivacion},
+  }, professional.uid);
+  await assert.rejects(refer(undefined), {code: "invalid-argument"});
+  for (const {uid} of [owner, professional, technician, outsider]) {
+    await assert.rejects(refer({tipo: "interna", profesionalUid: uid}), {code: "failed-precondition"});
+  }
+  await vetProfileRef.update({estado: "inactivo"});
+  await assert.rejects(refer({tipo: "interna", profesionalUid: veterinarian.uid}), {code: "failed-precondition"});
+  await vetProfileRef.set(vetProfile);
+  assert.equal((await orders.doc(orderId).get()).get("estado"), "en_atencion");
+  assert.equal((await refer({tipo: "interna", profesionalUid: veterinarian.uid, profesionalNombre: "Nombre manipulado"})).atencionId, orderId);
   const closed = (await orders.doc(orderId).get()).data();
   assert.equal(closed.estado, "finalizada");
+  assert.deepEqual(closed.derivacion, {tipo: "interna", profesionalUid: veterinarian.uid, profesionalNombre: "Veterinaria de prueba"});
+  assert.equal(closed.control, undefined);
   assert.equal(closed.finalizadoPorUid, professional.uid);
   assert.equal(closed.borrador, undefined);
   assert.deepEqual(closed.recetas, [issued], "el cierre conserva la receta original y su auditoría");
@@ -189,14 +255,65 @@ try {
   assert.deepEqual(await issue(), recipeResult);
   await assert.rejects(issue({...recipe, recetaId: "receta-posterior"}), {code: "failed-precondition"});
 
-  await handle("asignarOrden", {atencionId: directId, atencion: assignment});
-  await handle("iniciar", {atencionId: directId}, professional.uid);
-  await handle("borrador", {atencionId: directId, atencion: {diagnostico: "Borrador directo"}}, professional.uid);
-  await handle("cerrar", {atencionId: directId, atencion: clinical}, professional.uid);
+  await handle("asignarOrden", {atencionId: directId, atencion: {...assignment, profesionalUid: veterinarian.uid}});
+  await handle("iniciar", {atencionId: directId}, veterinarian.uid);
+  const readCatalog = (uid) => listarCatalogoVeterinarioParaAtencionHandler({auth: {uid}, data: {businessId, atencionId: directId}}, dependencies);
+  await assert.rejects(readCatalog(otherVeterinarian.uid), {code: "not-found"});
+  assert.deepEqual(await readCatalog(veterinarian.uid), {
+    items: [{id: "control-ficticio", nombre: "Control ficticio", tipoItem: "servicio", unidad: "unidad", estado: "activo"}],
+  });
+  await handle("borrador", {atencionId: directId, atencion: {diagnostico: "Borrador directo"}}, veterinarian.uid);
+  await assert.rejects(handle("emitirReceta", {atencionId: directId, atencion: recipe}, otherVeterinarian.uid), {code: "permission-denied"});
+  await handle("emitirReceta", {atencionId: directId, atencion: recipe}, veterinarian.uid);
+  await vetProfileRef.update({modulos: ["inventario"]});
+  await assert.rejects(handle("cerrar", {atencionId: directId, atencion: clinical}, veterinarian.uid), {code: "permission-denied"});
+  await vetProfileRef.set(vetProfile);
+  const closeWithControl = (control) => handle("cerrar", {
+    atencionId: directId, atencion: {...clinical, resultadoClinico: "control", control},
+  }, veterinarian.uid);
+  const controlSlot = {fecha: appointmentData.fecha, hora: "11:15"};
+  await handle("borrador", {atencionId: directId, atencion: {
+    resultadoClinico: "control", control: {fecha: controlSlot.fecha},
+  }}, veterinarian.uid);
+  assert.deepEqual((await orders.doc(directId).get()).get("borrador.control"), {fecha: controlSlot.fecha, hora: ""});
+  await assert.rejects(closeWithControl(undefined), {code: "invalid-argument"});
+  await assert.rejects(closeWithControl({...controlSlot, fecha: "2000-01-01"}), {code: "invalid-argument"});
+  const occupiedSlot = {fecha: appointmentData.fecha, hora: "10:15"};
+  await assert.rejects(closeWithControl(occupiedSlot), {code: "already-exists"});
+  await assert.rejects(closeWithControl(unreservedSlot), {code: "already-exists"});
+  const stillOpen = await orders.doc(directId).get();
+  assert.equal(stillOpen.get("estado"), "en_atencion");
+  assert.equal(stillOpen.get("ventaEstado"), undefined);
+  assert.equal((await appointments.get()).size, appointmentCount);
+
+  assert.equal((await closeWithControl(controlSlot)).atencionId, directId);
   const directClosed = (await orders.doc(directId).get()).data();
   assert.equal(directClosed.estado, "finalizada");
   assert.equal(directClosed.diagnostico, clinical.diagnostico);
+  assert.equal(directClosed.finalizadoPorUid, veterinarian.uid);
+  assert.equal(directClosed.recetas[0].profesionalUid, veterinarian.uid);
   assert.ok(!directClosed.citaId, "cerrar una orden directa no fabrica un id de cita");
+  const {citaId: controlCitaId} = directClosed.control;
+  assert.ok(controlCitaId && controlCitaId !== citaId);
+  assert.deepEqual(directClosed.control, {citaId: controlCitaId, ...controlSlot});
+  const controlAppointment = await appointments.doc(controlCitaId).get();
+  for (const [field, value] of Object.entries({
+    ...controlSlot, negocioId: businessId, pacienteId, tutorClienteId: "tutor-ficticio",
+    estado: "agendada", motivo: "Control veterinario", zonaHoraria: "America/Santiago", profesionalUid: veterinarian.uid,
+  })) {
+    assert.equal(controlAppointment.get(field), value);
+  }
+  const reserved = await business.collection("cuposVeterinarios").doc(`${controlSlot.fecha}_1115`).get();
+  assert.equal(reserved.get("citaId"), controlCitaId);
+  const notificationRefs = ["confirmacion", "recordatorio"].map((type) =>
+    business.collection("avisosCitasVeterinarias").doc(`${controlCitaId}__${type}`));
+  const initialNotices = await db.getAll(...notificationRefs);
+  assert.deepEqual(initialNotices.map((notice) => notice.get("tipo")), ["confirmacion", "recordatorio"]);
+  assert.ok(initialNotices.every((notice) => notice.get("citaId") === controlCitaId && notice.get("estado") === "pendiente"));
+  await closeWithControl({...controlSlot, hora: "11:45"});
+  assert.deepEqual((await orders.doc(directId).get()).get("control"), directClosed.control);
+  const retriedNotices = await db.getAll(...notificationRefs);
+  assert.deepEqual(retriedNotices.map((notice) => notice.get("revision")), initialNotices.map((notice) => notice.get("revision")));
 
   // Cerrar la primera orden liberó el box para la directa. Cancelar otra orden
   // libera sus reservas, conservando la orden y su vínculo con la cita.
@@ -210,16 +327,48 @@ try {
   assert.equal((await appointments.doc(cancelCitaId).get()).get("estado"), "cancelada");
   assert.equal((await appointments.doc(cancelCitaId).get()).get("atencionId"), cancelOrderId);
   assert.equal((await cancelSlot.get()).exists, false);
-  await handle("asignarOrden", {atencionId: emergencyId, atencion: cancelAssignment});
-  await handle("iniciar", {atencionId: emergencyId}, professional.uid);
-  await handle("cerrar", {atencionId: emergencyId, atencion: clinical}, professional.uid);
-  assert.equal((await orders.doc(emergencyId).get()).get("estado"), "finalizada");
+  await handle("asignarOrden", {atencionId: emergencyId, atencion: {...cancelAssignment, profesionalUid: otherVeterinarian.uid}});
+  await handle("iniciar", {atencionId: emergencyId}, otherVeterinarian.uid);
+  await assert.rejects(handle("cerrar", {atencionId: emergencyId, atencion: clinical}, veterinarian.uid), {code: "permission-denied"});
+  await handle("cerrar", {atencionId: emergencyId, atencion: {
+    ...clinical, resultadoClinico: "derivacion", derivacion: {tipo: "externa", profesionalUid: outsider.uid},
+  }}, otherVeterinarian.uid);
+  const externalOrder = await orders.doc(emergencyId).get();
+  assert.equal(externalOrder.get("estado"), "finalizada");
+  assert.deepEqual(externalOrder.get("derivacion"), {tipo: "externa"});
+  assert.equal(externalOrder.get("control"), undefined);
 
   await receive(legacyCitaId, "normal");
   assert.deepEqual(await handle("iniciar", {citaId: legacyCitaId}), {atencionId: legacyCitaId});
   assert.deepEqual(await handle("cerrar", {citaId: legacyCitaId, atencion: clinical}), {atencionId: legacyCitaId});
   assert.equal((await orders.doc(legacyCitaId).get()).get("estado"), "finalizada");
-  assert.equal((await appointments.get()).size, appointmentCount);
+  assert.equal((await appointments.get()).size, appointmentCount + 1, "solo el control agrega una cita");
+
+  const concurrentOrderId = "orden-control-concurrente";
+  const manualCitaId = "cita-manual-concurrente";
+  const concurrentSlot = {fecha: appointmentData.fecha, hora: "12:15"};
+  await create(concurrentOrderId, directData);
+  await handle("asignarOrden", {atencionId: concurrentOrderId, atencion: {
+    ...assignment, box: "Box concurrente", profesionalUid: veterinarian.uid,
+  }});
+  await handle("iniciar", {atencionId: concurrentOrderId}, veterinarian.uid);
+  const [closeResult, manualResult] = await Promise.allSettled([
+    handle("cerrar", {atencionId: concurrentOrderId, atencion: {
+      ...clinical, resultadoClinico: "control", control: concurrentSlot,
+    }}, veterinarian.uid),
+    guardarCitaVeterinariaHandler({auth: {uid: owner.uid}, data: {
+      businessId, citaId: manualCitaId, operacion: "crear", cita: {...appointmentData, ...concurrentSlot},
+    }}, dependencies),
+  ]);
+  assert.notEqual(closeResult.status, manualResult.status, "solo una operación obtiene el cupo concurrente");
+  const rejected = closeResult.status === "rejected" ? closeResult : manualResult;
+  assert.equal(rejected.reason.code, "already-exists", rejected.reason.message);
+  const concurrentOrder = await orders.doc(concurrentOrderId).get();
+  assert.equal(concurrentOrder.get("estado"), closeResult.status === "fulfilled" ? "finalizada" : "en_atencion");
+  if (closeResult.status === "rejected") assert.equal(concurrentOrder.get("ventaEstado"), undefined);
+  const bookings = await appointments.where("fecha", "==", concurrentSlot.fecha).where("hora", "==", concurrentSlot.hora).get();
+  assert.equal(bookings.size, 1);
+  assert.equal(bookings.docs[0].id, closeResult.status === "fulfilled" ? concurrentOrder.get("control.citaId") : manualCitaId);
 
   const clientOrder = doc(clientDb, "negocios", businessId, "atencionesVeterinarias", orderId);
   assert.equal((await getDoc(clientOrder)).get("estado"), "finalizada");

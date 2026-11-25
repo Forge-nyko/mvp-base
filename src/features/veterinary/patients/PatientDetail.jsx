@@ -1,4 +1,4 @@
-import React from "react";
+import React, {useEffect, useState} from "react";
 import {
   CalendarDays,
   ClipboardPlus,
@@ -10,12 +10,15 @@ import {
 
 import Button from "../../../components/ui/Button";
 import StatusBadge from "../../../components/ui/StatusBadge";
+import {VeterinaryClinicalFollowUpSummary} from "../attention/VeterinaryClinicalFollowUp";
 import {VeterinaryPrescriptionList} from "../attention/VeterinaryPrescriptions";
 import useBusinessFormat from "../../../hooks/useBusinessFormat";
 import {formatDate} from "../../../utils/formatters";
 
 import {VETERINARY_CLINICAL_OUTCOME_LABELS} from "../domain/clinicalClosureModel.mjs";
+import {getVeterinaryPatientProfilePhoto} from "../data/veterinaryDataService";
 import {formatVeterinaryPatientAge} from "../domain/patientModel.mjs";
+import VeterinaryPatientAvatar from "./VeterinaryPatientAvatar";
 import "./patient-detail.css";
 
 const PATIENT_STATUS_LABELS = Object.freeze({
@@ -39,6 +42,7 @@ function EmptySection({ children }) {
 }
 
 export default function PatientDetail({
+  businessId,
   patient,
   tutor = null,
   appointments = [],
@@ -46,15 +50,28 @@ export default function PatientDetail({
   loading = false,
   error = "",
   canMutate = false,
+  showTutor = true,
   showClinicalActivity = true,
   showHistory = showClinicalActivity,
   renderHistoryPhotos,
+  renderHistoryActions,
   onEditPatient,
   onViewTutor,
   onScheduleAppointment,
   onStartAttention,
 }) {
   const {locale} = useBusinessFormat();
+  const patientId = patient?.id;
+  const [photoResult, setPhotoResult] = useState(null);
+  useEffect(() => {
+    if (!canMutate || !businessId || !patientId) return undefined;
+    let active = true;
+    getVeterinaryPatientProfilePhoto(businessId, patientId)
+      .then((photo) => { if (active) setPhotoResult({businessId, patientId, photo}); })
+      .catch(() => { if (active) setPhotoResult({businessId, patientId, photo: null}); });
+    return () => { active = false; };
+  }, [businessId, canMutate, patientId]);
+
   if (loading) {
     return (
       <main className="erp-page veterinary-patient-page">
@@ -98,6 +115,8 @@ export default function PatientDetail({
   const age = formatVeterinaryPatientAge(patient.fechaNacimiento, new Date());
   const patientStatus =
     PATIENT_STATUS_LABELS[patient.estado] || "Activo";
+  const profilePhoto = photoResult && photoResult.businessId === businessId && photoResult.patientId === patientId
+    ? photoResult.photo : patient.fotoPerfil;
 
   return (
     <main className="erp-page veterinary-patient-page">
@@ -106,24 +125,27 @@ export default function PatientDetail({
         <div className="erp-page-header__content">
 
           <div className="veterinary-patient-title-row">
-            <div>
-              <p className="veterinary-patient-eyebrow">
-                Ficha integral del paciente
-              </p>
+            <div className="veterinary-patient-title">
+              <VeterinaryPatientAvatar photo={profilePhoto} alt={"Foto de perfil de " + (patient.nombre || "la mascota")} />
+              <div>
+                <p className="veterinary-patient-eyebrow">
+                  Ficha integral del paciente
+                </p>
 
-              <h1 className="erp-page-header__title">
-                {patient.nombre || "Paciente"}
-              </h1>
+                <h1 className="erp-page-header__title">
+                  {patient.nombre || "Paciente"}
+                </h1>
 
-              <p className="erp-page-header__description">
-                {[
-                  patient.especie,
-                  patient.raza,
-                  patient.sexo,
-                ]
-                  .filter(Boolean)
-                  .join(" · ") || "Sin información adicional"}
-              </p>
+                <p className="erp-page-header__description">
+                  {[
+                    patient.especie,
+                    patient.raza,
+                    patient.sexo,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "Sin información adicional"}
+                </p>
+              </div>
             </div>
 
             <StatusBadge
@@ -219,7 +241,7 @@ export default function PatientDetail({
         </section>
 
         {/* Tutor */}
-        <section className="erp-panel veterinary-patient-card">
+        {showTutor && <section className="erp-panel veterinary-patient-card">
 
           <div className="veterinary-patient-section-title">
             <UserRound size={20} />
@@ -288,7 +310,7 @@ export default function PatientDetail({
             </EmptySection>
           )}
 
-        </section>
+        </section>}
 
         {/* Antecedentes */}
         <section className="erp-panel veterinary-patient-card">
@@ -447,6 +469,7 @@ export default function PatientDetail({
                         {VETERINARY_CLINICAL_OUTCOME_LABELS[attention.resultadoClinico] && (
                           <p><strong>Resultado clínico:</strong> {VETERINARY_CLINICAL_OUTCOME_LABELS[attention.resultadoClinico]}</p>
                         )}
+                        {(attention.control || attention.derivacion) && <VeterinaryClinicalFollowUpSummary attention={attention} compact />}
                         {[...(attention.servicios ?? []), ...(attention.productos ?? [])].length > 0 && (
                           <ul>
                             {[...(attention.servicios ?? []), ...(attention.productos ?? [])].map((item) => (
@@ -458,10 +481,12 @@ export default function PatientDetail({
                         {attention.recetas?.length > 0 && (
                           <section>
                             <h4>Recetas veterinarias</h4>
-                            <VeterinaryPrescriptionList prescriptions={attention.recetas} />
+                            <VeterinaryPrescriptionList prescriptions={attention.recetas} businessId={businessId}
+                              patient={patient} tutorName={showTutor ? tutor?.nombreRazonSocial : undefined} />
                           </section>
                         )}
                         {renderHistoryPhotos?.(attention)}
+                        {renderHistoryActions?.(attention)}
                       </div>
                     </article>
                   ))}

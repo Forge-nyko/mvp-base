@@ -45,6 +45,67 @@
   justify-self: start;
 }
 
+.veterinary-daily-appointments {
+  container-type: inline-size;
+}
+
+.veterinary-daily-appointments__controls,
+.veterinary-daily-appointments__meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.veterinary-daily-appointments__track {
+  display: grid;
+  gap: var(--space-3);
+  grid-auto-columns: 100%;
+  grid-auto-flow: column;
+  list-style: none;
+  margin: 0;
+  overflow-x: auto;
+  padding: var(--space-1);
+  scroll-padding-inline: var(--space-1);
+  scroll-snap-type: x mandatory;
+}
+
+.veterinary-daily-appointments__card {
+  background: var(--color-surface-subtle);
+  display: grid;
+  gap: var(--space-3);
+  grid-template-rows: auto 1fr auto;
+  overflow-wrap: anywhere;
+  padding: var(--space-3);
+  scroll-snap-align: start;
+}
+
+.veterinary-daily-appointments__card > button {
+  justify-self: start;
+}
+
+.veterinary-daily-appointments__meta {
+  justify-content: space-between;
+}
+
+.veterinary-daily-appointments__meta time {
+  color: var(--color-text-brand);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+@container (min-width: 36rem) {
+  .veterinary-daily-appointments__track {
+    grid-auto-columns: calc((100% - var(--space-3)) / 2);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .veterinary-daily-appointments__track {
+    scroll-behavior: smooth;
+  }
+}
+
 @media (max-width: 640px) {
   header.veterinary-module-header {
     display: grid;

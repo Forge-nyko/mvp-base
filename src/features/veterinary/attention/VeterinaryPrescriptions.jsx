@@ -1,8 +1,10 @@
 import React, {useId, useState} from "react";
+import {Printer} from "lucide-react";
 import Button from "../../../components/ui/Button";
 import useBusinessFormat from "../../../hooks/useBusinessFormat";
-import {formatDate} from "../../../utils/formatters";
+import {formatTimestamp} from "../../../utils/formatters";
 import {operarOrdenVeterinaria} from "../data/veterinaryDataService";
+import VeterinaryPrescriptionPrint from "./VeterinaryPrescriptionPrint";
 
 const fields = [
   {name: "nombre", label: "Medicamento", max: 120, guide: "Escribe el nombre y la presentación"},
@@ -16,31 +18,42 @@ function createMedication() {
   return {key: crypto.randomUUID(), ...Object.fromEntries(fields.map(({name}) => [name, ""]))};
 }
 
-export function VeterinaryPrescriptionList({prescriptions = []}) {
+export function VeterinaryPrescriptionList({prescriptions = [], businessId, patient, patientId, assignedOnly, tutorName}) {
   const {locale} = useBusinessFormat();
+  const [printRecipe, setPrintRecipe] = useState(null);
   if (!prescriptions.length) return null;
   return (
-    <ul className="veterinary-record-list">
-      {prescriptions.map((recipe) => (
-        <li key={recipe.recetaId}>
-          <p><strong>Emitida por {recipe.profesionalNombre}</strong>{" · "}{formatDate(recipe.emitidaEn, locale)}</p>
-          <ul>
-            {recipe.medicamentos.map((medication, index) => (
-              <li key={index}>
-                <strong>{medication.nombre}</strong>
-                {" · "}{medication.dosis}{" · "}{medication.frecuencia}{" · "}{medication.duracion}
-                {medication.instrucciones && <p>{medication.instrucciones}</p>}
-              </li>
-            ))}
-          </ul>
-          {recipe.indicaciones && <p><strong>Indicaciones:</strong> {recipe.indicaciones}</p>}
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="veterinary-record-list">
+        {prescriptions.map((recipe) => (
+          <li key={recipe.recetaId}>
+            <p><strong>Emitida por {recipe.profesionalNombre}</strong>{" · "}{formatTimestamp(recipe.emitidaEn, locale)}</p>
+            <ul>
+              {recipe.medicamentos.map((medication, index) => (
+                <li key={index}>
+                  <strong>{medication.nombre}</strong>
+                  {" · "}{medication.dosis}{" · "}{medication.frecuencia}{" · "}{medication.duracion}
+                  {medication.instrucciones && <p>{medication.instrucciones}</p>}
+                </li>
+              ))}
+            </ul>
+            {recipe.indicaciones && <p><strong>Indicaciones:</strong> {recipe.indicaciones}</p>}
+            <Button type="button" variant="secondary" icon={Printer} onClick={() => setPrintRecipe(recipe)}>
+              Imprimir receta
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {printRecipe && (
+        <VeterinaryPrescriptionPrint recipe={printRecipe} businessId={businessId}
+          patient={patient} patientId={patientId} assignedOnly={assignedOnly} tutorName={tutorName}
+          onClose={() => setPrintRecipe(null)} />
+      )}
+    </>
   );
 }
 
-export default function VeterinaryPrescriptions({attention, businessId, canIssue, onSavingChange}) {
+export default function VeterinaryPrescriptions({attention, businessId, assignedOnly, canIssue, onSavingChange}) {
   const headingId = useId();
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -89,7 +102,8 @@ export default function VeterinaryPrescriptions({attention, businessId, canIssue
     <section className="erp-panel" aria-labelledby={headingId}>
       <h2 id={headingId}>Recetas veterinarias</h2>
       {prescriptions.length > 0
-        ? <VeterinaryPrescriptionList prescriptions={prescriptions} />
+        ? <VeterinaryPrescriptionList prescriptions={prescriptions} businessId={businessId}
+          patientId={attention.pacienteId} assignedOnly={assignedOnly} />
         : <p className="erp-secondary-text">Esta orden aún no tiene recetas emitidas.</p>}
       {notice && <p role="status">{notice}</p>}
       {canIssue && !draft && prescriptions.length < 5 && (

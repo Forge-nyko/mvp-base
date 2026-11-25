@@ -5,24 +5,43 @@ import {
   Routes,
 } from "react-router-dom";
 
-import VeterinaryManager from "./VeterinaryManager";
+import VeterinaryManager, {VeterinaryProfessionalHome} from "./VeterinaryManager";
 import VeterinaryAgenda from "./agenda/VeterinaryAgenda";
 import VeterinaryAttention from "./attention/VeterinaryAttention";
-import VeterinaryPatients from "./patients/VeterinaryPatients";
+import VeterinaryPatients, {AssignedVeterinaryPatient} from "./patients/VeterinaryPatients";
 import VeterinaryOrders from "./orders/VeterinaryOrders";
 
 
 function VeterinaryRoutes({
   businessId,
   countryCode,
+  professionalUid,
   role,
 }) {
+  if (professionalUid) {
+    const scopeKey = `${businessId}:${professionalUid}`;
+    return (
+      <Routes>
+        <Route index element={<VeterinaryProfessionalHome key={scopeKey} businessId={businessId} professionalUid={professionalUid} />} />
+        <Route path="agenda" element={<VeterinaryAgenda key={scopeKey} businessId={businessId} professionalUid={professionalUid} mode="list" />} />
+        <Route path="citas/:citaId" element={<VeterinaryAgenda key={scopeKey} businessId={businessId} professionalUid={professionalUid} mode="detail" />} />
+        <Route path="ordenes" element={<VeterinaryOrders key={scopeKey} businessId={businessId} professionalUid={professionalUid} />} />
+        <Route path="ordenes/:atencionId" element={<VeterinaryOrders key={scopeKey} businessId={businessId} professionalUid={professionalUid} mode="detail" />} />
+        <Route path="ordenes/:atencionId/atencion" element={<VeterinaryAttention key={scopeKey} businessId={businessId} professionalUid={professionalUid} />} />
+        <Route path="pacientes" element={<AssignedVeterinaryPatient key={scopeKey} businessId={businessId} professionalUid={professionalUid} />} />
+        <Route path="pacientes/:pacienteId" element={<AssignedVeterinaryPatient key={scopeKey} businessId={businessId} professionalUid={professionalUid} />} />
+        <Route path="*" element={<Navigate to="/clinica-veterinaria" replace />} />
+      </Routes>
+    );
+  }
+
   return (
     <Routes>
       <Route
         index
         element={
           <VeterinaryManager
+            key={businessId}
             businessId={businessId}
             role={role}
           />

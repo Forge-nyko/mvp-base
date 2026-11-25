@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from "react";
-import {ClipboardList, Plus, ShoppingBasket, Siren} from "lucide-react";
+import {ArrowLeft, ClipboardList, Plus, ShoppingBasket, Siren} from "lucide-react";
 import {Link, useNavigate, useParams} from "react-router-dom";
 import Button from "../../../components/ui/Button";
 import EmptyState from "../../../components/ui/EmptyState";
@@ -8,15 +8,15 @@ import ModuleHeader from "../../../components/ui/ModuleHeader";
 import StatusBadge from "../../../components/ui/StatusBadge";
 import {auth} from "../../../firebase/firebaseConfig";
 import useBusinessFormat from "../../../hooks/useBusinessFormat";
-import {listarMiembrosNegocio} from "../../../services/businessMemberService";
 import {formatDate} from "../../../utils/formatters";
 import {triageLabels} from "../agenda/VeterinaryReceptionForm";
 import {
   operarOrdenVeterinaria,
   subscribeToVeterinaryAttentions,
-  subscribeToVeterinaryPatients,
 } from "../data/veterinaryDataService";
 import {VETERINARY_TRIAGE_PRIORITIES} from "../domain/receptionTriageModel.mjs";
+import useVeterinaryPatientDirectory from "../useVeterinaryPatientDirectory";
+import {loadAssignableProfessionals, professionalOptionLabel} from "../veterinaryProfessionalOptions";
 import VeterinaryField from "../VeterinaryField";
 import "../veterinary-lists.css";
 import "./veterinary-orders.css";
@@ -53,11 +53,13 @@ function orderError(failure, fallback) {
   ].includes(code) ? failure.message : fallback;
 }
 
-function OrderList({orders, names}) {
+function OrderList({orders, names, professionalUid}) {
   const navigate = useNavigate();
   const {locale} = useBusinessFormat();
   const waiting = orders.filter((order) => order.estado === "en_espera").sort(sortQueue);
   const active = orders.filter((order) => order.estado === "en_atencion");
+  const closed = professionalUid ? orders.filter((order) => order.estado === "finalizada")
+    .sort((left, right) => (right.finalizadaEn?.toMillis?.() ?? 0) - (left.finalizadaEn?.toMillis?.() ?? 0)) : [];
 
   function renderOrder(order) {
     const priority = order.triage?.prioridad;
@@ -89,19 +91,19 @@ function OrderList({orders, names}) {
       <ModuleHeader
         className="veterinary-module-header"
         icon={ClipboardList}
-        title="Órdenes de atención"
-        description="Atiende según la prioridad registrada y la hora de llegada."
-        actions={
+        title={professionalUid ? "Mis órdenes" : "Órdenes de atención"}
+        description={professionalUid ? "Consulta las órdenes asignadas a tu cuenta." : "Atiende según la prioridad registrada y la hora de llegada."}
+        actions={!professionalUid && (
           <>
             <Button type="button" icon={Plus} onClick={() => navigate(ordersPath + "/recepcion")}>Recibir sin cita</Button>
             <Button type="button" icon={Siren} variant="secondary" onClick={() => navigate(ordersPath + "/emergencia")}>Nueva emergencia</Button>
             <Button type="button" icon={ShoppingBasket} variant="secondary" onClick={() => navigate("/ventas/nueva")}>Venta directa</Button>
           </>
-        }
+        )}
       />
-      {waiting.length === 0 && active.length === 0 ? (
-        <EmptyState icon={ClipboardList} title="No hay órdenes activas"
-          description="Recibe a un paciente desde su cita o registra su llegada sin cita." />
+      {waiting.length === 0 && active.length === 0 && closed.length === 0 ? (
+        <EmptyState icon={ClipboardList} title={professionalUid ? "No hay órdenes asignadas" : "No hay órdenes activas"}
+          description={professionalUid ? "Las órdenes asignadas a tu cuenta aparecerán aquí." : "Recibe a un paciente desde su cita o registra su llegada sin cita."} />
       ) : (
         <>
           {waiting.length > 0 && (
@@ -114,6 +116,12 @@ function OrderList({orders, names}) {
             <section className="erp-panel">
               <h2 className="erp-panel-title">En atención</h2>
               <ul className="veterinary-record-list">{active.map(renderOrder)}</ul>
+            </section>
+          )}
+          {closed.length > 0 && (
+            <section className="erp-panel">
+              <h2 className="erp-panel-title">Finalizadas</h2>
+              <ul className="veterinary-record-list">{closed.map(renderOrder)}</ul>
             </section>
           )}
         </>
@@ -202,7 +210,7 @@ function ReceiveOrder({businessId, patients, emergency}) {
   );
 }
 
-function AssignOrder({businessId, order, name, professionals}) {
+function AssignOrder({businessId, order, name, professionals = [], professionalUid}) {
   const navigate = useNavigate();
   const [form, setForm] = useState(() => ({
     box: order.box ?? "",
@@ -213,11 +221,11 @@ function AssignOrder({businessId, order, name, professionals}) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [confirmCancel, setConfirmCancel] = useState(false);
-  const selectedProfessional = professionals.some((member) => member.uid === form.profesionalUid);
+  const selectedProfessional = professionals.find((member) => member.uid === form.profesionalUid);
   const box = form.box.trim().replace(/\s+/g, " ");
   const assignedToCurrentUser = order.profesionalUid && order.profesionalUid === auth.currentUser?.uid;
-  const canStart = assignedToCurrentUser && order.box && order.tipoAtencion &&
-    box === order.box && form.tipoAtencion.trim() === order.tipoAtencion && form.profesionalUid === order.profesionalUid;
+  const canStart = assignedToCurrentUser && order.box && order.tipoAtencion && (professionalUid ||
+    (box === order.box && form.tipoAtencion.trim() === order.tipoAtencion && form.profesionalUid === order.profesionalUid));
   const change = ({target: {name, value}}) => {
     setForm((previous) => ({...previous, [name]: value}));
     setError("");
@@ -283,15 +291,44 @@ function AssignOrder({businessId, order, name, professionals}) {
     );
   }
 
-  return (
-    <section className="erp-panel">
-      <h1>Asignar orden de atención</h1>
+  const summary = (
+    <>
       <p><strong>{name}</strong>{" · "}{originLabels[order.origen] || "Con cita"}</p>
       {order.motivoConsulta && <p>{order.motivoConsulta}</p>}
       <p>
         Llegada: {order.recepcion?.horaLlegada || "Sin registrar"}
         {" · "}Prioridad: {triageLabels[order.triage?.prioridad] || "Sin registrar"}
       </p>
+    </>
+  );
+
+  if (professionalUid) {
+    return (
+      <section className="erp-panel">
+        <h1>Orden de atención</h1>
+        {summary}
+        <dl>
+          <dt>Box de atención</dt>
+          <dd>{order.box || "Sin asignar"}</dd>
+          <dt>Tipo de atención</dt>
+          <dd>{order.tipoAtencion || "Sin asignar"}</dd>
+        </dl>
+        {!canStart && <p>La orden estará lista cuando se asignen el box y el tipo de atención.</p>}
+        {error && <p role="alert">{error}</p>}
+        <div className="veterinary-order-actions">
+          <Button type="button" onClick={start} loading={operation === "start"} disabled={!canStart}>Iniciar atención</Button>
+          <Button type="button" variant="secondary" onClick={() => navigate(base + "/pacientes/" + encodeURIComponent(order.pacienteId))}>
+            Ver ficha del paciente
+          </Button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="erp-panel">
+      <h1>Asignar orden de atención</h1>
+      {summary}
       <form className="erp-form" onSubmit={save}>
         <div className="erp-form-grid">
           <VeterinaryField label="Box de atención" required>
@@ -305,7 +342,11 @@ function AssignOrder({businessId, order, name, professionals}) {
           <VeterinaryField label="Profesional a cargo" required>
             <select className="erp-control" name="profesionalUid" value={selectedProfessional ? form.profesionalUid : ""} onChange={change} required>
               <option value="">Selecciona al responsable</option>
-              {professionals.map((member) => <option key={member.uid} value={member.uid}>{member.nombre === "Nombre no informado" ? member.correo : member.nombre}</option>)}
+              {professionals.map((member) => (
+                <option key={member.uid} value={member.uid}>
+                  {professionalOptionLabel(member)}
+                </option>
+              ))}
             </select>
           </VeterinaryField>
         </div>
@@ -343,25 +384,24 @@ function AssignOrder({businessId, order, name, professionals}) {
   );
 }
 
-export default function VeterinaryOrders({businessId, mode = "list"}) {
+export default function VeterinaryOrders({businessId, mode = "list", professionalUid}) {
   const {atencionId} = useParams();
+  const navigate = useNavigate();
   const reception = mode === "reception" || mode === "emergency";
   const details = mode === "detail";
-  const [patients, setPatients] = useState(null);
   const [orders, setOrders] = useState(null);
   const [professionals, setProfessionals] = useState(null);
   const [error, setError] = useState("");
+  const {patients, error: patientError} = useVeterinaryPatientDirectory(businessId, professionalUid, orders);
   useEffect(() => {
     if (!businessId) return undefined;
-    const stopPatients = subscribeToVeterinaryPatients(businessId, setPatients, () => setError("No se pudieron cargar los pacientes."));
     const stopOrders = reception ? null
-      : subscribeToVeterinaryAttentions(businessId, setOrders, () => setError("No se pudieron cargar las órdenes."));
+      : subscribeToVeterinaryAttentions(businessId, setOrders, () => setError("No se pudieron cargar las órdenes."), professionalUid);
     let active = true;
-    if (details) {
-      listarMiembrosNegocio(businessId)
-        .then((members) => {
-          if (active) setProfessionals(members.filter((member) => member.uid && member.estado === "activo" &&
-            ["OWNER", "ADMIN"].includes(member.rol)));
+    if (details && !professionalUid) {
+      loadAssignableProfessionals(businessId)
+        .then((items) => {
+          if (active) setProfessionals(items);
         })
         .catch(() => {
           if (active) setError("No se pudieron consultar los profesionales de la clínica.");
@@ -369,14 +409,13 @@ export default function VeterinaryOrders({businessId, mode = "list"}) {
     }
     return () => {
       active = false;
-      stopPatients();
       stopOrders?.();
     };
-  }, [businessId, reception, details]);
+  }, [businessId, reception, details, professionalUid]);
 
   if (!businessId) return <p role="alert">Selecciona una empresa activa.</p>;
-  if (error) return <p role="alert">{error}</p>;
-  if (!patients || (!reception && !orders) || (details && !professionals)) {
+  if (error || patientError) return <p role="alert">{error || patientError}</p>;
+  if (!patients || (!reception && !orders) || (details && !professionalUid && !professionals)) {
     return <LoadingState variant="section" label="Cargando órdenes de atención..." />;
   }
 
@@ -384,12 +423,18 @@ export default function VeterinaryOrders({businessId, mode = "list"}) {
   const order = details ? orders.find((item) => item.id === atencionId) : null;
   return (
     <div className="erp-page">
-      {mode !== "list" && <nav aria-label="Órdenes de atención"><Link to={ordersPath}>Volver a las órdenes</Link></nav>}
-      {mode === "list" && <OrderList orders={orders} names={names} />}
+      {mode !== "list" && (
+        <nav aria-label="Órdenes de atención">
+          <Button type="button" variant="secondary" icon={ArrowLeft} onClick={() => navigate(ordersPath)}>
+            Volver a las órdenes
+          </Button>
+        </nav>
+      )}
+      {mode === "list" && <OrderList orders={orders} names={names} professionalUid={professionalUid} />}
       {reception && <ReceiveOrder businessId={businessId} patients={patients} emergency={mode === "emergency"} />}
       {details && (order
         ? <AssignOrder key={order.id} businessId={businessId} order={order}
-          name={names.get(order.pacienteId) || "Paciente"} professionals={professionals} />
+          name={names.get(order.pacienteId) || "Paciente"} professionals={professionals ?? []} professionalUid={professionalUid} />
         : <p className="erp-empty-state">Orden de atención no encontrada.</p>)}
     </div>
   );

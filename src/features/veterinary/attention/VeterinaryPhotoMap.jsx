@@ -3,6 +3,7 @@ import Button from "../../../components/ui/Button";
 import LoadingState from "../../../components/ui/LoadingState";
 import "./veterinary-photo-map.css";
 import {operarFotoVeterinaria} from "../data/veterinaryDataService";
+import {imageAsJpeg} from "../domain/photoEncoding.mjs";
 
 const views = {
   general: "General", frontal: "Frontal", "lateral-izquierda": "Lateral izquierda",
@@ -29,39 +30,6 @@ function fileProblem(file) {
     return "La foto debe tener contenido y pesar como máximo 20 MiB. Se guarda reducida a un JPEG de hasta 2 MiB.";
   }
   return "";
-}
-
-async function imageAsJpeg(file) {
-  const bitmap = await createImageBitmap(file).catch(() => {
-    throw new Error("No se pudo leer la imagen. Comprueba que sea un JPEG, PNG o WebP válido.");
-  });
-  try {
-    const scale = Math.min(1, 1800 / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    const context = canvas.getContext("2d", {alpha: false});
-    context.fillStyle = "white";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    for (const quality of [0.82, 0.65, 0.45]) {
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
-      if (!blob || blob.type !== "image/jpeg" || !blob.size) {
-        throw new Error("No se pudo convertir la foto a JPEG. Prueba con otra imagen o navegador.");
-      }
-      if (blob.size <= 2 * 1024 * 1024) {
-        return await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result).split(",")[1]);
-          reader.onerror = () => reject(new Error("No se pudo preparar la foto para subirla."));
-          reader.readAsDataURL(blob);
-        });
-      }
-    }
-    throw new Error("El JPEG convertido supera los 2 MiB. Reduce el tamaño de la imagen o elige otra foto.");
-  } finally {
-    bitmap.close();
-  }
 }
 
 function PhotoMapper({businessId, attentionId, photo, closed}) {
