@@ -414,6 +414,7 @@ function AppRoutes({
               key={businessId}
               businessId={businessId}
               currentUserUid={usuario?.uid}
+              enabledModules={businessPathOptions.enabledModules}
               role={activeBusiness?.role}
             />
           }
